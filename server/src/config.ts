@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const Schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().positive().default(3000),
+  PORT: z.coerce.number().int().nonnegative().default(3000),
   DATABASE_URL: z.string().min(1),
   SESSION_SECRET: z.string().min(32),
   EMAILER_ENC_KEY: z.string().refine(
