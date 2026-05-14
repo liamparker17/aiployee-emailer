@@ -25,6 +25,17 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     } catch (e) { sendError(reply, e); }
   });
 
+  app.get('/api/me', async (req, reply) => {
+    const sess = req.session;
+    if (!sess?.userId) return reply.send({ user: null });
+    reply.send({ user: {
+      id: sess.userId,
+      email: '',
+      role: sess.role,
+      tenantId: sess.tenantId ?? null,
+    }});
+  });
+
   app.post('/auth/logout', async (req, reply) => {
     await req.session.destroy();
     reply.send({ ok: true });
