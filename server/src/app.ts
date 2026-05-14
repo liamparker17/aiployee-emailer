@@ -3,6 +3,7 @@ import { logger } from './util/logger.js';
 import { loadConfig, type Config } from './config.js';
 import { getPool } from './db/pool.js';
 import { registerSessions } from './auth/session.js';
+import { registerCsrf } from './auth/csrf.js';
 
 export interface AppDeps { cfg?: Config }
 
@@ -13,6 +14,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   const pool = getPool(cfg);
   app.decorate('pool', pool);
   await registerSessions(app, cfg, pool);
+  registerCsrf(app);
   app.get('/healthz', async () => ({ ok: true }));
   return app;
 }

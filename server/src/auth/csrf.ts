@@ -1,0 +1,31 @@
+import type { FastifyInstance } from 'fastify';
+import { randomBytes } from 'node:crypto';
+
+const COOKIE = 'aip_csrf';
+const HEADER = 'x-csrf-token';
+
+export function registerCsrf(app: FastifyInstance) {
+  app.addHook('onRequest', async (req, reply) => {
+    const existing = req.cookies[COOKIE];
+    if (!existing) {
+      const token = randomBytes(24).toString('base64url');
+      reply.setCookie(COOKIE, token, {
+        path: '/', sameSite: 'lax', httpOnly: false,
+        secure: app.cfg.env === 'production',
+      });
+      (req as unknown as { csrfToken: string }).csrfToken = token;
+    } else {
+      (req as unknown as { csrfToken: string }).csrfToken = existing;
+    }
+  });
+  app.addHook('preHandler', async (req, reply) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return;
+    if (req.url.startsWith('/v1/')) return; // API key routes use bearer auth, not CSRF
+    if (req.url === '/healthz') return;
+    const cookie = req.cookies[COOKIE];
+    const header = req.headers[HEADER];
+    if (!cookie || !header || cookie !== header) {
+      reply.code(403).send({ error: { code: 'csrf_invalid', message: 'CSRF token missing or invalid' } });
+    }
+  });
+}
