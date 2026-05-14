@@ -16,6 +16,7 @@ import { handleSendJob } from './send/worker.js';
 import { registerV1EmailRoutes } from './routes/v1Emails.js';
 import { startScheduler } from './send/scheduler.js';
 import { registerV1WebhookRoutes } from './routes/v1Webhooks.js';
+import { registerSuppressionRoutes } from './routes/suppressions.js';
 
 export interface AppDeps { cfg?: Config }
 
@@ -43,6 +44,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerApiKeyRoutes(app);
   await registerV1EmailRoutes(app);
   await registerV1WebhookRoutes(app);
+  await registerSuppressionRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
   return app;
 }
