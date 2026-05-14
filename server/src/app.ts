@@ -11,6 +11,7 @@ import { registerSmtpConfigRoutes } from './routes/smtpConfigs.js';
 import { registerSenderRoutes } from './routes/senders.js';
 import { registerTemplateRoutes } from './routes/templates.js';
 import { registerApiKeyRoutes } from './routes/apiKeys.js';
+import { startBoss, stopBoss } from './boss.js';
 
 export interface AppDeps { cfg?: Config }
 
@@ -20,6 +21,8 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   app.decorate('cfg', cfg);
   const pool = getPool(cfg);
   app.decorate('pool', pool);
+  await startBoss(cfg);
+  app.addHook('onClose', async () => { await stopBoss(); });
   await registerSessions(app, cfg, pool);
   registerCsrf(app);
   registerCtx(app);
