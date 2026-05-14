@@ -1,0 +1,10 @@
+{
+  "fontBody": "Inter, system-ui, sans-serif",
+  "fontHeading": "Inter, system-ui, sans-serif",
+  "colorBg": "rgb(255, 255, 255)",
+  "colorText": "rgb(15, 23, 42)",
+  "colorPrimary": "rgb(15, 23, 42)",
+  "colorPrimaryText": "rgb(255, 255, 255)",
+  "btnRadius": "9999px",
+  "btnPadding": "12px 24px"
+}
