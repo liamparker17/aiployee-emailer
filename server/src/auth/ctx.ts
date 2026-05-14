@@ -38,7 +38,9 @@ export function registerCtx(app: FastifyInstance) {
     if (req.url.startsWith('/api/') || req.url.startsWith('/auth/')) {
       const sess = req.session;
       if (!sess?.userId) {
-        if (req.url === '/auth/login' || req.url === '/auth/invite/accept' || req.url === '/api/me') return;
+        // Path-only check (req.url may carry a query string).
+        const path = req.url.split('?')[0];
+        if (path === '/auth/login' || path === '/auth/invite/accept' || path === '/api/me') return;
         return reply.code(401).send({ error: { code: 'unauthorized', message: 'Not signed in' } });
       }
       req.ctx = {
