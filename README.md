@@ -47,9 +47,18 @@ No per-seat licensing, no managed services, no third-party vendors. Scaling late
 - **Multi-tenant.** AIployee staff (super-admin) onboard client tenants and invite their first user.
 - **Tenant-managed resources.** Each tenant manages their own senders (e.g. `alex@acme.com`), HTML templates with `{{variable}}` placeholders, SMTP credentials (encrypted at rest with AES-256-GCM), and API keys.
 - **REST API.** `POST /v1/emails` for immediate or scheduled send; `GET /v1/emails/:id` for status; suppressions checked pre-send.
+- **Immediate sends dispatch inline** in the API request — caller gets `sent`/`failed` synchronously, no waiting on a queue.
 - **Bounce handling.** Webhooks for SES (SNS) and Mailgun automatically mark emails bounced/complained and add the recipient to a per-tenant suppression list.
 - **Email log.** Per-tenant searchable history with status, error, and full message body.
 - **Strict isolation.** A tenant cannot see or affect another tenant's data; cross-tenant attempts return 403/404.
+
+## Throughput & reliability
+
+- **~30,000 emails/hour** at default settings (500 emails per cron tick, 1 tick/minute). Tunable via `CRON_BATCH_SIZE`. Real ceiling is your tenant's SMTP provider's rate limit, not us.
+- **Pooled SMTP transports** — one TCP+TLS connection per provider per cron tick, reused across all that provider's emails. No handshake-per-email overhead.
+- **Concurrent-safe claim** — `FOR UPDATE SKIP LOCKED` in the queue claim means multiple cron pings (or overlapping ones) never double-send.
+- **Retry policy: 1 retry** (2 total attempts: initial + 1 retry), 60s cool-off between attempts. Configurable.
+- **Crash recovery** — if a function crashes mid-send, the row sits in `status='sending'` and is auto-requeued by the retry cron after 2 minutes. No manual intervention.
 
 ## Architecture
 
