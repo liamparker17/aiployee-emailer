@@ -17,6 +17,7 @@ import { registerV1EmailRoutes } from './routes/v1Emails.js';
 import { startScheduler } from './send/scheduler.js';
 import { registerV1WebhookRoutes } from './routes/v1Webhooks.js';
 import { registerSuppressionRoutes } from './routes/suppressions.js';
+import { registerEmailRoutes } from './routes/emails.js';
 
 export interface AppDeps { cfg?: Config }
 
@@ -45,6 +46,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerV1EmailRoutes(app);
   await registerV1WebhookRoutes(app);
   await registerSuppressionRoutes(app);
+  await registerEmailRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
   return app;
 }
