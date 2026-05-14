@@ -1,0 +1,13 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: emailer
+      POSTGRES_PASSWORD: emailer
+      POSTGRES_DB: emailer
+    ports: ["5433:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U emailer"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
