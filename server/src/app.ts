@@ -1,4 +1,7 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
+import fastifyStatic from '@fastify/static';
 import { logger } from './util/logger.js';
 import { loadConfig, type Config } from './config.js';
 import { getPool } from './db/pool.js';
@@ -50,6 +53,18 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerEmailRoutes(app);
   await registerUserRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
+
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const publicDir = path.resolve(__dirname, '../public');
+  await app.register(fastifyStatic, { root: publicDir, prefix: '/', decorateReply: false, wildcard: false });
+
+  app.setNotFoundHandler(async (req, reply) => {
+    if (req.url.startsWith('/api/') || req.url.startsWith('/auth/') || req.url.startsWith('/v1/') || req.url === '/healthz') {
+      return reply.code(404).send({ error: { code: 'not_found', message: 'Not found' } });
+    }
+    return reply.type('text/html').sendFile('index.html');
+  });
+
   return app;
 }
 
