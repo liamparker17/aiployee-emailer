@@ -1,0 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+h1,h2,h3,h4 { font-family: theme('fontFamily.heading'); font-weight: 600; }
