@@ -5,6 +5,7 @@ import { getPool } from './db/pool.js';
 import { registerSessions } from './auth/session.js';
 import { registerCsrf } from './auth/csrf.js';
 import { registerCtx } from './auth/ctx.js';
+import { registerAuthRoutes } from './routes/auth.js';
 
 export interface AppDeps { cfg?: Config }
 
@@ -17,6 +18,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerSessions(app, cfg, pool);
   registerCsrf(app);
   registerCtx(app);
+  await registerAuthRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
   return app;
 }
