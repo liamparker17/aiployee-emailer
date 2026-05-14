@@ -12,6 +12,7 @@ const Schema = z.object({
   PUBLIC_BASE_URL: z.string().url(),
   LOG_LEVEL: z.string().default('info'),
   CRON_SECRET: z.string().min(16, 'CRON_SECRET must be ≥16 chars').default('PLACEHOLDER_REPLACE_IN_VERCEL_ENV_VARS'),
+  CRON_BATCH_SIZE: z.coerce.number().int().min(1).max(2000).default(500),
 });
 
 export type Config = {
@@ -23,6 +24,7 @@ export type Config = {
   publicBaseUrl: string;
   logLevel: string;
   cronSecret: string;
+  cronBatchSize: number;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env): Config {
@@ -36,5 +38,6 @@ export function loadConfig(env: NodeJS.ProcessEnv | Record<string, string | unde
     publicBaseUrl: p.PUBLIC_BASE_URL,
     logLevel: p.LOG_LEVEL,
     cronSecret: p.CRON_SECRET,
+    cronBatchSize: p.CRON_BATCH_SIZE,
   };
 }

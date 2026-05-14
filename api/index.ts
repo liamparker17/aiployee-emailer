@@ -21,5 +21,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 // Vercel function config — uses Fluid Compute (Node.js, not Edge).
 export const config = {
   runtime: 'nodejs',
-  maxDuration: 60, // immediate-send dispatches inline; allow time for SMTP
+  // Vercel default is 300s on all plans. Cron tick processes CRON_BATCH_SIZE emails
+  // in parallel (default 200); 300s gives plenty of headroom even with slow SMTP.
+  maxDuration: 300,
 };

@@ -96,15 +96,32 @@ export async function claimDueForSend(pool: pg.Pool, limit = 50): Promise<EmailR
   return r.rows;
 }
 
-/** Move failed emails back to queued if they're under the retry limit and have cooled off. */
-export async function requeueFailed(pool: pg.Pool, opts: { maxRetries?: number; cooloffSeconds?: number } = {}): Promise<number> {
-  const max = opts.maxRetries ?? 5;
-  const cool = opts.cooloffSeconds ?? 300;
-  const r = await pool.query(
+/**
+ * Move failed-or-stuck emails back to queued so the next cron tick retries them.
+ * - 'failed' rows: requeued if retry_count < maxAttempts and they've cooled off.
+ * - 'sending' rows: requeued if they've been stuck longer than stuckSeconds (covers
+ *   the case where a function crashed after claiming but before marking sent/failed).
+ */
+export async function requeueFailedAndStuck(pool: pg.Pool, opts: {
+  maxAttempts?: number;
+  cooloffSeconds?: number;
+  stuckSeconds?: number;
+} = {}): Promise<{ failed: number; stuck: number }> {
+  const max = opts.maxAttempts ?? 2;          // initial attempt + 1 retry by default
+  const cool = opts.cooloffSeconds ?? 60;
+  const stuck = opts.stuckSeconds ?? 120;     // 2 min — well past inline-send timeout
+
+  const failed = await pool.query(
     `UPDATE emails SET status='queued'
      WHERE status='failed' AND retry_count < $1 AND updated_at < now() - ($2 || ' seconds')::interval`,
     [max, String(cool)]);
-  return r.rowCount ?? 0;
+
+  const stuckRows = await pool.query(
+    `UPDATE emails SET status='queued'
+     WHERE status='sending' AND updated_at < now() - ($1 || ' seconds')::interval`,
+    [String(stuck)]);
+
+  return { failed: failed.rowCount ?? 0, stuck: stuckRows.rowCount ?? 0 };
 }
 
 export async function markStatus(pool: pg.Pool, id: string, status: EmailStatus): Promise<void> {
