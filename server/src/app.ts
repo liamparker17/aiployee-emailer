@@ -9,6 +9,7 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerAdminTenantRoutes } from './routes/adminTenants.js';
 import { registerSmtpConfigRoutes } from './routes/smtpConfigs.js';
 import { registerSenderRoutes } from './routes/senders.js';
+import { registerTemplateRoutes } from './routes/templates.js';
 
 export interface AppDeps { cfg?: Config }
 
@@ -25,6 +26,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerAdminTenantRoutes(app);
   await registerSmtpConfigRoutes(app);
   await registerSenderRoutes(app);
+  await registerTemplateRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
   return app;
 }
