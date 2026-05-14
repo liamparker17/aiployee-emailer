@@ -5,3 +5,5 @@ server/public
 *.log
 coverage
 .DS_Store
+
+.vercel

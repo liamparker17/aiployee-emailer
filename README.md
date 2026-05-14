@@ -20,12 +20,19 @@ The AIployee Emailer flips that:
 
 | Service | Typical cost at AIployee scale | What it gave us | What we lose by self-hosting |
 |---|---|---|---|
+| **Brevo** (was Sendinblue) | $9/mo Starter (5k emails/mo) → $18/mo Business (20k) → enterprise pricing past that. **Per-account, not per-tenant** — every AIployee client either needs their own Brevo account (you manage 10 dashboards) or shares one (deliverability reputation cross-contaminates between clients). | API, templates, basic contacts, transactional + marketing in one tool | Nothing for transactional. Brevo's marketing-list tooling is not built here (out of scope for v1). |
 | Postmark / SendGrid (per-tenant) | $15–50/mo per client | A UI, an API, deliverability | Nothing — clients still bring their own SMTP, we just own the UX layer |
 | Mailgun multi-account | ~$35/mo + per-email | API + bounce handling | Nothing — bounce webhooks built in |
 | Customer.io / Mandrill | $100+/mo | Templates, scheduling | Nothing — templates + scheduled sends built in |
-| **AIployee Emailer** | **~$5/mo total** | All of the above, AIployee-branded | Vendor SLA — but AIployee is the operator either way |
+| **AIployee Emailer** | **~$0–5/mo total** (Vercel free tier covers v1; ~$5 if you VPS-host) | All of the above for transactional, AIployee-branded, **truly per-tenant** | Vendor SLA — but AIployee is the operator either way |
 
-Break-even vs even one client on Postmark: month one.
+**Specifically vs Brevo:**
+- Brevo at 10 clients × 5,000 emails/mo each = 10 × $9/mo = **$90/mo** with separate accounts (and 10 dashboards to manage), or one shared account with mixed sender reputation.
+- AIployee Emailer at the same volume = **$0/mo** on Vercel free tier (up to ~100k function invocations/month). Each client's SMTP credentials are isolated; their deliverability reputation stays on their own SES/Mailgun/Brevo account.
+- Brevo locks templates and contacts to their UI. AIployee Emailer's templates live in our Postgres — readable, exportable, version-controllable.
+- Brevo charges per email above the included volume. AIployee Emailer doesn't — we don't touch the email-send bill at all (tenant's SMTP provider does).
+
+Break-even vs even one client on Brevo Starter: month one.
 
 ## Cost (TL;DR for the CEO)
 
