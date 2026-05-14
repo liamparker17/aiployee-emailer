@@ -14,10 +14,8 @@ import { registerSmtpConfigRoutes } from './routes/smtpConfigs.js';
 import { registerSenderRoutes } from './routes/senders.js';
 import { registerTemplateRoutes } from './routes/templates.js';
 import { registerApiKeyRoutes } from './routes/apiKeys.js';
-import { startBoss, stopBoss } from './boss.js';
-import { handleSendJob } from './send/worker.js';
 import { registerV1EmailRoutes } from './routes/v1Emails.js';
-import { startScheduler } from './send/scheduler.js';
+import { registerCronRoutes } from './routes/cron.js';
 import { registerV1WebhookRoutes } from './routes/v1Webhooks.js';
 import { registerSuppressionRoutes } from './routes/suppressions.js';
 import { registerEmailRoutes } from './routes/emails.js';
@@ -36,16 +34,9 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   app.decorate('cfg', cfg);
   const pool = getPool(cfg);
   app.decorate('pool', pool);
-  const boss = await startBoss(cfg);
-  app.addHook('onClose', async () => { await stopBoss(); });
-  // pg-boss v10: batchSize controls concurrency per worker; teamSize/teamConcurrency are pre-v10 names.
-  await boss.work<{ emailId: string }>('send-email', { batchSize: 5 }, async (jobs) => {
-    for (const job of jobs) {
-      await handleSendJob({ pool, encKey: cfg.encKey, emailId: job.data.emailId });
-    }
-  });
-  const stopScheduler = startScheduler({ pool, boss });
-  app.addHook('onClose', async () => { stopScheduler(); });
+  // No in-process worker / scheduler. Sending happens inline in POST /v1/emails for immediate
+  // sends, and via POST /v1/cron/* endpoints driven by an external cron (e.g. cron-job.org)
+  // for scheduled + retry. This keeps the app stateless so it runs on Vercel/anywhere.
   await registerSessions(app, cfg, pool);
   registerCsrf(app);
   registerCtx(app);
@@ -56,6 +47,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerTemplateRoutes(app);
   await registerApiKeyRoutes(app);
   await registerV1EmailRoutes(app);
+  await registerCronRoutes(app);
   await registerV1WebhookRoutes(app);
   await registerSuppressionRoutes(app);
   await registerEmailRoutes(app);

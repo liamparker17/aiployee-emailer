@@ -53,17 +53,24 @@ No per-seat licensing, no managed services, no third-party vendors. Scaling late
 
 ## Architecture
 
-Three containers on one VPS, fronted by Caddy for TLS:
+**Stateless Fastify app + Postgres + external cron.** Runs on Vercel (recommended) or any VPS.
 
 ```
-caddy ─▶ app (Fastify API + pg-boss worker + static React UI) ─▶ postgres
+[ workflow ] ──▶ POST /v1/emails ──▶ Fastify ──▶ SMTP (immediate)
+                                       │
+                                       ▼
+                                    Postgres
+                                       ▲
+                                       │
+[ cron-job.org ] ──▶ POST /v1/cron/process-queue (every 1 min)
+                ──▶ POST /v1/cron/retry-failed   (every 5 min)
 ```
 
-- **Backend:** Node 24 + Fastify 5 + Zod validation
-- **Database:** Postgres 16 (data, sessions, and the pg-boss job queue)
-- **Worker:** pg-boss running in-process in the same Node app
+- **Backend:** Node 24 + Fastify 5 + Zod
+- **Database:** Postgres 16 (data + sessions; no separate queue/Redis)
+- **Sending:** Immediate sends dispatch inline in `POST /v1/emails`; scheduled + retries are driven by external cron hitting `/v1/cron/*`
 - **Frontend:** React 18 + Vite + Tailwind, built into `server/public` and served by Fastify
-- **Reverse proxy:** Caddy 2 (auto-TLS via Let's Encrypt)
+- **TLS:** Vercel automatic, or Caddy 2 on a VPS
 - **SMTP:** Nodemailer; each tenant supplies their own SMTP host + credentials
 
 ## Quick start (local dev) — one command
@@ -84,6 +91,37 @@ The script:
 5. Builds the UI into `server/public`.
 6. Creates a super-admin user (default `admin@aiployee.co.za` / `change-me-now`).
 7. Tells you to run `npm -w server run dev` and `npm -w web run dev`.
+
+## Quick start (Vercel — recommended)
+
+```bash
+# 1. Install Vercel CLI once
+npm i -g vercel
+
+# 2. Provision a Postgres database via the Vercel Marketplace (Neon free tier works)
+#    Vercel auto-injects DATABASE_URL into your project env.
+
+# 3. Set the rest of the env vars
+vercel env add SESSION_SECRET production       # 32+ char random
+vercel env add EMAILER_ENC_KEY production      # 32-byte base64 (openssl rand -base64 32)
+vercel env add PUBLIC_BASE_URL production      # https://email.aiployee.co.za
+vercel env add CRON_SECRET production          # any long random string — paste this into cron-job.org headers
+
+# 4. Deploy
+vercel deploy --prod
+
+# 5. Run migrations against the deployed DB
+DATABASE_URL=$(vercel env pull .env.tmp >/dev/null && grep ^DATABASE_URL .env.tmp | cut -d= -f2-) \
+  npx -w server node-pg-migrate -m server/migrations up && rm .env.tmp
+
+# 6. Bootstrap the first super-admin (one-off via curl against the deployed URL)
+#    See scripts/create-super-admin.sh — or run it locally pointed at the prod DATABASE_URL.
+
+# 7. Wire cron-job.org (free tier: https://cron-job.org)
+#    Job 1: POST https://email.aiployee.co.za/v1/cron/process-queue   every 1 min
+#    Job 2: POST https://email.aiployee.co.za/v1/cron/retry-failed    every 5 min
+#    Both jobs need header:  Authorization: Bearer <your CRON_SECRET>
+```
 
 ## Quick start (production VPS) — three commands
 

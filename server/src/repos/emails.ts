@@ -74,7 +74,37 @@ export async function markSent(pool: pg.Pool, id: string, messageId: string): Pr
 }
 
 export async function markFailed(pool: pg.Pool, id: string, error: string): Promise<void> {
-  await pool.query(`UPDATE emails SET status='failed', error = $2 WHERE id = $1`, [id, error]);
+  await pool.query(
+    `UPDATE emails SET status='failed', error = $2, retry_count = retry_count + 1 WHERE id = $1`,
+    [id, error]);
+}
+
+/** Atomically claim up to `limit` due emails. Sets status='sending' so concurrent cron invocations don't double-send. */
+export async function claimDueForSend(pool: pg.Pool, limit = 50): Promise<EmailRow[]> {
+  const r = await pool.query<EmailRow>(
+    `UPDATE emails SET status = 'sending'
+     WHERE id IN (
+       SELECT id FROM emails
+       WHERE status = 'queued'
+         AND (scheduled_for IS NULL OR scheduled_for <= now())
+       ORDER BY scheduled_for NULLS FIRST, created_at
+       LIMIT $1
+       FOR UPDATE SKIP LOCKED
+     )
+     RETURNING ${SELECT}`,
+    [limit]);
+  return r.rows;
+}
+
+/** Move failed emails back to queued if they're under the retry limit and have cooled off. */
+export async function requeueFailed(pool: pg.Pool, opts: { maxRetries?: number; cooloffSeconds?: number } = {}): Promise<number> {
+  const max = opts.maxRetries ?? 5;
+  const cool = opts.cooloffSeconds ?? 300;
+  const r = await pool.query(
+    `UPDATE emails SET status='queued'
+     WHERE status='failed' AND retry_count < $1 AND updated_at < now() - ($2 || ' seconds')::interval`,
+    [max, String(cool)]);
+  return r.rowCount ?? 0;
 }
 
 export async function markStatus(pool: pg.Pool, id: string, status: EmailStatus): Promise<void> {

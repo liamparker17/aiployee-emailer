@@ -15,7 +15,7 @@ declare module 'fastify' {
 
 export function registerCtx(app: FastifyInstance) {
   app.addHook('preHandler', async (req: FastifyRequest, reply) => {
-    if (req.url === '/healthz' || req.url.startsWith('/v1/webhooks/')) return;
+    if (req.url === '/healthz' || req.url.startsWith('/v1/webhooks/') || req.url.startsWith('/v1/cron/')) return;
 
     if (req.url.startsWith('/v1/')) {
       const auth = req.headers.authorization;
