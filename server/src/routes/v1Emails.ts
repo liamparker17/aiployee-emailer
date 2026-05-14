@@ -33,12 +33,10 @@ export async function registerV1EmailRoutes(app: FastifyInstance) {
         const ours = claimed.find(e => e.id === email.id) ?? null;
         if (ours) {
           const result = await dispatchEmail({ pool: app.pool, encKey: app.cfg.encKey, email: ours });
-          return reply.code(202).send({
-            id: email.id,
-            status: result.ok ? 'sent' : 'failed',
-            message_id: result.ok ? result.messageId : null,
-            error: result.ok ? null : result.error,
-          });
+          if (result.ok) {
+            return reply.code(202).send({ id: email.id, status: 'sent', message_id: result.messageId, error: null });
+          }
+          return reply.code(202).send({ id: email.id, status: 'failed', message_id: null, error: result.error });
         }
         // Race: another worker already grabbed it. Return queued.
       }
