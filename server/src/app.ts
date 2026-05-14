@@ -7,6 +7,7 @@ import { registerCsrf } from './auth/csrf.js';
 import { registerCtx } from './auth/ctx.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerAdminTenantRoutes } from './routes/adminTenants.js';
+import { registerSmtpConfigRoutes } from './routes/smtpConfigs.js';
 
 export interface AppDeps { cfg?: Config }
 
@@ -21,6 +22,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   registerCtx(app);
   await registerAuthRoutes(app);
   await registerAdminTenantRoutes(app);
+  await registerSmtpConfigRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
   return app;
 }
