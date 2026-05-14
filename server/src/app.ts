@@ -12,6 +12,8 @@ import { registerSenderRoutes } from './routes/senders.js';
 import { registerTemplateRoutes } from './routes/templates.js';
 import { registerApiKeyRoutes } from './routes/apiKeys.js';
 import { startBoss, stopBoss } from './boss.js';
+import { handleSendJob } from './send/worker.js';
+import { registerV1EmailRoutes } from './routes/v1Emails.js';
 
 export interface AppDeps { cfg?: Config }
 
@@ -21,8 +23,11 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   app.decorate('cfg', cfg);
   const pool = getPool(cfg);
   app.decorate('pool', pool);
-  await startBoss(cfg);
+  const boss = await startBoss(cfg);
   app.addHook('onClose', async () => { await stopBoss(); });
+  await boss.work<{ emailId: string }>('send-email', { teamSize: 5, teamConcurrency: 5 }, async ([job]) => {
+    await handleSendJob({ pool, encKey: cfg.encKey, emailId: job.data.emailId });
+  });
   await registerSessions(app, cfg, pool);
   registerCsrf(app);
   registerCtx(app);
@@ -32,6 +37,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerSenderRoutes(app);
   await registerTemplateRoutes(app);
   await registerApiKeyRoutes(app);
+  await registerV1EmailRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
   return app;
 }
