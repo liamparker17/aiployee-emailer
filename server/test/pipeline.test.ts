@@ -28,7 +28,7 @@ describe('queueEmail', () => {
     const enqueue = vi.fn().mockResolvedValue(undefined);
     const r = await queueEmail({
       pool, enqueueSend: enqueue,
-      input: { tenantId: t.id, fromEmail: s.email, to: 'r@x.com', subject: 'Hi', html: '<p>hi</p>' },
+      input: { tenantId: t.id, from: s.email, to: 'r@x.com', subject: 'Hi', html: '<p>hi</p>' },
     });
     expect(r.status).toBe('queued');
     expect(enqueue).toHaveBeenCalledWith(r.id);
@@ -42,7 +42,7 @@ describe('queueEmail', () => {
     });
     const r = await queueEmail({
       pool, enqueueSend: async () => {},
-      input: { tenantId: t.id, fromEmail: s.email, to: 'r@x.com', template: 'welcome', variables: { name: 'Alex' } },
+      input: { tenantId: t.id, from: s.email, to: 'r@x.com', template: 'welcome', variables: { name: 'Alex' } },
     });
     expect(r.status).toBe('queued');
     const row = await pool.query<{ subject: string; body_html: string }>(
@@ -55,7 +55,7 @@ describe('queueEmail', () => {
     const { t } = await setup();
     await expect(queueEmail({
       pool, enqueueSend: async () => {},
-      input: { tenantId: t.id, fromEmail: 'nope@x.com', to: 'r@x.com', subject: 'Hi', html: '<p>x</p>' },
+      input: { tenantId: t.id, from: 'nope@x.com', to: 'r@x.com', subject: 'Hi', html: '<p>x</p>' },
     })).rejects.toMatchObject({ code: 'invalid_sender' });
   });
 
@@ -64,7 +64,7 @@ describe('queueEmail', () => {
     await addSuppression(pool, { tenantId: t.id, address: 'bad@x.com', reason: 'bounce' });
     const r = await queueEmail({
       pool, enqueueSend: async () => {},
-      input: { tenantId: t.id, fromEmail: s.email, to: 'bad@x.com', subject: 'Hi', html: '<p>x</p>' },
+      input: { tenantId: t.id, from: s.email, to: 'bad@x.com', subject: 'Hi', html: '<p>x</p>' },
     });
     expect(r.status).toBe('suppressed');
   });
@@ -75,7 +75,7 @@ describe('queueEmail', () => {
     const future = new Date(Date.now() + 60_000);
     const r = await queueEmail({
       pool, enqueueSend: enqueue,
-      input: { tenantId: t.id, fromEmail: s.email, to: 'r@x.com', subject: 'Hi', html: '<p>x</p>', scheduledFor: future },
+      input: { tenantId: t.id, from: s.email, to: 'r@x.com', subject: 'Hi', html: '<p>x</p>', scheduled_for: future },
     });
     expect(r.status).toBe('queued');
     expect(enqueue).not.toHaveBeenCalled();

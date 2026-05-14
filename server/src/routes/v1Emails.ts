@@ -1,12 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { sendError, AppError } from '../util/errors.js';
-import { queueEmail, SendInput } from '../send/pipeline.js';
+import { queueEmail, SendInputShape } from '../send/pipeline.js';
 import { getEmail, listEmails, type EmailStatus } from '../repos/emails.js';
 import { getBoss } from '../boss.js';
 import { requireCtx } from '../auth/ctx.js';
 
-const ApiSendBody = SendInput.omit({ tenantId: true, apiKeyId: true });
+const ApiSendBody = SendInputShape.omit({ tenantId: true, apiKeyId: true }).refine(
+  (v) => (v.subject && v.html) || v.template,
+  { message: 'Provide either subject+html or template' },
+);
 
 export async function registerV1EmailRoutes(app: FastifyInstance) {
   app.post('/v1/emails', async (req, reply) => {
@@ -19,7 +22,7 @@ export async function registerV1EmailRoutes(app: FastifyInstance) {
         enqueueSend: async (id) => { await getBoss().send('send-email', { emailId: id }); },
         input: { ...body, tenantId: ctx.tenantId, apiKeyId: ctx.apiKeyId },
       });
-      reply.code(202).send({ id: email.id, status: email.status, scheduledFor: email.scheduled_for });
+      reply.code(202).send({ id: email.id, status: email.status, scheduled_for: email.scheduled_for });
     } catch (e) { sendError(reply, e); }
   });
 

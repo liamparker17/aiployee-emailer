@@ -170,7 +170,11 @@ curl -X POST https://email.aiployee.co.za/v1/emails \
 
 ## Status
 
-v1 implementation complete (54 commits across Plans A → B → C). See `docs/superpowers/specs/` for the design spec, `docs/superpowers/plans/` for the implementation plans, and `docs/acceptance/README.md` for the acceptance walkthrough.
+**Code-complete, not yet production-validated.** All v1 features implemented across Plans A → B → C (see commit history). Before treating this as production-ready for client traffic, the acceptance walkthrough at `docs/acceptance/README.md` must be run end-to-end against a real deployment with screenshots / curl transcripts captured as evidence. Cost figures in this README are projections based on the chosen architecture (single Hetzner CX11 + in-container Postgres), not measured from a deployed instance.
+
+Recommended next step: stand up a controlled internal MVP — one VPS, one AIployee-internal tenant, one real workflow — and run the acceptance checklist before onboarding any external client.
+
+See `docs/superpowers/specs/` for the design spec and `docs/superpowers/plans/` for the implementation plans (A: backend foundation, B: send pipeline, C: UI + Docker).
 
 ## License
 

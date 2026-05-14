@@ -49,7 +49,7 @@ describe('POST /v1/emails', () => {
     const r = await app.inject({
       method: 'POST', url: '/v1/emails',
       headers: { authorization: `Bearer ${key}` },
-      payload: { fromEmail: s.email, to: 'r@x.com', subject: 'Hi', html: '<p>x</p>' },
+      payload: { from: s.email, to: 'r@x.com', subject: 'Hi', html: '<p>x</p>' },
     });
     expect(r.statusCode).toBe(202);
     const body = r.json() as { id: string; status: string };

@@ -7,13 +7,15 @@ import { isSuppressed } from '../repos/suppressions.js';
 import { insertEmail, type EmailRow } from '../repos/emails.js';
 import { render } from './render.js';
 
-export const SendInput = z.object({
+// Public API surface uses snake_case (matches spec, README, and external conventions: Stripe, Postmark, Mailgun).
+// Base shape is exported separately so callers (e.g. v1Emails route) can .omit() before refine.
+export const SendInputShape = z.object({
   tenantId: z.string().uuid(),
-  fromEmail: z.string().email(),
+  from: z.string().email(),
   to: z.string().email(),
   cc: z.array(z.string().email()).optional(),
   bcc: z.array(z.string().email()).optional(),
-  replyTo: z.string().email().optional(),
+  reply_to: z.string().email().optional(),
   subject: z.string().min(1).optional(),
   html: z.string().min(1).optional(),
   text: z.string().optional(),
@@ -22,11 +24,13 @@ export const SendInput = z.object({
   attachments: z.array(z.object({
     filename: z.string(),
     content: z.string(),       // base64
-    contentType: z.string().optional(),
+    content_type: z.string().optional(),
   })).optional(),
-  scheduledFor: z.coerce.date().optional(),
+  scheduled_for: z.coerce.date().optional(),
   apiKeyId: z.string().uuid().optional(),
-}).refine(
+});
+
+export const SendInput = SendInputShape.refine(
   (v) => (v.subject && v.html) || v.template,
   { message: 'Provide either subject+html or template' },
 );
@@ -39,8 +43,8 @@ export async function queueEmail(args: {
   input: SendInputT;
 }): Promise<EmailRow> {
   const input = SendInput.parse(args.input);
-  const sender = await getSenderByEmail(args.pool, input.tenantId, input.fromEmail);
-  if (!sender) throw new AppError('invalid_sender', 400, `Sender not found: ${input.fromEmail}`);
+  const sender = await getSenderByEmail(args.pool, input.tenantId, input.from);
+  if (!sender) throw new AppError('invalid_sender', 400, `Sender not found: ${input.from}`);
 
   let subject = input.subject ?? '';
   let bodyHtml = input.html ?? '';
@@ -64,7 +68,7 @@ export async function queueEmail(args: {
   if (await isSuppressed(args.pool, input.tenantId, input.to)) {
     return insertEmail(args.pool, {
       tenantId: input.tenantId, senderId: sender.id, toAddr: input.to,
-      cc: input.cc, bcc: input.bcc, replyTo: input.replyTo ?? null,
+      cc: input.cc, bcc: input.bcc, replyTo: input.reply_to ?? null,
       subject, bodyHtml, bodyText, templateId, attachments: input.attachments,
       status: 'suppressed', apiKeyId: input.apiKeyId ?? null,
     });
@@ -72,13 +76,13 @@ export async function queueEmail(args: {
 
   const email = await insertEmail(args.pool, {
     tenantId: input.tenantId, senderId: sender.id, toAddr: input.to,
-    cc: input.cc, bcc: input.bcc, replyTo: input.replyTo ?? null,
+    cc: input.cc, bcc: input.bcc, replyTo: input.reply_to ?? null,
     subject, bodyHtml, bodyText, templateId, attachments: input.attachments,
-    scheduledFor: input.scheduledFor ?? null,
+    scheduledFor: input.scheduled_for ?? null,
     status: 'queued', apiKeyId: input.apiKeyId ?? null,
   });
 
-  if (!input.scheduledFor || input.scheduledFor.getTime() <= Date.now()) {
+  if (!input.scheduled_for || input.scheduled_for.getTime() <= Date.now()) {
     await args.enqueueSend(email.id);
   }
 

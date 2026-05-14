@@ -37,7 +37,7 @@ function buildStringToSign(m: SnsMessage): string {
     : ['Message', 'MessageId', 'SubscribeURL', 'Timestamp', 'Token', 'TopicArn', 'Type'];
   let s = '';
   for (const k of fields) {
-    const v = (m as Record<string, string | undefined>)[k];
+    const v = (m as unknown as Record<string, string | undefined>)[k];
     if (v !== undefined) s += `${k}\n${v}\n`;
   }
   return s;
