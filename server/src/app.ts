@@ -14,6 +14,7 @@ import { registerApiKeyRoutes } from './routes/apiKeys.js';
 import { startBoss, stopBoss } from './boss.js';
 import { handleSendJob } from './send/worker.js';
 import { registerV1EmailRoutes } from './routes/v1Emails.js';
+import { startScheduler } from './send/scheduler.js';
 
 export interface AppDeps { cfg?: Config }
 
@@ -28,6 +29,8 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await boss.work<{ emailId: string }>('send-email', { teamSize: 5, teamConcurrency: 5 }, async ([job]) => {
     await handleSendJob({ pool, encKey: cfg.encKey, emailId: job.data.emailId });
   });
+  const stopScheduler = startScheduler({ pool, boss });
+  app.addHook('onClose', async () => { stopScheduler(); });
   await registerSessions(app, cfg, pool);
   registerCsrf(app);
   registerCtx(app);
