@@ -2,9 +2,10 @@ node_modules
 dist
 server/public
 .env
+.env.*
+!.env.example
 *.log
 coverage
 .DS_Store
 
 .vercel
-.env*.local
