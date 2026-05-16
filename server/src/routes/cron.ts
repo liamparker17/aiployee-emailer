@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { timingSafeEqual } from 'node:crypto';
 import { sendError, AppError } from '../util/errors.js';
 import { claimDueForSend, requeueFailedAndStuck } from '../repos/emails.js';
 import { dispatchBatch } from '../send/dispatch.js';
@@ -6,7 +7,9 @@ import { dispatchBatch } from '../send/dispatch.js';
 function requireCronAuth(req: FastifyRequest, secret: string): void {
   const auth = req.headers.authorization ?? '';
   const provided = auth.startsWith('Bearer ') ? auth.slice(7).trim() : (req.headers['x-cron-secret'] as string | undefined) ?? '';
-  if (!provided || provided !== secret) {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(secret);
+  if (!provided || a.length !== b.length || !timingSafeEqual(a, b)) {
     throw new AppError('unauthorized', 401, 'Invalid cron secret');
   }
 }

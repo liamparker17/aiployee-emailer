@@ -11,7 +11,7 @@ const Schema = z.object({
   ),
   PUBLIC_BASE_URL: z.string().url(),
   LOG_LEVEL: z.string().default('info'),
-  CRON_SECRET: z.string().min(16, 'CRON_SECRET must be ≥16 chars').default('PLACEHOLDER_REPLACE_IN_VERCEL_ENV_VARS'),
+  CRON_SECRET: z.string().min(16, 'CRON_SECRET must be ≥16 chars'),
   CRON_BATCH_SIZE: z.coerce.number().int().min(1).max(2000).default(500),
 });
 

@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { sendError, AppError } from '../util/errors.js';
 import { queueEmail, SendInputShape } from '../send/pipeline.js';
-import { getEmail, listEmails, claimDueForSend, type EmailStatus } from '../repos/emails.js';
+import { getEmail, listEmails, claimForSend, type EmailStatus } from '../repos/emails.js';
 import { dispatchEmail } from '../send/dispatch.js';
 import { requireCtx } from '../auth/ctx.js';
 
@@ -29,8 +29,9 @@ export async function registerV1EmailRoutes(app: FastifyInstance) {
       // Scheduled sends + suppressed get returned as-is; the cron picks scheduled ones up later.
       const isImmediate = !body.scheduled_for && email.status === 'queued';
       if (isImmediate) {
-        const claimed = await claimDueForSend(app.pool, 1); // claims any due row, but with 50ms latency this is effectively ours
-        const ours = claimed.find(e => e.id === email.id) ?? null;
+        // Claim THIS specific row by id (not any due row) so we never strand another tenant's
+        // queued email in 'sending' state waiting for the stuck-row cron to requeue it.
+        const ours = await claimForSend(app.pool, email.id);
         if (ours) {
           const result = await dispatchEmail({ pool: app.pool, encKey: app.cfg.encKey, email: ours });
           if (result.ok) {
@@ -38,7 +39,7 @@ export async function registerV1EmailRoutes(app: FastifyInstance) {
           }
           return reply.code(202).send({ id: email.id, status: 'failed', message_id: null, error: result.error });
         }
-        // Race: another worker already grabbed it. Return queued.
+        // Race: cron worker already grabbed it. Return queued.
       }
 
       reply.code(202).send({ id: email.id, status: email.status, scheduled_for: email.scheduled_for });
