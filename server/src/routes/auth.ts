@@ -21,14 +21,14 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       req.session.userId = u.id;
       req.session.tenantId = u.tenant_id;
       req.session.role = u.role as never;
-      reply.send({ user: { id: u.id, email: body.email, role: u.role, tenantId: u.tenant_id } });
+      return reply.send({ user: { id: u.id, email: body.email, role: u.role, tenantId: u.tenant_id } });
     } catch (e) { sendError(reply, e); }
   });
 
   app.get('/api/me', async (req, reply) => {
     const sess = req.session;
     if (!sess?.userId) return reply.send({ user: null });
-    reply.send({ user: {
+    return reply.send({ user: {
       id: sess.userId,
       email: '',
       role: sess.role,
@@ -38,7 +38,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
 
   app.post('/auth/logout', async (req, reply) => {
     await req.session.destroy();
-    reply.send({ ok: true });
+    return reply.send({ ok: true });
   });
 
   app.post('/auth/invite/accept', async (req, reply) => {
@@ -52,7 +52,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         [body.token, await hashPassword(body.password)],
       );
       if (r.rowCount === 0) throw new AppError('invalid_token', 400, 'Invite token invalid or expired');
-      reply.send({ ok: true });
+      return reply.send({ ok: true });
     } catch (e) { sendError(reply, e); }
   });
 }

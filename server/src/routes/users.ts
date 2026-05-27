@@ -16,7 +16,7 @@ export async function registerUserRoutes(app: FastifyInstance) {
       const ctx = requireTenantCtx(req);
       const body = InviteBody.parse(req.body);
       const r = await createInvitedUser(app.pool, { tenantId: ctx.tenantId, email: body.email, role: body.role });
-      reply.code(201).send({
+      return reply.code(201).send({
         user: r.user,
         invite: { token: r.inviteToken, url: `${app.cfg.publicBaseUrl}/accept-invite?token=${r.inviteToken}` },
       });

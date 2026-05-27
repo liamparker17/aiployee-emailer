@@ -25,7 +25,7 @@ export async function registerAdminTenantRoutes(app: FastifyInstance) {
       const invite = await createInvitedUser(app.pool, {
         tenantId: tenant.id, email: body.adminEmail, role: 'tenant_admin',
       });
-      reply.code(201).send({
+      return reply.code(201).send({
         tenant,
         invite: {
           token: invite.inviteToken,

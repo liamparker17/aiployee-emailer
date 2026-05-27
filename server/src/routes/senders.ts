@@ -28,7 +28,7 @@ export async function registerSenderRoutes(app: FastifyInstance) {
         [body.smtpConfigId, ctx.tenantId]);
       if (r.rowCount === 0) throw new AppError('invalid_smtp_config', 400, 'SMTP config not found in this tenant');
       const s = await createSender(app.pool, { tenantId: ctx.tenantId, ...body });
-      reply.code(201).send({ sender: s });
+      return reply.code(201).send({ sender: s });
     } catch (e) {
       if ((e as { code?: string }).code === '23505') return sendError(reply, new AppError('email_taken', 409, 'Sender email already exists'));
       sendError(reply, e);
@@ -41,7 +41,7 @@ export async function registerSenderRoutes(app: FastifyInstance) {
       const { id } = req.params as { id: string };
       const ok = await deleteSender(app.pool, ctx.tenantId, id);
       if (!ok) throw new AppError('not_found', 404, 'Sender not found');
-      reply.send({ ok: true });
+      return reply.send({ ok: true });
     } catch (e) { sendError(reply, e); }
   });
 }
