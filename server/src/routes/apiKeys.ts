@@ -22,7 +22,7 @@ export async function registerApiKeyRoutes(app: FastifyInstance) {
         tenantId: ctx.tenantId, name: body.name,
         keyHash: hashApiKey(plaintext), keyPrefix: prefixOf(plaintext),
       });
-      reply.code(201).send({ key: row, plaintext });
+      return reply.code(201).send({ key: row, plaintext });
     } catch (e) { sendError(reply, e); }
   });
 
@@ -32,7 +32,7 @@ export async function registerApiKeyRoutes(app: FastifyInstance) {
       const { id } = req.params as { id: string };
       const ok = await revokeApiKey(app.pool, ctx.tenantId, id);
       if (!ok) throw new AppError('not_found', 404, 'API key not found or already revoked');
-      reply.send({ ok: true });
+      return reply.send({ ok: true });
     } catch (e) { sendError(reply, e); }
   });
 }

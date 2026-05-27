@@ -16,7 +16,7 @@ export async function registerEmailRoutes(app: FastifyInstance) {
       const list = await listEmails(app.pool, ctx.tenantId, {
         status: q.status as EmailStatus | undefined, since: q.since, limit: q.limit,
       });
-      reply.send({ emails: list });
+      return reply.send({ emails: list });
     } catch (e) { sendError(reply, e); }
   });
   app.get('/api/emails/:id', async (req, reply) => {
@@ -25,7 +25,7 @@ export async function registerEmailRoutes(app: FastifyInstance) {
       const { id } = req.params as { id: string };
       const e = await getEmail(app.pool, ctx.tenantId, id);
       if (!e) throw new AppError('not_found', 404, 'Email not found');
-      reply.send({ email: e });
+      return reply.send({ email: e });
     } catch (e) { sendError(reply, e); }
   });
 }

@@ -25,7 +25,7 @@ export async function registerV1WebhookRoutes(app: FastifyInstance) {
           await addSuppression(app.pool, { tenantId: email.tenant_id, address: r, reason: ev.type });
         }
       }
-      reply.send({ ok: true });
+      return reply.send({ ok: true });
     } catch (e) { sendError(reply, new AppError('webhook_failed', 400, (e as Error).message)); }
   });
 
@@ -41,7 +41,7 @@ export async function registerV1WebhookRoutes(app: FastifyInstance) {
         await markStatus(app.pool, email.id, ev.type === 'bounce' ? 'bounced' : 'complained');
         await addSuppression(app.pool, { tenantId: email.tenant_id, address: ev.recipient, reason: ev.type });
       }
-      reply.send({ ok: true });
+      return reply.send({ ok: true });
     } catch (e) { sendError(reply, new AppError('webhook_failed', 400, (e as Error).message)); }
   });
 }

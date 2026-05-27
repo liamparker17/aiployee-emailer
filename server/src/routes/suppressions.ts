@@ -16,7 +16,7 @@ export async function registerSuppressionRoutes(app: FastifyInstance) {
       const ctx = requireTenantCtx(req);
       const body = AddBody.parse(req.body);
       await addSuppression(app.pool, { tenantId: ctx.tenantId, ...body });
-      reply.code(201).send({ ok: true });
+      return reply.code(201).send({ ok: true });
     } catch (e) { sendError(reply, e); }
   });
   app.delete('/api/suppressions/:address', async (req, reply) => {
@@ -25,7 +25,7 @@ export async function registerSuppressionRoutes(app: FastifyInstance) {
       const { address } = req.params as { address: string };
       const ok = await removeSuppression(app.pool, ctx.tenantId, decodeURIComponent(address));
       if (!ok) throw new AppError('not_found', 404, 'Suppression not found');
-      reply.send({ ok: true });
+      return reply.send({ ok: true });
     } catch (e) { sendError(reply, e); }
   });
 }

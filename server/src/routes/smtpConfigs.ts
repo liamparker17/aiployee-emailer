@@ -31,7 +31,7 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
       const ctx = requireTenantCtx(req);
       const body = CreateBody.parse(req.body);
       const c = await createSmtpConfig(app.pool, app.cfg.encKey, { tenantId: ctx.tenantId, ...body });
-      reply.code(201).send({ config: c });
+      return reply.code(201).send({ config: c });
     } catch (e) {
       if ((e as { code?: string }).code === '23505') return sendError(reply, new AppError('name_taken', 409, 'Name already in use'));
       sendError(reply, e);
@@ -44,7 +44,7 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
       const { id } = req.params as { id: string };
       const ok = await deleteSmtpConfig(app.pool, ctx.tenantId, id);
       if (!ok) throw new AppError('not_found', 404, 'SMTP config not found');
-      reply.send({ ok: true });
+      return reply.send({ ok: true });
     } catch (e) { sendError(reply, e); }
   });
 
@@ -63,7 +63,7 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
           subject: 'Aiployee Emailer SMTP test',
           text: 'If you can read this, your SMTP config works.',
         });
-        reply.send({ ok: true, messageId: info.messageId });
+        return reply.send({ ok: true, messageId: info.messageId });
       } finally { tx.close(); }
     } catch (e) {
       sendError(reply, new AppError('smtp_test_failed', 400, (e as Error).message));

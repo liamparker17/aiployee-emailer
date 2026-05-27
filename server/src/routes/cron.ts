@@ -23,7 +23,7 @@ export async function registerCronRoutes(app: FastifyInstance) {
       const results = await dispatchBatch({ pool: app.pool, encKey: app.cfg.encKey, emails: claimed });
       const sent = results.filter(r => r.ok).length;
       const failed = results.length - sent;
-      reply.send({ ok: true, claimed: claimed.length, sent, failed });
+      return reply.send({ ok: true, claimed: claimed.length, sent, failed });
     } catch (e) { sendError(reply, e); }
   });
 
@@ -38,7 +38,7 @@ export async function registerCronRoutes(app: FastifyInstance) {
         cooloffSeconds: 60,
         stuckSeconds: 120,
       });
-      reply.send({ ok: true, ...out });
+      return reply.send({ ok: true, ...out });
     } catch (e) { sendError(reply, e); }
   });
 }

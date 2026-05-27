@@ -34,7 +34,7 @@ export async function registerTemplateRoutes(app: FastifyInstance) {
       const ctx = requireTenantCtx(req);
       const body = CreateBody.parse(req.body);
       const t = await createTemplate(app.pool, { tenantId: ctx.tenantId, ...body });
-      reply.code(201).send({ template: t });
+      return reply.code(201).send({ template: t });
     } catch (e) {
       if ((e as { code?: string }).code === '23505') return sendError(reply, new AppError('name_taken', 409, 'Template name already exists'));
       sendError(reply, e);
@@ -48,7 +48,7 @@ export async function registerTemplateRoutes(app: FastifyInstance) {
       const { id } = req.params as { id: string };
       const t = await updateTemplate(app.pool, ctx.tenantId, id, body);
       if (!t) throw new AppError('not_found', 404, 'Template not found');
-      reply.send({ template: t });
+      return reply.send({ template: t });
     } catch (e) { sendError(reply, e); }
   });
 
@@ -58,7 +58,7 @@ export async function registerTemplateRoutes(app: FastifyInstance) {
       const { id } = req.params as { id: string };
       const ok = await deleteTemplate(app.pool, ctx.tenantId, id);
       if (!ok) throw new AppError('not_found', 404, 'Template not found');
-      reply.send({ ok: true });
+      return reply.send({ ok: true });
     } catch (e) { sendError(reply, e); }
   });
 
@@ -69,7 +69,7 @@ export async function registerTemplateRoutes(app: FastifyInstance) {
       const body = PreviewBody.parse(req.body);
       const t = await getTemplateById(app.pool, ctx.tenantId, id);
       if (!t) throw new AppError('not_found', 404, 'Template not found');
-      reply.send({
+      return reply.send({
         subject: render(t.subject, body.variables, { escape: false }),
         html: render(t.body_html, body.variables),
         text: t.body_text ? render(t.body_text, body.variables, { escape: false }) : null,
