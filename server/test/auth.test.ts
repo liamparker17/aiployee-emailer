@@ -3,6 +3,7 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createUser } from './helpers/factories.js';
+import { csrfFor } from './helpers/auth.js';
 
 const cfg = loadConfig({
   NODE_ENV: 'test', PORT: '0',
@@ -10,6 +11,7 @@ const cfg = loadConfig({
   SESSION_SECRET: 'a'.repeat(32),
   EMAILER_ENC_KEY: Buffer.alloc(32, 1).toString('base64'),
   PUBLIC_BASE_URL: 'http://localhost:3000',
+  CRON_SECRET: 'c'.repeat(24),
 });
 let app: Awaited<ReturnType<typeof buildApp>>;
 const pool = makePool();
@@ -19,13 +21,8 @@ beforeEach(async () => { await truncateAll(pool); });
 afterAll(async () => { await app.close(); await pool.end(); });
 
 async function csrfHeaders() {
-  const g = await app.inject({ method: 'GET', url: '/healthz' });
-  const setCookie = g.headers['set-cookie'] as string | string[];
-  const cookies = Array.isArray(setCookie) ? setCookie : [setCookie];
-  const csrf = cookies.find(c => c.startsWith('aip_csrf='))!.split(';')[0];
-  const sid  = cookies.find(c => c.startsWith('aip_sid='))!.split(';')[0];
-  const csrfVal = decodeURIComponent(csrf.split('=')[1]);
-  return { cookie: `${sid}; ${csrf}`, 'x-csrf-token': csrfVal };
+  const csrf = await csrfFor(app);
+  return { cookie: csrf.cookie, 'x-csrf-token': csrf.csrfToken };
 }
 
 describe('auth', () => {

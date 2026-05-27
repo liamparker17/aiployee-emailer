@@ -8,6 +8,7 @@ const cfg = loadConfig({
   SESSION_SECRET: 'a'.repeat(32),
   EMAILER_ENC_KEY: Buffer.alloc(32, 1).toString('base64'),
   PUBLIC_BASE_URL: 'http://localhost:3000',
+  CRON_SECRET: 'c'.repeat(24),
 });
 let app: Awaited<ReturnType<typeof buildApp>>;
 beforeAll(async () => {
@@ -24,13 +25,12 @@ describe('csrf', () => {
   it('accepts POST when X-CSRF-Token matches cookie', async () => {
     const get = await app.inject({ method: 'GET', url: '/healthz' });
     const setCookie = get.headers['set-cookie'] as string | string[];
-    const cookies = Array.isArray(setCookie) ? setCookie : [setCookie];
-    const sidCookie = cookies.find(c => c.startsWith('aip_sid='))!;
+    const cookies = ([] as string[]).concat(setCookie).filter(Boolean);
     const csrfCookie = cookies.find(c => c.startsWith('aip_csrf='))!;
     const csrfVal = decodeURIComponent(csrfCookie.split(';')[0].split('=')[1]);
     const r = await app.inject({
       method: 'POST', url: '/echo',
-      headers: { cookie: `${sidCookie.split(';')[0]}; ${csrfCookie.split(';')[0]}`, 'x-csrf-token': csrfVal },
+      headers: { cookie: csrfCookie.split(';')[0], 'x-csrf-token': csrfVal },
     });
     expect(r.statusCode).toBe(200);
   });

@@ -4,6 +4,7 @@ import { loadConfig } from '../src/config.js';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createUser, createTenant } from './helpers/factories.js';
 import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
+import { csrfFor, login } from './helpers/auth.js';
 
 const cfg = loadConfig({
   NODE_ENV: 'test', PORT: '0',
@@ -11,6 +12,7 @@ const cfg = loadConfig({
   SESSION_SECRET: 'a'.repeat(32),
   EMAILER_ENC_KEY: Buffer.alloc(32, 1).toString('base64'),
   PUBLIC_BASE_URL: 'http://localhost:3000',
+  CRON_SECRET: 'c'.repeat(24),
 });
 let app: Awaited<ReturnType<typeof buildApp>>;
 const pool = makePool();
@@ -20,14 +22,8 @@ afterAll(async () => { await app.close(); await pool.end(); });
 
 async function loginTenantAdmin(tenantId: string, email = 'a@x.com') {
   await createUser(pool, { tenantId, email, password: 'pw12345!', role: 'tenant_admin' });
-  const g = await app.inject({ method: 'GET', url: '/healthz' });
-  const cookies = ([] as string[]).concat(g.headers['set-cookie'] as string | string[]);
-  const csrf = cookies.find(c => c.startsWith('aip_csrf='))!.split(';')[0];
-  const sid  = cookies.find(c => c.startsWith('aip_sid='))!.split(';')[0];
-  const csrfVal = decodeURIComponent(csrf.split('=')[1]);
-  const headers = { cookie: `${sid}; ${csrf}`, 'x-csrf-token': csrfVal };
-  await app.inject({ method: 'POST', url: '/auth/login', headers, payload: { email, password: 'pw12345!' } });
-  return headers;
+  const csrf = await csrfFor(app);
+  return login(app, { email, password: 'pw12345!' }, csrf);
 }
 
 describe('senders routes', () => {
