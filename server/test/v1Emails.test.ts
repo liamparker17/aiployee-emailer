@@ -17,6 +17,7 @@ const cfg = loadConfig({
   SESSION_SECRET: 'a'.repeat(32),
   EMAILER_ENC_KEY: KEY.toString('base64'),
   PUBLIC_BASE_URL: 'http://localhost:3000',
+  CRON_SECRET: 'c'.repeat(24),
 });
 
 let app: Awaited<ReturnType<typeof buildApp>>;
@@ -53,11 +54,10 @@ describe('POST /v1/emails', () => {
     });
     expect(r.statusCode).toBe(202);
     const body = r.json() as { id: string; status: string };
-    expect(body.status).toBe('queued');
+    // Inline dispatch: immediate sends return 'sent' synchronously (no queue wait).
+    expect(body.status).toBe('sent');
     const mail = await recv as { headers: Record<string, string> };
     expect(mail.headers.subject).toContain('Hi');
-    // Allow a brief moment for the worker to mark sent
-    await new Promise(res => setTimeout(res, 200));
     const after = await getEmail(pool, t.id, body.id);
     expect(after!.status).toBe('sent');
   });

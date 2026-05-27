@@ -9,6 +9,7 @@ const cfg = loadConfig({
   SESSION_SECRET: 'a'.repeat(32),
   EMAILER_ENC_KEY: Buffer.alloc(32, 1).toString('base64'),
   PUBLIC_BASE_URL: 'http://localhost:3000',
+  CRON_SECRET: 'c'.repeat(24),
 });
 
 beforeEach(() => { process.env.MAILGUN_SIGNING_KEY = 'test-signing-key'; });
