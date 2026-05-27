@@ -55,9 +55,14 @@ function TestBtn({ id }: { id: string }) {
 
 function AddModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [form, setForm] = useState({ name: '', host: '', port: 587, secure: false, username: '', password: '', fromDomain: '', isDefault: false });
-  // Gmail uses STARTTLS on 587; the password must be a 16-char App Password (2-Step Verification required).
-  const applyGmailPreset = () => setForm(f => ({ ...f, host: 'smtp.gmail.com', port: 587, secure: false }));
-  const isGmail = form.host === 'smtp.gmail.com';
+  // Presets fill host/port/secure. Both Gmail and Microsoft use STARTTLS on 587.
+  const applyPreset = (p: 'gmail' | 'outlook') => setForm(f => ({
+    ...f,
+    host: p === 'gmail' ? 'smtp.gmail.com' : 'smtp.office365.com',
+    port: 587, secure: false,
+  }));
+  const provider = form.host === 'smtp.gmail.com' ? 'gmail'
+    : form.host === 'smtp.office365.com' ? 'outlook' : null;
   return (
     <Modal open={open} onClose={onClose} title="Add SMTP config">
       <form className="space-y-3" onSubmit={async e => {
@@ -67,14 +72,23 @@ function AddModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       }}>
         <div className="flex items-center gap-2 text-sm">
           <span className="text-muted">Quick fill:</span>
-          <Button variant="ghost" type="button" onClick={applyGmailPreset}>Gmail</Button>
+          <Button variant="ghost" type="button" onClick={() => applyPreset('gmail')}>Gmail</Button>
+          <Button variant="ghost" type="button" onClick={() => applyPreset('outlook')}>Outlook</Button>
         </div>
-        {isGmail && (
+        {provider === 'gmail' && (
           <div className="rounded-md border border-line bg-bg px-3 py-2 text-xs text-muted space-y-1">
             <p className="font-medium text-ink">Gmail caveats</p>
             <p>From address is rewritten to your Gmail account unless the sender's email is a verified “Send mail as” alias.</p>
             <p>No delivery/bounce webhooks — the suppression list and email events won't update for Gmail sends.</p>
             <p>Daily send limits apply (~500/day free, ~2,000/day Workspace).</p>
+          </div>
+        )}
+        {provider === 'outlook' && (
+          <div className="rounded-md border border-line bg-bg px-3 py-2 text-xs text-muted space-y-1">
+            <p className="font-medium text-ink">Outlook / Microsoft 365 caveats</p>
+            <p>Host is <code>smtp.office365.com</code> for Microsoft 365; personal Outlook.com uses <code>smtp-mail.outlook.com</code>.</p>
+            <p>The mailbox must have SMTP AUTH enabled; if it has MFA, use an app password (not the normal password).</p>
+            <p>From must be the signed-in mailbox or a configured alias. No delivery/bounce webhooks — suppression won't update.</p>
           </div>
         )}
         <Field label="Name"><Input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></Field>
@@ -83,8 +97,8 @@ function AddModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           <Field label="Port"><Input type="number" required value={form.port} onChange={e => setForm({ ...form, port: Number(e.target.value) })} /></Field>
           <Field label="Secure (TLS)"><input type="checkbox" checked={form.secure} onChange={e => setForm({ ...form, secure: e.target.checked })} /></Field>
         </div>
-        <Field label="Username" hint={isGmail ? 'Your full Gmail address (e.g. you@gmail.com)' : undefined}><Input required value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} /></Field>
-        <Field label="Password" hint={isGmail ? 'Use a Google App Password (2-Step Verification required) — not your login password' : undefined}><Input required type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></Field>
+        <Field label="Username" hint={provider === 'gmail' ? 'Your full Gmail address (e.g. you@gmail.com)' : provider === 'outlook' ? 'Your full Outlook / Microsoft 365 email address' : undefined}><Input required value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} /></Field>
+        <Field label="Password" hint={provider === 'gmail' ? 'Use a Google App Password (2-Step Verification required) — not your login password' : provider === 'outlook' ? 'If the mailbox has MFA, use an app password — not your normal password' : undefined}><Input required type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></Field>
         <Field label="From domain" hint="e.g. aiployee.co.za"><Input required value={form.fromDomain} onChange={e => setForm({ ...form, fromDomain: e.target.value })} /></Field>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" type="button" onClick={onClose}>Cancel</Button>
