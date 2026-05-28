@@ -20,6 +20,7 @@ import { registerV1WebhookRoutes } from './routes/v1Webhooks.js';
 import { registerSuppressionRoutes } from './routes/suppressions.js';
 import { registerEmailRoutes } from './routes/emails.js';
 import { registerUserRoutes } from './routes/users.js';
+import { registerSessionRoutes } from './routes/session.js';
 
 export interface AppDeps { cfg?: Config }
 
@@ -52,6 +53,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerSuppressionRoutes(app);
   await registerEmailRoutes(app);
   await registerUserRoutes(app);
+  await registerSessionRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
