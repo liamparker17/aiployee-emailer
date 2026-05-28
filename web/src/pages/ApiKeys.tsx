@@ -14,25 +14,6 @@ function endpointUrl() {
   return `${window.location.origin}/v1/emails`;
 }
 
-function sampleBody(fromEmail: string) {
-  return {
-    from: fromEmail,
-    to: 'recipient@example.com',
-    subject: 'Hello from Jobix',
-    html: '<p>Hi {{candidate_name}},</p><p>{{message_body}}</p>',
-  };
-}
-
-function curlSnippet(key: string, fromEmail: string) {
-  const body = JSON.stringify(sampleBody(fromEmail), null, 2);
-  return [
-    `curl -X POST ${endpointUrl()} \\`,
-    `  -H "Authorization: Bearer ${key}" \\`,
-    `  -H "Content-Type: application/json" \\`,
-    `  -d '${body}'`,
-  ].join('\n');
-}
-
 function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }) {
   const [done, setDone] = useState(false);
   return (
@@ -45,18 +26,31 @@ function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }
   );
 }
 
-function CodeBlock({ children, copy }: { children: string; copy?: boolean }) {
+function PairTable({ rows }: { rows: Array<{ key: string; value: string; note?: string }> }) {
   return (
-    <div className="relative">
-      <pre className="bg-surface rounded-md p-3 text-xs whitespace-pre-wrap break-all font-mono">{children}</pre>
-      {copy && <div className="absolute top-2 right-2"><CopyButton value={children} /></div>}
+    <div className="border border-line rounded-md overflow-hidden">
+      <table className="w-full text-sm">
+        <thead className="bg-surface text-xs uppercase text-muted">
+          <tr><th className="text-left px-3 py-2 w-1/3">Key</th><th className="text-left px-3 py-2">Value</th><th className="w-16"></th></tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} className={i > 0 ? 'border-t border-line' : ''}>
+              <td className="px-3 py-2 font-mono align-top">{r.key}</td>
+              <td className="px-3 py-2 align-top">
+                <div className="font-mono break-all whitespace-pre-wrap">{r.value}</div>
+                {r.note && <div className="text-xs text-muted mt-1">{r.note}</div>}
+              </td>
+              <td className="px-2 py-2 align-top"><CopyButton value={r.value} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
 function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: string }) {
-  const body = useMemo(() => JSON.stringify(sampleBody(fromEmail), null, 2), [fromEmail]);
-  const curl = useMemo(() => curlSnippet(apiKey, fromEmail), [apiKey, fromEmail]);
   const isReal = apiKey !== PLACEHOLDER_KEY;
 
   return (
@@ -68,49 +62,49 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
       )}
 
       <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium">API key</h3>
-          {isReal && <CopyButton value={apiKey} />}
-        </div>
-        <CodeBlock>{apiKey}</CodeBlock>
-      </section>
-
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium">Endpoint</h3>
-          <CopyButton value={endpointUrl()} />
-        </div>
-        <CodeBlock>{`POST ${endpointUrl()}`}</CodeBlock>
+        <h3 className="text-sm font-medium">Webhook URL</h3>
+        <PairTable rows={[{ key: 'POST', value: endpointUrl() }]} />
       </section>
 
       <section className="space-y-2">
         <h3 className="text-sm font-medium">Headers</h3>
-        <CodeBlock copy>{`Authorization: Bearer ${apiKey}\nContent-Type: application/json`}</CodeBlock>
+        <PairTable rows={[
+          { key: 'api_key', value: apiKey, note: 'The raw key value — no prefix, no "Bearer".' },
+          { key: 'Content-Type', value: 'application/json' },
+        ]} />
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-sm font-medium">JSON body</h3>
-        <CodeBlock copy>{body}</CodeBlock>
+        <h3 className="text-sm font-medium">Payload Fields</h3>
         <p className="text-xs text-muted">
-          Provide either <code className="font-mono">subject</code> + <code className="font-mono">html</code>{' '}
-          or a stored <code className="font-mono">template</code> + <code className="font-mono">variables</code>.
+          Jobix composes a JSON body from these key/value rows. Use Jobix variables (e.g.{' '}
+          <code className="font-mono">{'{{candidate_email}}'}</code>) in the value column where you want
+          runtime substitution.
+        </p>
+        <PairTable rows={[
+          { key: 'from', value: fromEmail, note: 'Must match a registered sender for this tenant.' },
+          { key: 'to', value: '{{candidate_email}}', note: 'Replace with the Jobix variable for the recipient address.' },
+          { key: 'subject', value: 'Hello from Jobix' },
+          { key: 'html', value: '<p>Hi {{candidate_name}},</p><p>{{message_body}}</p>' },
+        ]} />
+        <p className="text-xs text-muted">
           Optional fields: <code className="font-mono">cc</code>, <code className="font-mono">bcc</code>,{' '}
           <code className="font-mono">reply_to</code>, <code className="font-mono">text</code>,{' '}
           <code className="font-mono">attachments</code>, <code className="font-mono">scheduled_for</code>.
+          Use <code className="font-mono">template</code> + <code className="font-mono">variables</code>{' '}
+          instead of <code className="font-mono">subject</code>+<code className="font-mono">html</code> for stored templates.
         </p>
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-sm font-medium">curl</h3>
-        <CodeBlock copy>{curl}</CodeBlock>
-      </section>
-
-      <section className="space-y-2">
         <h3 className="text-sm font-medium">Response</h3>
-        <CodeBlock>{`202 { "id": "...", "status": "sent" | "queued" | "failed" | "suppressed", "message_id": "...", "error": null }`}</CodeBlock>
+        <div className="bg-surface rounded-md p-3 text-xs font-mono whitespace-pre-wrap break-all">
+{`202 OK
+{ "id": "...", "status": "sent" | "queued" | "failed" | "suppressed", "message_id": "...", "error": null }`}
+        </div>
         <p className="text-xs text-muted">
           A <code className="font-mono">suppressed</code> recipient still returns 202 — not an error.
-          Branch on <code className="font-mono">status</code> explicitly if you care.
+          Branch on <code className="font-mono">status</code> if you care.
         </p>
       </section>
     </div>

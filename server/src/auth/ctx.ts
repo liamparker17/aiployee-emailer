@@ -18,11 +18,20 @@ export function registerCtx(app: FastifyInstance) {
     if (req.url === '/healthz' || req.url.startsWith('/v1/webhooks/') || req.url.startsWith('/v1/cron/')) return;
 
     if (req.url.startsWith('/v1/')) {
-      const auth = req.headers.authorization;
-      if (!auth?.startsWith('Bearer ')) {
-        return reply.code(401).send({ error: { code: 'unauthorized', message: 'Missing bearer token' } });
+      // Resolve the API key in precedence order: api_key, X-Api-Key, Authorization: Bearer.
+      // The api_key header matches Jobix's default header field; the others are common conventions.
+      function pick(h: string | string[] | undefined): string | null {
+        if (!h) return null;
+        const v = Array.isArray(h) ? h[0] : h;
+        const trimmed = typeof v === 'string' ? v.trim() : '';
+        return trimmed.length ? trimmed : null;
       }
-      const key = auth.slice(7).trim();
+      const auth = req.headers.authorization;
+      const bearer = auth?.startsWith('Bearer ') ? auth.slice(7).trim() : null;
+      const key = pick(req.headers['api_key']) ?? pick(req.headers['x-api-key']) ?? (bearer && bearer.length ? bearer : null);
+      if (!key) {
+        return reply.code(401).send({ error: { code: 'unauthorized', message: 'Missing API key (api_key, X-Api-Key, or Authorization: Bearer)' } });
+      }
       const hash = hashApiKey(key);
       const r = await app.pool.query<{ id: string; tenant_id: string }>(
         `UPDATE api_keys SET last_used_at = now()
