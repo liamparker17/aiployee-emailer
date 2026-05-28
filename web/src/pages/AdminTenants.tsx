@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { useAuth } from '../auth';
 import { Table, Th, Td } from '../components/Table';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
@@ -8,13 +10,21 @@ import { Input, Field } from '../components/Input';
 interface Tenant { id: string; name: string; slug: string; created_at: string }
 
 export default function AdminTenants() {
+  const { logout } = useAuth();
+  const nav = useNavigate();
   const [items, setItems] = useState<Tenant[]>([]);
   const [open, setOpen] = useState(false);
   const [invite, setInvite] = useState<{ url: string } | null>(null);
   const refresh = () => api<{ tenants: Tenant[] }>('/api/admin/tenants').then(r => setItems(r.tenants));
   useEffect(() => { refresh(); }, []);
   return (
-    <div className="space-y-6">
+    <div className="min-h-full">
+      <header className="border-b border-line px-6 py-3 flex items-center justify-between">
+        <a href="/" className="text-sm text-muted hover:text-ink">← All tenants</a>
+        <button onClick={async () => { await logout(); nav('/login'); }}
+          className="text-sm text-muted hover:text-ink">Sign out</button>
+      </header>
+      <div className="p-8 max-w-5xl space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-heading font-semibold">Tenants</h1>
         <Button onClick={() => setOpen(true)}>New tenant</Button>
@@ -33,6 +43,7 @@ export default function AdminTenants() {
           <div className="flex justify-end"><Button onClick={() => setInvite(null)}>Done</Button></div>
         </div>
       </Modal>
+      </div>
     </div>
   );
 }

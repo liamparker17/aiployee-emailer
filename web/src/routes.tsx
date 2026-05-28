@@ -30,6 +30,7 @@ function TenantGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!tenantId) return;
     if (user?.activeTenantId === tenantId) { setReady(true); return; }
+    setReady(false);
     setActiveTenant(tenantId).then(() => setReady(true)).catch(() => setReady(true));
   }, [tenantId, user?.activeTenantId, setActiveTenant]);
   if (!ready) return null;
