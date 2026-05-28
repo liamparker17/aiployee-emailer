@@ -74,15 +74,15 @@ const SAMPLE_LLM_SCHEMA = `{
 function samplePayload(fromEmail: string) {
   return `{
   "from": "${fromEmail}",
-  "to": "{{LLM Summary.recipient_email}}",
+  "to": "{{ llm_node_X.recipient_email }}",
   "template": "${SAMPLE_TEMPLATE_NAME}",
   "variables": {
-    "caller_name": "{{LLM Summary.caller_name}}",
-    "caller_phone": "{{LLM Summary.caller_phone}}",
-    "caller_email": "{{LLM Summary.caller_email}}",
-    "policy_number": "{{LLM Summary.policy_number}}",
-    "id_number": "{{LLM Summary.id_number}}",
-    "summary": "{{LLM Summary.summary}}"
+    "caller_name": "{{ llm_node_X.caller_name }}",
+    "caller_phone": "{{ llm_node_X.caller_phone }}",
+    "caller_email": "{{ llm_node_X.caller_email }}",
+    "policy_number": "{{ llm_node_X.policy_number }}",
+    "id_number": "{{ llm_node_X.id_number }}",
+    "summary": "{{ llm_node_X.summary }}"
   }
 }`;
 }
@@ -216,21 +216,32 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
           </div>
 
           <p className="text-muted mt-4">
-            Then in the <strong className="text-ink">Edit Payload</strong> box (the free-form JSON editor),
-            paste exactly this:
+            Then in the <strong className="text-ink">Edit Payload</strong> box (a strict JSON editor),
+            paste exactly this — then do the find-and-replace step underneath:
           </p>
 
           <Code copy>{payload}</Code>
 
-          <div className="bg-surface border border-line rounded-md p-3 text-xs space-y-2">
+          <div className="bg-yellow-50 border border-yellow-300 text-yellow-900 rounded-md p-3 text-xs space-y-2">
             <p>
-              <strong>Anchor references.</strong> The <Inline>{`{{LLM Summary.field_name}}`}</Inline>{' '}
-              syntax assumes you renamed the LLM node to <Inline>LLM Summary</Inline> in Step 2. If you used
-              a different name, swap it in — Jobix's right-side "Anchors Search" panel will show you the
-              exact reference text when you click a field, so when in doubt use that.
+              <strong>1. Replace <Inline>llm_node_X</Inline> with your actual LLM node ID.</strong>{' '}
+              Jobix auto-assigns IDs like <Inline>llm_node_21</Inline>. To find yours: in the same Call
+              website/API node, look at the right-side <strong>Anchors Search</strong> panel → expand your
+              LLM node → you'll see the full reference text like{' '}
+              <Inline>{`{{ llm_node_21.caller_name }}`}</Inline>. Use the actual ID from there to replace
+              every <Inline>llm_node_X</Inline> in the payload above (find &amp; replace in your editor of
+              choice, or use the <Inline>+</Inline> button next to each field to insert references one by
+              one).
             </p>
             <p>
-              <strong>The <Inline>from</Inline> field</strong> is pre-filled with this tenant's default
+              <strong>2. Anchors MUST be inside quoted strings.</strong> The editor will show{' '}
+              <span className="text-red-700 font-medium">"Invalid JSON"</span> if you paste an anchor
+              naked. Wrap every reference in <Inline>"..."</Inline> as in the template above. At runtime
+              Jobix interpolates the value into that string — so <Inline>{`"to": "{{ llm_node_21.recipient_email }}"`}</Inline>{' '}
+              becomes <Inline>"to": "agent@firstassist.co.za"</Inline>.
+            </p>
+            <p>
+              <strong>3. The <Inline>from</Inline> field</strong> is pre-filled with this tenant's default
               sender (<Inline>{fromEmail || 'set up a sender first'}</Inline>). It must match a sender
               registered for this tenant — see sidebar → Senders.
             </p>
@@ -277,6 +288,14 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
                 <tr className="border-t border-line">
                   <td className="px-3 py-2">Status <strong>suppressed</strong></td>
                   <td className="px-3 py-2">Recipient is on this tenant's suppression list. Not an error — it's intentional.</td>
+                </tr>
+                <tr className="border-t border-line">
+                  <td className="px-3 py-2"><strong>"Invalid JSON"</strong> in Jobix's editor (red banner)</td>
+                  <td className="px-3 py-2">An anchor like <Inline>{`{{ llm_node_21.field }}`}</Inline> was pasted outside of a <Inline>"..."</Inline> string. Wrap every anchor in quotes.</td>
+                </tr>
+                <tr className="border-t border-line">
+                  <td className="px-3 py-2">Email arrives but with literal <Inline>{`{{ llm_node_X.summary }}`}</Inline> text</td>
+                  <td className="px-3 py-2">You didn't replace <Inline>llm_node_X</Inline> with the real node ID. Open Anchors Search to find it.</td>
                 </tr>
               </tbody>
             </table>
