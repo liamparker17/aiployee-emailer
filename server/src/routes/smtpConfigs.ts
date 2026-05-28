@@ -73,7 +73,47 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
         return reply.send({ ok: true, messageId: info.messageId });
       } finally { tx.close(); }
     } catch (e) {
-      sendError(reply, new AppError('smtp_test_failed', 400, (e as Error).message));
+      sendError(reply, toSmtpTestError(e));
     }
   });
+}
+
+// Nodemailer errors carry structured fields (code, responseCode, response, command)
+// that are useful for diagnosis. Extract them and produce a friendly summary + details.
+// See: https://nodemailer.com/usage/#errors
+function toSmtpTestError(e: unknown): AppError {
+  const err = e as {
+    message?: string;
+    code?: string;
+    responseCode?: number;
+    response?: string;
+    command?: string;
+  };
+  const smtpCode = typeof err.responseCode === 'number' ? err.responseCode : undefined;
+  const smtpResponse = typeof err.response === 'string' ? err.response : undefined;
+  const command = typeof err.command === 'string' ? err.command : undefined;
+  const nmCode = typeof err.code === 'string' ? err.code : undefined;
+
+  let message: string;
+  if (nmCode === 'EAUTH' || smtpCode === 535) {
+    message = 'Authentication rejected by SMTP server.';
+  } else if (nmCode === 'ECONNECTION' || nmCode === 'ESOCKET') {
+    message = 'Could not connect to SMTP server.';
+  } else if (nmCode === 'ETIMEDOUT') {
+    message = 'Connection timed out.';
+  } else if (nmCode === 'EDNS') {
+    message = 'DNS lookup failed for SMTP host.';
+  } else if (nmCode === 'EENVELOPE') {
+    message = 'SMTP server rejected the sender or recipient address.';
+  } else {
+    message = err.message ?? 'SMTP test failed.';
+  }
+
+  let hint: string | undefined;
+  if (smtpCode === 535 || (smtpResponse && smtpResponse.includes('BadCredentials'))) {
+    hint = "Gmail rejected the login. Make sure 2-step verification is enabled and you're using a 16-character App Password (without spaces). Also confirm the from-address matches the authenticated user.";
+  }
+
+  const details = { smtpCode, smtpResponse, command, hint };
+  return new AppError(nmCode ?? 'smtp_test_failed', 400, message, details);
 }

@@ -8,13 +8,26 @@ import { Button } from '../../components/Button';
 
 type SendStatus = 'idle' | 'sending' | 'sent' | 'failed';
 
+type ErrDetails = {
+  smtpCode?: number;
+  smtpResponse?: string;
+  command?: string;
+  hint?: string;
+};
+
+type ErrState = {
+  message: string;
+  code?: string;
+  details?: ErrDetails;
+};
+
 export function StepTest() {
   const [state, update] = useWizardState();
   const { user } = useAuth();
   const nav = useNavigate();
   const [to, setTo] = useState(user?.email ?? '');
   const [status, setStatus] = useState<SendStatus>('idle');
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<ErrState | null>(null);
 
   async function send(e?: React.FormEvent) {
     e?.preventDefault();
@@ -31,9 +44,12 @@ export function StepTest() {
         localStorage.removeItem('incompleteTenantId');
       }
     } catch (e: unknown) {
-      const msg = (e as { body?: { error?: { message?: string } } }).body?.error?.message
-        ?? (e as Error).message;
-      setErr(msg ?? 'Send failed.');
+      const thrown = e as { code?: string; message?: string; details?: ErrDetails };
+      setErr({
+        message: thrown.message ?? 'Send failed.',
+        code: thrown.code,
+        details: thrown.details,
+      });
       setStatus('failed');
     }
   }
@@ -67,13 +83,29 @@ export function StepTest() {
       </div>
 
       {status === 'sending' && <div className="text-sm text-muted">Sending…</div>}
-      {status === 'failed' && (
-        <div className="text-sm text-red-600 space-y-2">
-          <div>{err}</div>
+      {status === 'failed' && err && (
+        <div className="text-sm space-y-2">
+          <div className="text-red-600 font-semibold">{err.message}</div>
+          {err.details?.smtpCode !== undefined && (
+            <div className="font-mono text-xs text-muted break-all">
+              SMTP response: {err.details.smtpCode}
+              {err.details.smtpResponse ? ` ${err.details.smtpResponse}` : ''}
+            </div>
+          )}
+          {err.details?.command && (
+            <div className="text-xs text-muted">
+              Failed at: <span className="font-mono">{err.details.command}</span>
+            </div>
+          )}
+          {err.details?.hint && (
+            <div className="text-xs bg-yellow-50 border border-yellow-300 text-yellow-900 rounded px-3 py-2">
+              {err.details.hint}
+            </div>
+          )}
           <button
             type="button"
             onClick={() => update({ step: '2' })}
-            className="underline hover:no-underline"
+            className="underline hover:no-underline text-red-600"
           >
             Back to SMTP settings
           </button>
