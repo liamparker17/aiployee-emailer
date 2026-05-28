@@ -217,3 +217,11 @@ the exact routes already in `server/`.
 - Landing shape → tenant picker (not aggregate dashboard, not always-wizard).
 - Wizard scope → 3 steps ending in a verified test send (not 2, not 5).
 - Audience → super-admin only; no role-aware branching today.
+
+
+## Known follow-ups (after v1 ship)
+
+- Step-2 resume of an incomplete tenant does not repopulate the SMTP form — re-submitting will conflict on `name_taken` ("${tenantName} default" is non-unique on retry). Workaround: delete the incomplete tenant from `/admin/tenants` and start over.
+- Tenant card stats ("last activity", "X sent today") on TenantPicker not rendered — needs a server aggregate endpoint.
+- `cfg.username` used as `From:` address in test send works for Gmail/Outlook (where username IS email) but could fail for SES IAM-style usernames. Future fix: prefer the wizard's `sender.email` for the test, fall back to `noreply@from_domain` only when explicitly chosen.
+- Production send path (`server/src/send/dispatch.ts`) still records only `(e as Error).message` in `markFailed`. The structured SMTP error treatment from `routes/smtpConfigs.ts` test handler should be propagated here so production failures also log code+response+command. Follow-up.
