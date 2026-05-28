@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuth } from '../auth';
+import TenantSwitcher from './TenantSwitcher';
 
 const link = ({ isActive }: { isActive: boolean }) =>
   `block px-3 py-2 rounded-md text-sm ${isActive ? 'bg-surface text-ink font-medium' : 'text-muted hover:text-ink'}`;
@@ -18,6 +19,7 @@ export default function AppShell() {
     <div className="min-h-full grid grid-cols-[240px_1fr]">
       <aside className="border-r border-line p-4 flex flex-col gap-6">
         <div className="font-heading font-semibold text-lg">AIployee Emailer</div>
+        <TenantSwitcher />
         <nav className="flex flex-col gap-1">
           <NavLink to={base} end className={link}>Dashboard</NavLink>
           <NavLink to={`${base}/senders`} className={link}>Senders</NavLink>
