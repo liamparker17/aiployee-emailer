@@ -8,10 +8,18 @@ describe('render', () => {
   it('substitutes variables', () => {
     expect(render('Hi {{name}}', { name: 'Alex' })).toBe('Hi Alex');
   });
-  it('throws on missing variables', () => {
-    expect(() => render('Hi {{name}}', {})).toThrow(/missing/i);
+  it('renders missing variables as empty string', () => {
+    expect(render('Hi {{name}}', {})).toBe('Hi ');
   });
   it('html-escapes by default', () => {
     expect(render('<p>{{x}}</p>', { x: '<script>' })).toBe('<p>&lt;script&gt;</p>');
+  });
+  it('ignores placeholders inside HTML comments when extracting', () => {
+    const tpl = `<!-- example: {{example_var}} -->\n<p>{{real_var}}</p>`;
+    expect(extractVariables(tpl)).toEqual(['real_var']);
+  });
+  it('strips HTML comments (and their placeholders) when rendering', () => {
+    const tpl = `<!-- {{not_passed}} use {{variable}} syntax -->\n<p>{{name}}</p>`;
+    expect(render(tpl, { name: 'Alex' })).toBe(`\n<p>Alex</p>`);
   });
 });
