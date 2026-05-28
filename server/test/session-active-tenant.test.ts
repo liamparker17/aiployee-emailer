@@ -69,4 +69,35 @@ describe('POST /api/session/active-tenant', () => {
     expect(r.statusCode).toBe(400);
     expect(JSON.parse(r.body).error.code).toBe('no_active_tenant');
   });
+
+  it('DELETE clears active tenant: POST then DELETE then GET returns null', async () => {
+    const tenant = await createTenant(pool, 'Acme3');
+    await createUser(pool, { tenantId: null, email: 'admin@example.com', password: 'pw12345678', role: 'super_admin' });
+    const headers = await loginAs('admin@example.com', 'pw12345678');
+
+    const setR = await app.inject({
+      method: 'POST', url: '/api/session/active-tenant',
+      headers, payload: { tenantId: tenant.id },
+    });
+    expect(setR.statusCode).toBe(200);
+
+    const delR = await app.inject({ method: 'DELETE', url: '/api/session/active-tenant', headers });
+    expect(delR.statusCode).toBe(200);
+    expect(JSON.parse(delR.body)).toEqual({ ok: true });
+
+    const getR = await app.inject({ method: 'GET', url: '/api/session/active-tenant', headers });
+    expect(getR.statusCode).toBe(200);
+    expect(JSON.parse(getR.body)).toEqual({ tenantId: null });
+  });
+
+  it('returns 4xx for malformed uuid body', async () => {
+    await createUser(pool, { tenantId: null, email: 'admin@example.com', password: 'pw12345678', role: 'super_admin' });
+    const headers = await loginAs('admin@example.com', 'pw12345678');
+    const r = await app.inject({
+      method: 'POST', url: '/api/session/active-tenant',
+      headers, payload: { tenantId: 'not-a-uuid' },
+    });
+    expect(r.statusCode).toBeGreaterThanOrEqual(400);
+    expect(r.statusCode).toBeLessThan(500);
+  });
 });
