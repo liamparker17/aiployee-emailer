@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireCtx } from '../auth/ctx.js';
+import { requireCtx, requireSuperAdmin } from '../auth/ctx.js';
 import { AppError, sendError } from '../util/errors.js';
 
 const Body = z.object({ tenantId: z.string().uuid() });
@@ -8,14 +8,12 @@ const Body = z.object({ tenantId: z.string().uuid() });
 export async function registerSessionRoutes(app: FastifyInstance) {
   app.post('/api/session/active-tenant', async (req, reply) => {
     try {
-      const ctx = requireCtx(req);
-      if (ctx.role !== 'super_admin') {
-        throw new AppError('forbidden', 403, 'Super admin required');
-      }
+      requireSuperAdmin(req);
       const { tenantId } = Body.parse(req.body);
       const r = await app.pool.query('SELECT 1 FROM tenants WHERE id = $1', [tenantId]);
       if (r.rowCount === 0) throw new AppError('not_found', 404, 'Tenant not found');
       req.session.activeTenantId = tenantId;
+      await req.session.save();
       return reply.send({ ok: true, tenantId });
     } catch (e) { return sendError(reply, e); }
   });
@@ -30,9 +28,9 @@ export async function registerSessionRoutes(app: FastifyInstance) {
 
   app.delete('/api/session/active-tenant', async (req, reply) => {
     try {
-      const ctx = requireCtx(req);
-      if (ctx.role !== 'super_admin') throw new AppError('forbidden', 403, 'Super admin required');
+      requireSuperAdmin(req);
       req.session.activeTenantId = undefined;
+      await req.session.save();
       return reply.send({ ok: true });
     } catch (e) { return sendError(reply, e); }
   });
