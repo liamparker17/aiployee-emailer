@@ -4,6 +4,7 @@ import { loadConfig } from '../src/config.js';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createUser, createTenant } from './helpers/factories.js';
 import { csrfFor, login } from './helpers/auth.js';
+import { getSmtpConfigWithPassword } from '../src/repos/smtpConfigs.js';
 
 const cfg = loadConfig({
   NODE_ENV: 'test', PORT: '0',
@@ -41,5 +42,22 @@ describe('smtp configs routes', () => {
     const headersB = await loginTenantAdmin(b.id, 'b@x.com');
     const listB = await app.inject({ method: 'GET', url: '/api/smtp-configs', headers: headersB });
     expect(listB.json().configs).toHaveLength(0);
+  });
+
+  it('strips whitespace from pasted Gmail-style app passwords', async () => {
+    const t = await createTenant(pool);
+    const headers = await loginTenantAdmin(t.id);
+    const create = await app.inject({
+      method: 'POST', url: '/api/smtp-configs', headers,
+      payload: {
+        name: 'Gmail', host: 'smtp.gmail.com', port: 465, secure: true,
+        username: 'liam@gmail.com', password: 'abcd efgh ijkl mnop',
+        fromDomain: 'gmail.com', isDefault: true,
+      },
+    });
+    expect(create.statusCode).toBe(201);
+    const id = create.json().config.id as string;
+    const stored = await getSmtpConfigWithPassword(pool, cfg.encKey, t.id, id);
+    expect(stored?.password).toBe('abcdefghijklmnop');
   });
 });
