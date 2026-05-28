@@ -29,7 +29,10 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
   app.post('/api/smtp-configs', async (req, reply) => {
     try {
       const ctx = requireTenantCtx(req);
-      const body = CreateBody.parse(req.body);
+      const parsed = CreateBody.parse(req.body);
+      // Gmail app passwords are displayed as `xxxx xxxx xxxx xxxx`; users commonly paste verbatim.
+      // SMTP servers reject the whitespace form. Strip ALL whitespace before persisting.
+      const body = { ...parsed, password: parsed.password.replace(/\s+/g, '') };
       const c = await createSmtpConfig(app.pool, app.cfg.encKey, { tenantId: ctx.tenantId, ...body });
       return reply.code(201).send({ config: c });
     } catch (e) {
@@ -58,7 +61,11 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
       const tx = buildTransport(cfg);
       try {
         const info = await tx.sendMail({
-          from: `Aiployee Emailer <noreply@${cfg.from_domain}>`,
+          // Use the authenticated SMTP user as the From: address. Gmail (and most SMTP relays)
+          // reject submissions where From: doesn't belong to the authenticated user. For non-Gmail
+          // providers where `username` may not be an email (e.g. SES IAM-style usernames), this
+          // could need adjustment — but for Gmail/Outlook/most providers, username IS the email.
+          from: `Aiployee Emailer <${cfg.username}>`,
           to: body.to,
           subject: 'Aiployee Emailer SMTP test',
           text: 'If you can read this, your SMTP config works.',

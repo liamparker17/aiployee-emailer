@@ -126,6 +126,11 @@ export function StepSender() {
       <div>
         <label className="block text-sm mb-1">SMTP password</label>
         <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+        {preset === 'gmail' && (
+          <p className="text-xs text-muted mt-1">
+            For Gmail, use an App Password (not your account password). Spaces in app passwords are stripped automatically.
+          </p>
+        )}
       </div>
 
       {err && <div className="text-sm text-red-600">{err}</div>}
