@@ -21,6 +21,8 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       req.session.userId = u.id;
       req.session.tenantId = u.tenant_id;
       req.session.role = u.role as never;
+      req.session.activeTenantId = undefined;
+      await req.session.save();
       return reply.send({ user: { id: u.id, email: body.email, role: u.role, tenantId: u.tenant_id } });
     } catch (e) { sendError(reply, e); }
   });
