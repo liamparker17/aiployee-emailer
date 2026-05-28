@@ -1,0 +1,39 @@
+import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { requireCtx } from '../auth/ctx.js';
+import { AppError, sendError } from '../util/errors.js';
+
+const Body = z.object({ tenantId: z.string().uuid() });
+
+export async function registerSessionRoutes(app: FastifyInstance) {
+  app.post('/api/session/active-tenant', async (req, reply) => {
+    try {
+      const ctx = requireCtx(req);
+      if (ctx.role !== 'super_admin') {
+        throw new AppError('forbidden', 403, 'Super admin required');
+      }
+      const { tenantId } = Body.parse(req.body);
+      const r = await app.pool.query('SELECT 1 FROM tenants WHERE id = $1', [tenantId]);
+      if (r.rowCount === 0) throw new AppError('not_found', 404, 'Tenant not found');
+      req.session.activeTenantId = tenantId;
+      return reply.send({ ok: true, tenantId });
+    } catch (e) { return sendError(reply, e); }
+  });
+
+  app.get('/api/session/active-tenant', async (req, reply) => {
+    try {
+      const ctx = requireCtx(req);
+      if (ctx.role !== 'super_admin') return reply.send({ tenantId: ctx.tenantId || null });
+      return reply.send({ tenantId: req.session.activeTenantId ?? null });
+    } catch (e) { return sendError(reply, e); }
+  });
+
+  app.delete('/api/session/active-tenant', async (req, reply) => {
+    try {
+      const ctx = requireCtx(req);
+      if (ctx.role !== 'super_admin') throw new AppError('forbidden', 403, 'Super admin required');
+      req.session.activeTenantId = undefined;
+      return reply.send({ ok: true });
+    } catch (e) { return sendError(reply, e); }
+  });
+}

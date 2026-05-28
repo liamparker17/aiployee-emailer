@@ -30,5 +30,6 @@ declare module 'fastify' {
     userId?: string;
     tenantId?: string | null;
     role?: 'super_admin' | 'tenant_admin' | 'tenant_user';
+    activeTenantId?: string;
   }
 }

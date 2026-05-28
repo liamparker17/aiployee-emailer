@@ -43,10 +43,15 @@ export function registerCtx(app: FastifyInstance) {
         if (path === '/auth/login' || path === '/auth/invite/accept' || path === '/api/me') return;
         return reply.code(401).send({ error: { code: 'unauthorized', message: 'Not signed in' } });
       }
+      const role = sess.role!;
+      const effectiveTenantId =
+        role === 'super_admin'
+          ? (sess.activeTenantId ?? '')
+          : (sess.tenantId ?? '');
       req.ctx = {
-        tenantId: sess.tenantId ?? '',
+        tenantId: effectiveTenantId,
         userId: sess.userId,
-        role: sess.role!,
+        role,
       };
     }
   });
@@ -59,8 +64,8 @@ export function requireCtx(req: FastifyRequest): Ctx {
 
 export function requireTenantCtx(req: FastifyRequest): Ctx & { tenantId: string } {
   const ctx = requireCtx(req);
-  if (!ctx.tenantId && ctx.role !== 'super_admin') {
-    throw new AppError('forbidden', 403, 'Tenant context required');
+  if (!ctx.tenantId) {
+    throw new AppError('no_active_tenant', 400, 'No active tenant. Set one via POST /api/session/active-tenant.');
   }
   return ctx as Ctx & { tenantId: string };
 }
