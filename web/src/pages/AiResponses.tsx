@@ -14,6 +14,7 @@ import { useToast } from '../components/Toast';
 interface AgentConfig {
   enabled: boolean; model: string; system_prompt: string;
   auto_approve_jobix: boolean; max_tool_iterations: number; has_key: boolean;
+  jobix_webhook_url: string | null; has_webhook_secret: boolean;
 }
 interface Thread { id: string; jobix_thread_ref: string; subject: string | null; status: string; updated_at: string }
 interface Msg { id: string; role: string; source: string; content: string; status: string; created_at: string }
@@ -55,7 +56,11 @@ function IntegrationExplainer() {
             <li><strong className="text-ink">message_ref</strong> makes retries idempotent.</li>
             <li>MCP tools and RAG (coming in later phases) are configured per-tenant and only improve the reply — Jobix's contract doesn't change.</li>
           </ul>
-          <p className="text-xs text-ink-dim">Full contract: <code className="font-mono">docs/agent-jobix-integration.md</code>. Outbound webhooks to Jobix land in Phase 2.</p>
+          <p><strong className="text-ink">Outbound webhook:</strong> set a Jobix webhook URL + secret below and the emailer POSTs an
+            <code className="font-mono"> agent.response</code> event back to Jobix on every outcome
+            (<code className="font-mono">status</code>: <code className="font-mono">sent</code> / <code className="font-mono">drafted</code> / <code className="font-mono">rejected</code>),
+            HMAC-signed in the <code className="font-mono">X-Aiployee-Signature</code> header so Jobix can verify it.</p>
+          <p className="text-xs text-ink-dim">Full contract: <code className="font-mono">docs/agent-jobix-integration.md</code>.</p>
         </div>
       )}
     </Card>
@@ -66,7 +71,7 @@ export default function AiResponses() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [cfg, setCfg] = useState<AgentConfig | null>(null);
-  const [form, setForm] = useState({ enabled: false, model: 'gpt-4o', systemPrompt: '', autoApproveJobix: true, maxToolIterations: 4, openaiKey: '' });
+  const [form, setForm] = useState({ enabled: false, model: 'gpt-4o', systemPrompt: '', autoApproveJobix: true, maxToolIterations: 4, openaiKey: '', jobixWebhookUrl: '', jobixWebhookSecret: '' });
   const [threads, setThreads] = useState<Thread[]>([]);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, Msg[]>>({});
@@ -80,7 +85,7 @@ export default function AiResponses() {
     ]).then(([c, t]) => {
       if (c.config) {
         setCfg(c.config);
-        setForm(f => ({ ...f, enabled: c.config!.enabled, model: c.config!.model, systemPrompt: c.config!.system_prompt, autoApproveJobix: c.config!.auto_approve_jobix, maxToolIterations: c.config!.max_tool_iterations }));
+        setForm(f => ({ ...f, enabled: c.config!.enabled, model: c.config!.model, systemPrompt: c.config!.system_prompt, autoApproveJobix: c.config!.auto_approve_jobix, maxToolIterations: c.config!.max_tool_iterations, jobixWebhookUrl: c.config!.jobix_webhook_url ?? '' }));
       }
       setThreads(t.threads);
       setLoading(false);
@@ -95,9 +100,11 @@ export default function AiResponses() {
         autoApproveJobix: form.autoApproveJobix, maxToolIterations: form.maxToolIterations,
       };
       if (form.openaiKey.trim()) payload.openaiKey = form.openaiKey.trim();
+      if (form.jobixWebhookUrl.trim()) payload.jobixWebhookUrl = form.jobixWebhookUrl.trim();
+      if (form.jobixWebhookSecret.trim()) payload.jobixWebhookSecret = form.jobixWebhookSecret.trim();
       const r = await api<{ config: AgentConfig }>('/api/agent/config', { method: 'PUT', body: JSON.stringify(payload) });
       setCfg(r.config);
-      setForm(f => ({ ...f, openaiKey: '' }));
+      setForm(f => ({ ...f, openaiKey: '', jobixWebhookSecret: '' }));
       toast.success('Agent settings saved');
     } catch (err: unknown) {
       toast.error('Save failed: ' + (err as Error).message);
@@ -154,6 +161,12 @@ export default function AiResponses() {
             <input type="checkbox" checked={form.autoApproveJobix} onChange={e => setForm({ ...form, autoApproveJobix: e.target.checked })} />
             Auto-approve Jobix-sourced responses
           </label>
+          <Field label="Jobix webhook URL" hint="Where to POST thread outcomes back to Jobix (agent.response events).">
+            <Input value={form.jobixWebhookUrl} placeholder="https://…/jobix-webhook" onChange={e => setForm({ ...form, jobixWebhookUrl: e.target.value })} />
+          </Field>
+          <Field label="Jobix webhook secret" hint={cfg?.has_webhook_secret ? 'A secret is set (used to HMAC-sign deliveries). Leave blank to keep it.' : 'Used to HMAC-sign deliveries so Jobix can verify them.'}>
+            <Input type="password" value={form.jobixWebhookSecret} placeholder={cfg?.has_webhook_secret ? '•••••••••• (set)' : 'whsec_…'} onChange={e => setForm({ ...form, jobixWebhookSecret: e.target.value })} />
+          </Field>
           <div className="flex justify-end"><Button type="submit">Save settings</Button></div>
         </form>
       </Card>

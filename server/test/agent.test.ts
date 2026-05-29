@@ -6,6 +6,7 @@ import { createTenant, createUser } from './helpers/factories.js';
 import { csrfFor, login } from './helpers/auth.js';
 import { insertApiKey } from '../src/repos/apiKeys.js';
 import { generateApiKey, hashApiKey, prefixOf } from '../src/auth/apiKey.js';
+import { signBody } from '../src/agent/webhook.js';
 
 const cfg = loadConfig({
   NODE_ENV: 'test', PORT: '0',
@@ -19,10 +20,19 @@ const cfg = loadConfig({
 // Stub LLM so no real OpenAI call happens. Echoes a fixed reply.
 const stubFactory = () => ({ respond: async () => 'STUB REPLY' });
 
+// Capture webhook deliveries instead of making real HTTP calls.
+let captured: Array<{ url: string; signature: string; raw: string; body: Record<string, unknown> }> = [];
+const captureSender = {
+  async send({ url, signature, body }: { url: string; signature: string; body: string }) {
+    captured.push({ url, signature, raw: body, body: JSON.parse(body) });
+    return { ok: true, status: 200 };
+  },
+};
+
 let app: Awaited<ReturnType<typeof buildApp>>;
 const pool = makePool();
-beforeAll(async () => { app = await buildApp({ cfg, agentLlmFactory: stubFactory }); });
-beforeEach(async () => { await truncateAll(pool); });
+beforeAll(async () => { app = await buildApp({ cfg, agentLlmFactory: stubFactory, agentWebhookSender: captureSender }); });
+beforeEach(async () => { await truncateAll(pool); captured = []; });
 afterAll(async () => { await app.close(); await pool.end(); });
 
 async function loginAs(email: string, password: string) {
@@ -31,17 +41,19 @@ async function loginAs(email: string, password: string) {
 }
 
 /** Set up a tenant with an admin (session) and an API key (Jobix ingest). */
-async function setup(opts: { autoApprove?: boolean; enabled?: boolean } = {}) {
+const WEBHOOK_URL = 'https://jobix.example/hook';
+const WEBHOOK_SECRET = 'whsec_test';
+
+async function setup(opts: { autoApprove?: boolean; enabled?: boolean; webhook?: boolean } = {}) {
   const t = await createTenant(pool);
   await createUser(pool, { tenantId: t.id, email: 'admin@x.com', password: 'pw12345678', role: 'tenant_admin' });
   const headers = await loginAs('admin@x.com', 'pw12345678');
   const key = generateApiKey();
   await insertApiKey(pool, { tenantId: t.id, name: 'k', keyHash: hashApiKey(key), keyPrefix: prefixOf(key) });
   if (opts.enabled !== false) {
-    await app.inject({
-      method: 'PUT', url: '/api/agent/config', headers,
-      payload: { enabled: true, model: 'gpt-4o', systemPrompt: '', autoApproveJobix: opts.autoApprove ?? true, maxToolIterations: 4, openaiKey: 'sk-test' },
-    });
+    const payload: Record<string, unknown> = { enabled: true, model: 'gpt-4o', systemPrompt: '', autoApproveJobix: opts.autoApprove ?? true, maxToolIterations: 4, openaiKey: 'sk-test' };
+    if (opts.webhook) { payload.jobixWebhookUrl = WEBHOOK_URL; payload.jobixWebhookSecret = WEBHOOK_SECRET; }
+    await app.inject({ method: 'PUT', url: '/api/agent/config', headers, payload });
   }
   return { t, headers, key };
 }
@@ -123,5 +135,40 @@ describe('POST /v1/agent/messages', () => {
     expect(ok.statusCode).toBe(200);
     const detail2 = (await app.inject({ method: 'GET', url: `/api/agent/threads/${threads[0].id}`, headers })).json();
     expect(detail2.messages.find((m: { role: string }) => m.role === 'agent').status).toBe('approved');
+  });
+});
+
+describe('Jobix outbound webhook', () => {
+  it('delivers a signed agent.response when configured (auto-approved)', async () => {
+    const { key } = await setup({ autoApprove: true, webhook: true });
+    await app.inject({ method: 'POST', url: '/v1/agent/messages', headers: bearer(key), payload: { thread_ref: 't1', message: 'hi' } });
+    expect(captured).toHaveLength(1);
+    const c = captured[0];
+    expect(c.url).toBe(WEBHOOK_URL);
+    expect(c.body.event).toBe('agent.response');
+    expect(c.body.status).toBe('sent');
+    expect(c.body.thread_ref).toBe('t1');
+    expect(c.body.response_text).toBe('STUB REPLY');
+    // signature is HMAC-SHA256 of the exact body with the tenant's secret
+    expect(c.signature).toBe(signBody(c.raw, WEBHOOK_SECRET));
+  });
+
+  it('does not call the webhook when none is configured', async () => {
+    const { key } = await setup({ autoApprove: true, webhook: false });
+    const r = await app.inject({ method: 'POST', url: '/v1/agent/messages', headers: bearer(key), payload: { thread_ref: 't1', message: 'hi' } });
+    expect(r.statusCode).toBe(202);
+    expect(captured).toHaveLength(0);
+  });
+
+  it('fires status "rejected" when a draft is rejected', async () => {
+    const { key, headers } = await setup({ autoApprove: false, webhook: true });
+    await app.inject({ method: 'POST', url: '/v1/agent/messages', headers: bearer(key), payload: { thread_ref: 't1', message: 'hi' } });
+    // first delivery: drafted
+    expect(captured.map(c => c.body.status)).toContain('drafted');
+    const threads = (await app.inject({ method: 'GET', url: '/api/agent/threads', headers })).json().threads;
+    const detail = (await app.inject({ method: 'GET', url: `/api/agent/threads/${threads[0].id}`, headers })).json();
+    const agentMsg = detail.messages.find((m: { role: string }) => m.role === 'agent');
+    await app.inject({ method: 'POST', url: `/api/agent/messages/${agentMsg.id}/reject`, headers });
+    expect(captured.map(c => c.body.status)).toContain('rejected');
   });
 });

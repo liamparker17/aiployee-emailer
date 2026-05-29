@@ -4,6 +4,7 @@ import { encrypt, decrypt } from '../crypto/enc.js';
 export interface AgentConfigRow {
   id: string; tenant_id: string; enabled: boolean; model: string; system_prompt: string;
   auto_approve_jobix: boolean; max_tool_iterations: number; has_key: boolean;
+  jobix_webhook_url: string | null; has_webhook_secret: boolean;
 }
 export interface ThreadRow {
   id: string; tenant_id: string; jobix_thread_ref: string; subject: string | null; status: string;
@@ -19,7 +20,9 @@ export interface MessageRow {
 }
 
 const CONFIG_COLS =
-  'id, tenant_id, enabled, model, system_prompt, auto_approve_jobix, max_tool_iterations, (openai_key_encrypted IS NOT NULL) AS has_key';
+  'id, tenant_id, enabled, model, system_prompt, auto_approve_jobix, max_tool_iterations, ' +
+  '(openai_key_encrypted IS NOT NULL) AS has_key, jobix_webhook_url, ' +
+  '(jobix_webhook_secret_encrypted IS NOT NULL) AS has_webhook_secret';
 
 export async function getAgentConfig(pool: pg.Pool, tenantId: string): Promise<AgentConfigRow | null> {
   const r = await pool.query<AgentConfigRow>(
@@ -30,17 +33,23 @@ export async function getAgentConfig(pool: pg.Pool, tenantId: string): Promise<A
 export async function upsertAgentConfig(pool: pg.Pool, key: Buffer, tenantId: string, input: {
   enabled: boolean; model: string; systemPrompt: string; autoApproveJobix: boolean;
   maxToolIterations: number; openaiKey?: string | null;
+  jobixWebhookUrl?: string | null; jobixWebhookSecret?: string | null;
 }): Promise<AgentConfigRow> {
-  // Only overwrite the stored key when a new one is supplied (COALESCE keeps the old one).
+  // Only overwrite secrets when a new value is supplied (COALESCE keeps the old one).
   const enc = input.openaiKey ? encrypt(input.openaiKey, key) : null;
+  const secEnc = input.jobixWebhookSecret ? encrypt(input.jobixWebhookSecret, key) : null;
   const r = await pool.query<AgentConfigRow>(
-    `INSERT INTO agent_configs (tenant_id, enabled, model, system_prompt, auto_approve_jobix, max_tool_iterations, openai_key_encrypted)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)
+    `INSERT INTO agent_configs (tenant_id, enabled, model, system_prompt, auto_approve_jobix, max_tool_iterations, openai_key_encrypted, jobix_webhook_url, jobix_webhook_secret_encrypted)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
      ON CONFLICT (tenant_id) DO UPDATE SET
        enabled = $2, model = $3, system_prompt = $4, auto_approve_jobix = $5, max_tool_iterations = $6,
-       openai_key_encrypted = COALESCE($7, agent_configs.openai_key_encrypted), updated_at = now()
+       openai_key_encrypted = COALESCE($7, agent_configs.openai_key_encrypted),
+       jobix_webhook_url = COALESCE($8, agent_configs.jobix_webhook_url),
+       jobix_webhook_secret_encrypted = COALESCE($9, agent_configs.jobix_webhook_secret_encrypted),
+       updated_at = now()
      RETURNING ${CONFIG_COLS}`,
-    [tenantId, input.enabled, input.model, input.systemPrompt, input.autoApproveJobix, input.maxToolIterations, enc]);
+    [tenantId, input.enabled, input.model, input.systemPrompt, input.autoApproveJobix, input.maxToolIterations,
+     enc, input.jobixWebhookUrl ?? null, secEnc]);
   return r.rows[0];
 }
 
@@ -49,6 +58,14 @@ export async function getAgentOpenAIKey(pool: pg.Pool, key: Buffer, tenantId: st
     `SELECT openai_key_encrypted FROM agent_configs WHERE tenant_id = $1`, [tenantId]);
   const blob = r.rows[0]?.openai_key_encrypted;
   return blob ? decrypt(blob, key) : null;
+}
+
+export async function getJobixWebhook(pool: pg.Pool, key: Buffer, tenantId: string): Promise<{ url: string; secret: string } | null> {
+  const r = await pool.query<{ jobix_webhook_url: string | null; jobix_webhook_secret_encrypted: Buffer | null }>(
+    `SELECT jobix_webhook_url, jobix_webhook_secret_encrypted FROM agent_configs WHERE tenant_id = $1`, [tenantId]);
+  const row = r.rows[0];
+  if (!row?.jobix_webhook_url || !row.jobix_webhook_secret_encrypted) return null;
+  return { url: row.jobix_webhook_url, secret: decrypt(row.jobix_webhook_secret_encrypted, key) };
 }
 
 export async function upsertThread(pool: pg.Pool, tenantId: string, jobixRef: string, subject?: string | null): Promise<ThreadRow> {

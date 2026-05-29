@@ -23,8 +23,9 @@ import { registerUserRoutes } from './routes/users.js';
 import { registerSessionRoutes } from './routes/session.js';
 import { registerAgentRoutes } from './routes/agent.js';
 import type { LlmFactory } from './agent/runner.js';
+import type { WebhookSender } from './agent/webhook.js';
 
-export interface AppDeps { cfg?: Config; agentLlmFactory?: LlmFactory }
+export interface AppDeps { cfg?: Config; agentLlmFactory?: LlmFactory; agentWebhookSender?: WebhookSender }
 
 export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   const cfg = deps.cfg ?? loadConfig();
@@ -39,6 +40,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   app.decorate('pool', pool);
   // Optional injected LLM factory (tests stub this so no real OpenAI call happens).
   app.decorate('agentLlmFactory', deps.agentLlmFactory);
+  app.decorate('agentWebhookSender', deps.agentWebhookSender);
   // No in-process worker / scheduler. Sending happens inline in POST /v1/emails for immediate
   // sends, and via POST /v1/cron/* endpoints driven by an external cron (e.g. cron-job.org)
   // for scheduled + retry. This keeps the app stateless so it runs on Vercel/anywhere.
@@ -80,5 +82,6 @@ declare module 'fastify' {
     cfg: Config;
     pool: import('pg').Pool;
     agentLlmFactory?: import('./agent/runner.js').LlmFactory;
+    agentWebhookSender?: import('./agent/webhook.js').WebhookSender;
   }
 }

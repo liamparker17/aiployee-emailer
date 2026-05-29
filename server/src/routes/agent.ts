@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireCtx, requireTenantCtx } from '../auth/ctx.js';
 import { sendError, AppError } from '../util/errors.js';
 import { runAgentTurn } from '../agent/runner.js';
+import { deliverThreadEvent } from '../agent/webhook.js';
 import {
   getAgentConfig, upsertAgentConfig, upsertThread, insertMessage, findMessageByRef,
   listThreads, getThread, listThreadMessages, getMessage, setMessageStatus,
@@ -30,8 +31,23 @@ const ConfigBody = z.object({
   systemPrompt: z.string().default(''),
   autoApproveJobix: z.boolean().default(true),
   maxToolIterations: z.number().int().min(1).max(20).default(4),
-  openaiKey: z.string().min(1).optional(), // only sent when (re)setting the key
+  openaiKey: z.string().min(1).optional(),            // only sent when (re)setting the key
+  jobixWebhookUrl: z.string().url().optional(),        // outbound webhook to Jobix
+  jobixWebhookSecret: z.string().min(1).optional(),    // only sent when (re)setting the secret
 });
+
+// Fire the outbound Jobix webhook for a finalized agent message. Best-effort:
+// never throws, so it can't break the request that triggered it.
+async function notifyJobix(app: FastifyInstance, tenantId: string, threadRef: string, message: import('../repos/agent.js').MessageRow, status: 'sent' | 'drafted' | 'rejected') {
+  try {
+    await deliverThreadEvent({
+      pool: app.pool, encKey: app.cfg.encKey, tenantId, threadRef, message, status,
+      ts: new Date().toISOString(), sender: app.agentWebhookSender,
+    });
+  } catch (e) {
+    app.log.warn({ err: e, tenantId, threadRef }, 'jobix webhook delivery failed');
+  }
+}
 
 export async function registerAgentRoutes(app: FastifyInstance) {
   // ── Jobix → agent: ingest a message into a thread and run one agent turn ──────
@@ -66,7 +82,10 @@ export async function registerAgentRoutes(app: FastifyInstance) {
         threadId: thread.id, triggerSource: 'jobix', llmFactory: app.agentLlmFactory,
       });
 
-      // Phase 1 runs synchronously and returns the reply inline (outbound webhooks land in Phase 2).
+      // Notify Jobix of the outcome on this thread (no-op if no webhook configured).
+      const webhookStatus = message.status === 'pending_approval' ? 'drafted' : 'sent';
+      await notifyJobix(app, ctx.tenantId, body.thread_ref, message, webhookStatus);
+
       return reply.code(202).send({
         thread_ref: body.thread_ref,
         message_id: message.id,
@@ -120,6 +139,8 @@ export async function registerAgentRoutes(app: FastifyInstance) {
       if (!msg) throw new AppError('not_found', 404, 'Message not found');
       if (msg.status !== 'pending_approval') throw new AppError('not_pending', 400, 'Message is not pending approval');
       await setMessageStatus(app.pool, ctx.tenantId, id, 'approved', ctx.userId);
+      const thread = await getThread(app.pool, ctx.tenantId, msg.thread_id);
+      if (thread) await notifyJobix(app, ctx.tenantId, thread.jobix_thread_ref, msg, 'sent');
       return reply.send({ ok: true });
     } catch (e) { sendError(reply, e); }
   });
@@ -132,6 +153,8 @@ export async function registerAgentRoutes(app: FastifyInstance) {
       if (!msg) throw new AppError('not_found', 404, 'Message not found');
       if (msg.status !== 'pending_approval') throw new AppError('not_pending', 400, 'Message is not pending approval');
       await setMessageStatus(app.pool, ctx.tenantId, id, 'rejected', ctx.userId);
+      const thread = await getThread(app.pool, ctx.tenantId, msg.thread_id);
+      if (thread) await notifyJobix(app, ctx.tenantId, thread.jobix_thread_ref, msg, 'rejected');
       return reply.send({ ok: true });
     } catch (e) { sendError(reply, e); }
   });
