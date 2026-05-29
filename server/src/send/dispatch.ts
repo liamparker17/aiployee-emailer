@@ -5,6 +5,15 @@ import { logger } from '../util/logger.js';
 import { markSent, markFailed, type EmailRow } from '../repos/emails.js';
 import { getSenderById, type Sender } from '../repos/senders.js';
 import { getSmtpConfigWithPassword, type SmtpConfigRow } from '../repos/smtpConfigs.js';
+import { deliverEmailEvent } from '../webhooks/eventDelivery.js';
+
+/** Best-effort: notify tenant event webhooks that an email was sent. Never throws. */
+async function fireSent(pool: pg.Pool, encKey: Buffer, email: EmailRow): Promise<void> {
+  await deliverEmailEvent({
+    pool, encKey, tenantId: email.tenant_id, event: 'sent',
+    payload: { email_id: email.id, to: email.to_addr, subject: email.subject },
+  });
+}
 
 export type DispatchOutcome =
   | { ok: true; emailId: string; messageId: string }
@@ -68,8 +77,11 @@ export async function dispatchEmail(args: {
     const cfg = await getSmtpConfigWithPassword(pool, encKey, email.tenant_id, sender.smtp_config_id);
     if (!cfg) throw new Error(`smtp_config ${sender.smtp_config_id} not found`);
     const tx = buildPooledTransport(cfg);
-    try { return await sendOne(pool, tx, sender, email); }
+    let outcome: DispatchOutcome;
+    try { outcome = await sendOne(pool, tx, sender, email); }
     finally { tx.close(); }
+    if (outcome.ok) await fireSent(pool, encKey, email);
+    return outcome;
   } catch (e) {
     const msg = (e as Error).message;
     await markFailed(pool, email.id, msg);
@@ -128,9 +140,11 @@ export async function dispatchBatch(args: {
     }
     const tx = buildPooledTransport(cfg);
     try {
-      return await Promise.all(groupEmails.map(e => {
+      return await Promise.all(groupEmails.map(async e => {
         const sender = senders.get(e.sender_id)!;
-        return sendOne(pool, tx, sender, e);
+        const out = await sendOne(pool, tx, sender, e);
+        if (out.ok) await fireSent(pool, encKey, e);
+        return out;
       }));
     } finally { tx.close(); }
   }));

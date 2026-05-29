@@ -4,6 +4,7 @@ import { verifySnsMessage, parseSesNotification } from '../webhooks/ses.js';
 import { verifyMailgun, parseMailgunEvent } from '../webhooks/mailgun.js';
 import { findByMessageId, markStatus } from '../repos/emails.js';
 import { addSuppression } from '../repos/suppressions.js';
+import { deliverEmailEvent } from '../webhooks/eventDelivery.js';
 
 export async function registerV1WebhookRoutes(app: FastifyInstance) {
   app.post('/v1/webhooks/bounce/ses', async (req, reply) => {
@@ -24,6 +25,7 @@ export async function registerV1WebhookRoutes(app: FastifyInstance) {
         for (const r of ev.recipients) {
           await addSuppression(app.pool, { tenantId: email.tenant_id, address: r, reason: ev.type });
         }
+        await deliverEmailEvent({ pool: app.pool, encKey: app.cfg.encKey, tenantId: email.tenant_id, event: ev.type === 'bounce' ? 'bounced' : 'complained', payload: { email_id: email.id } });
       }
       return reply.send({ ok: true });
     } catch (e) { sendError(reply, new AppError('webhook_failed', 400, (e as Error).message)); }
@@ -40,6 +42,7 @@ export async function registerV1WebhookRoutes(app: FastifyInstance) {
       if (ev.type === 'bounce' || ev.type === 'complaint') {
         await markStatus(app.pool, email.id, ev.type === 'bounce' ? 'bounced' : 'complained');
         await addSuppression(app.pool, { tenantId: email.tenant_id, address: ev.recipient, reason: ev.type });
+        await deliverEmailEvent({ pool: app.pool, encKey: app.cfg.encKey, tenantId: email.tenant_id, event: ev.type === 'bounce' ? 'bounced' : 'complained', payload: { email_id: email.id } });
       }
       return reply.send({ ok: true });
     } catch (e) { sendError(reply, new AppError('webhook_failed', 400, (e as Error).message)); }

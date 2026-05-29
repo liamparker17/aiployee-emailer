@@ -17,6 +17,8 @@ import TenantPicker from './pages/TenantPicker';
 import Onboarding from './pages/Onboarding';
 import JobixBuilder from './pages/JobixBuilder';
 import AiResponses from './pages/AiResponses';
+import Domains from './pages/Domains';
+import EventWebhooks from './pages/EventWebhooks';
 
 function Authed({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -61,6 +63,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       { path: 'senders', element: <Senders /> },
+      { path: 'domains', element: <Domains /> },
+      { path: 'event-webhooks', element: <EventWebhooks /> },
       { path: 'templates', element: <Templates /> },
       { path: 'smtp', element: <SmtpConfigs /> },
       { path: 'api-keys', element: <ApiKeys /> },
