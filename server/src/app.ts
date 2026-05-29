@@ -28,6 +28,7 @@ import { registerTrackRoutes } from './routes/track.js';
 import { registerAnalyticsRoutes } from './routes/analytics.js';
 import { registerMarketingRoutes } from './routes/marketing.js';
 import { registerSegmentRoutes } from './routes/segments.js';
+import { registerCampaignRoutes } from './routes/campaigns.js';
 import type { LlmFactory } from './agent/runner.js';
 import type { WebhookSender } from './agent/webhook.js';
 import type { McpProviderFactory } from './agent/mcp.js';
@@ -78,6 +79,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerAnalyticsRoutes(app);
   await registerMarketingRoutes(app);
   await registerSegmentRoutes(app);
+  await registerCampaignRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));

@@ -1,0 +1,126 @@
+import { useEffect, useRef, useState } from 'react';
+import { Rocket } from 'lucide-react';
+import { api } from '../api';
+import { Button } from '../components/Button';
+import { Input, Field } from '../components/Input';
+import { Card } from '../components/Card';
+import { PageHeader } from '../components/PageHeader';
+import { useToast } from '../components/Toast';
+
+interface Sender { id: string; email: string; display_name: string }
+type Row = { email: string; name?: string; attributes: Record<string, string> };
+
+const selectCls = 'w-full rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:outline-none focus:border-accent';
+
+function parseCsv(text: string): Row[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return [];
+  const parseLine = (line: string): string[] => {
+    const out: string[] = []; let cur = ''; let q = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (q) { if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+      else if (ch === '"') q = true;
+      else if (ch === ',') { out.push(cur); cur = ''; }
+      else cur += ch;
+    }
+    out.push(cur); return out;
+  };
+  const headers = parseLine(lines[0]).map(h => h.trim().toLowerCase());
+  return lines.slice(1).map(line => {
+    const cells = parseLine(line);
+    const row: Record<string, string> = {};
+    headers.forEach((h, i) => { row[h] = (cells[i] ?? '').trim(); });
+    const { email, name, ...rest } = row;
+    return { email, name: name || undefined, attributes: rest };
+  }).filter(r => r.email && r.email.includes('@'));
+}
+
+export default function LaunchCampaign() {
+  const toast = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [senders, setSenders] = useState<Sender[]>([]);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [fileName, setFileName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ name: '', listName: '', senderId: '', subject: '', bodyHtml: '', scheduledFor: '' });
+
+  useEffect(() => {
+    api<{ senders: Sender[] }>('/api/senders').then(r => { setSenders(r.senders); if (r.senders[0]) setForm(f => ({ ...f, senderId: r.senders[0].id })); }).catch(() => {});
+  }, []);
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    const parsed = parseCsv(await file.text());
+    if (!parsed.length) { toast.error('No valid rows (need an "email" column)'); return; }
+    setRows(parsed); setFileName(file.name);
+    toast.success(`${parsed.length} recipients loaded from ${file.name}`);
+  }
+
+  async function launch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!rows.length) { toast.error('Upload a recipients CSV first'); return; }
+    if (!form.senderId) { toast.error('Pick a sender'); return; }
+    setBusy(true);
+    try {
+      const payload: Record<string, unknown> = {
+        name: form.name, listName: form.listName || undefined, senderId: form.senderId,
+        subject: form.subject, bodyHtml: form.bodyHtml, contacts: rows,
+      };
+      if (form.scheduledFor) payload.scheduledFor = new Date(form.scheduledFor).toISOString();
+      const r = await api<{ imported: number; queued: number; skipped: number }>('/api/campaigns/launch', { method: 'POST', body: JSON.stringify(payload) });
+      toast.success(`Launched: imported ${r.imported}, queued ${r.queued}, skipped ${r.skipped}`);
+      setRows([]); setFileName('');
+      setForm(f => ({ ...f, name: '', listName: '', subject: '', bodyHtml: '', scheduledFor: '' }));
+      if (fileRef.current) fileRef.current.value = '';
+    } catch (err: unknown) { toast.error('Launch failed: ' + (err as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Launch a campaign" subtitle="Upload a recipient list, write your email, and send — in one step. Unsubscribed/suppressed contacts are skipped and an unsubscribe link is added automatically." />
+
+      <form className="space-y-6" onSubmit={launch}>
+        <Card>
+          <h2 className="font-heading font-semibold text-ink mb-1">1. Upload recipients</h2>
+          <p className="text-sm text-ink-dim mb-4">CSV with an <code className="font-mono">email</code> column (a <code className="font-mono">name</code> column and any extra columns become merge fields like <code className="font-mono">{'{{'}name{'}}'}</code>).</p>
+          <div className="flex items-center gap-3">
+            <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onFile} />
+            <Button type="button" variant="secondary" onClick={() => fileRef.current?.click()}>Choose CSV</Button>
+            <span className="text-sm text-ink-muted">{rows.length ? `${rows.length} recipients — ${fileName}` : 'No file chosen'}</span>
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="font-heading font-semibold text-ink mb-4">2. Your email</h2>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Field label="Campaign name"><Input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Spring promo" /></Field>
+              <Field label="From (sender)">
+                <select className={selectCls} value={form.senderId} onChange={e => setForm({ ...form, senderId: e.target.value })}>
+                  {senders.map(s => <option key={s.id} value={s.id}>{s.display_name} — {s.email}</option>)}
+                </select>
+              </Field>
+            </div>
+            <Field label="Subject"><Input required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} placeholder="Hi {{name}}, a quick update" /></Field>
+            <Field label="Email body (HTML)" hint="Use {{name}}, {{email}}, or any CSV column as a placeholder.">
+              <textarea required className={`${selectCls} min-h-[180px] font-mono`} value={form.bodyHtml} onChange={e => setForm({ ...form, bodyHtml: e.target.value })} placeholder="<p>Hello {{name}},</p>" />
+            </Field>
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="font-heading font-semibold text-ink mb-4">3. Launch</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+            <Field label="Schedule (optional)" hint="Blank = send now."><Input type="datetime-local" value={form.scheduledFor} onChange={e => setForm({ ...form, scheduledFor: e.target.value })} /></Field>
+            <Field label="List name (optional)" hint="The uploaded recipients are saved as a reusable list."><Input value={form.listName} onChange={e => setForm({ ...form, listName: e.target.value })} placeholder="(defaults to the campaign name)" /></Field>
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button type="submit" disabled={busy}>{busy ? 'Launching…' : (<span className="flex items-center gap-2"><Rocket size={16} /> Launch campaign</span>)}</Button>
+          </div>
+        </Card>
+      </form>
+    </div>
+  );
+}

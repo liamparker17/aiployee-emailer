@@ -8,6 +8,8 @@ const styles: Record<string, string> = {
   canceled: 'bg-line-strong/30 text-ink-dim border-line-strong',
   subscribed: 'bg-success/15 text-success border-success/30',
   unsubscribed: 'bg-line-strong/30 text-ink-dim border-line-strong',
+  scheduled: 'bg-cyan/15 text-cyan border-cyan/30',
+  draft: 'bg-line-strong/30 text-ink-dim border-line-strong',
 };
 export function StatusBadge({ status }: { status: string }) {
   const s = styles[status.toLowerCase()] ?? 'bg-violet/15 text-violet border-violet/30';

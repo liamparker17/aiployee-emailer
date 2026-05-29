@@ -47,6 +47,24 @@ export async function getContact(pool: pg.Pool, tenantId: string, id: string): P
   return r.rows[0] ?? null;
 }
 
+/** Resolve contact ids for a set of emails within a tenant (used after CSV import). */
+export async function getContactIdsByEmails(pool: pg.Pool, tenantId: string, emails: string[]): Promise<string[]> {
+  const norm = [...new Set(emails.map(e => e.toLowerCase().trim()).filter(e => e.includes('@')))];
+  if (!norm.length) return [];
+  const r = await pool.query<{ id: string }>(
+    `SELECT id FROM contacts WHERE tenant_id = $1 AND email = ANY($2::text[])`, [tenantId, norm]);
+  return r.rows.map(row => row.id);
+}
+
+/** Fetch contacts by id within a tenant. `subscribedOnly` drops unsubscribed ones (for sending). */
+export async function getContactsByIds(pool: pg.Pool, tenantId: string, ids: string[], subscribedOnly = false): Promise<ContactRow[]> {
+  if (!ids.length) return [];
+  const r = await pool.query<ContactRow>(
+    `SELECT ${COLS} FROM contacts WHERE tenant_id = $1 AND id = ANY($2::uuid[]) ${subscribedOnly ? 'AND subscribed = true' : ''}`,
+    [tenantId, ids]);
+  return r.rows;
+}
+
 export async function deleteContact(pool: pg.Pool, tenantId: string, id: string): Promise<boolean> {
   const r = await pool.query(`DELETE FROM contacts WHERE tenant_id = $1 AND id = $2`, [tenantId, id]);
   return r.rowCount === 1;

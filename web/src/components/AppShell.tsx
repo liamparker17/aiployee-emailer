@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useEffect } from 'react';
-import { LayoutDashboard, Send, FileText, Server, ShieldCheck, KeyRound, Wand2, Bot, Webhook, ScrollText, ShieldBan, Users, UsersRound, ListChecks, Filter, Building2, LogOut } from 'lucide-react';
+import { LayoutDashboard, Send, FileText, Server, ShieldCheck, KeyRound, Wand2, Bot, Webhook, ScrollText, ShieldBan, Users, UsersRound, ListChecks, Filter, Megaphone, Rocket, Building2, LogOut } from 'lucide-react';
 import { useAuth } from '../auth';
 import TenantSwitcher from './TenantSwitcher';
 import { Logo } from './Logo';
@@ -53,9 +53,11 @@ export default function AppShell() {
           <NavLink to={`${base}/event-webhooks`} className={link}><Webhook size={16} />Event webhooks</NavLink>
 
           <SectionLabel>Marketing</SectionLabel>
+          <NavLink to={`${base}/launch-campaign`} className={link}><Rocket size={16} />Launch campaign</NavLink>
           <NavLink to={`${base}/contacts`} className={link}><UsersRound size={16} />Contacts</NavLink>
           <NavLink to={`${base}/lists`} className={link}><ListChecks size={16} />Lists</NavLink>
           <NavLink to={`${base}/segments`} className={link}><Filter size={16} />Segments</NavLink>
+          <NavLink to={`${base}/campaigns`} className={link}><Megaphone size={16} />Campaigns</NavLink>
 
           <SectionLabel>Admin</SectionLabel>
           <NavLink to={`${base}/users`} className={link}><Users size={16} />Users</NavLink>

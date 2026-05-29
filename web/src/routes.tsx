@@ -22,6 +22,8 @@ import EventWebhooks from './pages/EventWebhooks';
 import Contacts from './pages/Contacts';
 import Lists from './pages/Lists';
 import Segments from './pages/Segments';
+import Campaigns from './pages/Campaigns';
+import LaunchCampaign from './pages/LaunchCampaign';
 
 function Authed({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -71,6 +73,8 @@ export const router = createBrowserRouter([
       { path: 'contacts', element: <Contacts /> },
       { path: 'lists', element: <Lists /> },
       { path: 'segments', element: <Segments /> },
+      { path: 'campaigns', element: <Campaigns /> },
+      { path: 'launch-campaign', element: <LaunchCampaign /> },
       { path: 'templates', element: <Templates /> },
       { path: 'smtp', element: <SmtpConfigs /> },
       { path: 'api-keys', element: <ApiKeys /> },
