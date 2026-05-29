@@ -3,25 +3,36 @@ import { ScrollText } from 'lucide-react';
 import { api } from '../api';
 import { Table, Th, Td } from '../components/Table';
 import { Modal } from '../components/Modal';
+import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { Skeleton } from '../components/Skeleton';
 import { EmptyState } from '../components/EmptyState';
+import { useToast } from '../components/Toast';
 
-interface Email { id: string; to_addr: string; subject: string; status: string; created_at: string; error: string | null; message_id: string | null; body_html: string; open_count: number; click_count: number }
+interface Email { id: string; to_addr: string; subject: string; status: string; created_at: string; scheduled_for: string | null; error: string | null; message_id: string | null; body_html: string; open_count: number; click_count: number }
 
-const STATUSES = ['', 'queued', 'sending', 'sent', 'failed', 'bounced', 'complained', 'suppressed'];
+const STATUSES = ['', 'queued', 'sending', 'sent', 'failed', 'bounced', 'complained', 'suppressed', 'canceled'];
 
 export default function EmailLog() {
+  const toast = useToast();
   const [items, setItems] = useState<Email[]>([]);
   const [status, setStatus] = useState('');
   const [sel, setSel] = useState<Email | null>(null);
   const [loading, setLoading] = useState(false);
-  useEffect(() => {
+  const load = () => {
     const qs = new URLSearchParams(); if (status) qs.set('status', status); qs.set('limit', '200');
     setLoading(true);
     api<{ emails: Email[] }>(`/api/emails?${qs}`).then(r => { setItems(r.emails); setLoading(false); });
-  }, [status]);
+  };
+  useEffect(() => { load(); }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function cancel(ev: React.MouseEvent, id: string) {
+    ev.stopPropagation();
+    if (!confirm('Cancel this scheduled email?')) return;
+    try { await api(`/api/emails/${id}/cancel`, { method: 'POST' }); toast.success('Canceled'); load(); }
+    catch (err: unknown) { toast.error('Cancel failed: ' + (err as Error).message); }
+  }
   return (
     <div className="space-y-4">
       <PageHeader title="Email log" />
@@ -42,15 +53,21 @@ export default function EmailLog() {
         <EmptyState icon={ScrollText} title="No emails logged" />
       ) : (
         <Table>
-          <thead><tr><Th>Time</Th><Th>To</Th><Th>Subject</Th><Th>Status</Th><Th>Opens</Th><Th>Clicks</Th></tr></thead>
+          <thead><tr><Th>Time</Th><Th>To</Th><Th>Subject</Th><Th>Status</Th><Th>Scheduled</Th><Th>Opens</Th><Th>Clicks</Th><Th>{''}</Th></tr></thead>
           <tbody>{items.map(e => (
             <tr key={e.id} className="cursor-pointer hover:bg-surface" onClick={() => setSel(e)}>
               <Td className="text-ink-dim">{new Date(e.created_at).toLocaleString()}</Td>
               <Td>{e.to_addr}</Td>
               <Td>{e.subject}</Td>
               <Td><StatusBadge status={e.status} /></Td>
+              <Td className="text-ink-dim">{e.scheduled_for ? new Date(e.scheduled_for).toLocaleString() : '—'}</Td>
               <Td className={e.open_count > 0 ? 'text-magenta' : 'text-ink-dim'}>{e.open_count}</Td>
               <Td className={e.click_count > 0 ? 'text-accent' : 'text-ink-dim'}>{e.click_count}</Td>
+              <Td>{e.status === 'queued' && (
+                <span onClick={ev => ev.stopPropagation()}>
+                  <Button variant="ghost" onClick={ev => cancel(ev, e.id)}>Cancel</Button>
+                </span>
+              )}</Td>
             </tr>
           ))}</tbody>
         </Table>

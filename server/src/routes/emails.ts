@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireTenantCtx } from '../auth/ctx.js';
 import { sendError, AppError } from '../util/errors.js';
-import { getEmail, listEmails, type EmailStatus } from '../repos/emails.js';
+import { getEmail, listEmails, cancelScheduledEmail, type EmailStatus } from '../repos/emails.js';
 
 export async function registerEmailRoutes(app: FastifyInstance) {
   app.get('/api/emails', async (req, reply) => {
@@ -26,6 +26,15 @@ export async function registerEmailRoutes(app: FastifyInstance) {
       const e = await getEmail(app.pool, ctx.tenantId, id);
       if (!e) throw new AppError('not_found', 404, 'Email not found');
       return reply.send({ email: e });
+    } catch (e) { sendError(reply, e); }
+  });
+  app.post('/api/emails/:id/cancel', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      const { id } = req.params as { id: string };
+      const ok = await cancelScheduledEmail(app.pool, ctx.tenantId, id);
+      if (!ok) throw new AppError('not_cancelable', 400, 'Only a scheduled (queued) email can be canceled');
+      return reply.send({ ok: true });
     } catch (e) { sendError(reply, e); }
   });
 }

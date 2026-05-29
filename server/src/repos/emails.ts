@@ -1,6 +1,6 @@
 import type pg from 'pg';
 
-export type EmailStatus = 'queued' | 'sending' | 'sent' | 'failed' | 'bounced' | 'complained' | 'suppressed';
+export type EmailStatus = 'queued' | 'sending' | 'sent' | 'failed' | 'bounced' | 'complained' | 'suppressed' | 'canceled';
 
 export interface EmailRow {
   id: string; tenant_id: string; sender_id: string;
@@ -63,6 +63,14 @@ export async function listEmails(pool: pg.Pool, tenantId: string, opts: {
      FROM emails WHERE ${where.join(' AND ')}
      ORDER BY created_at DESC LIMIT $${params.length}`, params);
   return r.rows;
+}
+
+/** Cancel a scheduled (still-queued) email. Returns true only if it was queued. */
+export async function cancelScheduledEmail(pool: pg.Pool, tenantId: string, id: string): Promise<boolean> {
+  const r = await pool.query(
+    `UPDATE emails SET status = 'canceled' WHERE tenant_id = $1 AND id = $2 AND status = 'queued'`,
+    [tenantId, id]);
+  return r.rowCount === 1;
 }
 
 export async function claimForSend(pool: pg.Pool, id: string): Promise<EmailRow | null> {

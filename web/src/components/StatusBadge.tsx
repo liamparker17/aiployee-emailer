@@ -5,6 +5,7 @@ const styles: Record<string, string> = {
   sending: 'bg-cyan/15 text-cyan border-cyan/30',
   failed: 'bg-error/15 text-error border-error/30',
   bounced: 'bg-error/15 text-error border-error/30',
+  canceled: 'bg-line-strong/30 text-ink-dim border-line-strong',
 };
 export function StatusBadge({ status }: { status: string }) {
   const s = styles[status.toLowerCase()] ?? 'bg-violet/15 text-violet border-violet/30';
