@@ -11,6 +11,30 @@ export interface McpToolProvider {
 
 export type McpProviderFactory = (servers: McpServerConn[]) => McpToolProvider;
 
+/** Combine several tool providers into one; routes each call back to the provider that owns the tool. */
+export function compositeProvider(providers: McpToolProvider[]): McpToolProvider {
+  const owner = new Map<string, McpToolProvider>();
+  return {
+    async listTools() {
+      const all: AgentTool[] = [];
+      for (const p of providers) {
+        try {
+          for (const t of await p.listTools()) { owner.set(t.name, p); all.push(t); }
+        } catch { /* a failing provider must not break the others */ }
+      }
+      return all;
+    },
+    async callTool(name, args) {
+      const p = owner.get(name);
+      if (!p) return `Error: unknown tool ${name}`;
+      return p.callTool(name, args);
+    },
+    async close() {
+      for (const p of providers) { try { await p.close(); } catch { /* ignore */ } }
+    },
+  };
+}
+
 const sanitize = (s: string) => s.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
 
 /**

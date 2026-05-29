@@ -6,9 +6,12 @@ import { runAgentTurn } from '../agent/runner.js';
 import { deliverThreadEvent } from '../agent/webhook.js';
 import {
   getAgentConfig, upsertAgentConfig, upsertThread, insertMessage, findMessageByRef,
-  listThreads, getThread, listThreadMessages, getMessage, setMessageStatus,
+  listThreads, getThread, listThreadMessages, getMessage, setMessageStatus, getAgentOpenAIKey,
 } from '../repos/agent.js';
 import { listMcpServers, createMcpServer, deleteMcpServer } from '../repos/mcpServers.js';
+import { listRagSqlSources, createRagSqlSource, deleteRagSqlSource } from '../repos/ragSqlSources.js';
+import { insertDocument, listRagSources, deleteDocumentsBySource } from '../repos/ragDocuments.js';
+import { makeEmbed } from '../agent/runner.js';
 
 function requireAdmin(req: FastifyRequest) {
   const ctx = requireTenantCtx(req);
@@ -140,6 +143,65 @@ export async function registerAgentRoutes(app: FastifyInstance) {
       const ok = await deleteMcpServer(app.pool, ctx.tenantId, id);
       if (!ok) throw new AppError('not_found', 404, 'MCP server not found');
       return reply.send({ ok: true });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // ── Session UI: RAG SQL sources (connect a database the agent can query) ────────
+  app.get('/api/agent/rag-sql-sources', async (req, reply) => {
+    try {
+      const ctx = requireAdmin(req);
+      return reply.send({ sources: await listRagSqlSources(app.pool, ctx.tenantId) });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  const RagSqlBody = z.object({ name: z.string().min(1), connection: z.string().min(1) });
+  app.post('/api/agent/rag-sql-sources', async (req, reply) => {
+    try {
+      const ctx = requireAdmin(req);
+      const body = RagSqlBody.parse(req.body);
+      const source = await createRagSqlSource(app.pool, app.cfg.encKey, { tenantId: ctx.tenantId, ...body });
+      return reply.code(201).send({ source });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  app.delete('/api/agent/rag-sql-sources/:id', async (req, reply) => {
+    try {
+      const ctx = requireAdmin(req);
+      const { id } = req.params as { id: string };
+      const ok = await deleteRagSqlSource(app.pool, ctx.tenantId, id);
+      if (!ok) throw new AppError('not_found', 404, 'Source not found');
+      return reply.send({ ok: true });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // ── Session UI: RAG knowledge documents (embedded for semantic search) ──────────
+  app.get('/api/agent/rag-documents', async (req, reply) => {
+    try {
+      const ctx = requireAdmin(req);
+      return reply.send({ sources: await listRagSources(app.pool, ctx.tenantId) });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  const RagDocBody = z.object({ source: z.string().min(1), content: z.string().min(1) });
+  app.post('/api/agent/rag-documents', async (req, reply) => {
+    try {
+      const ctx = requireAdmin(req);
+      const body = RagDocBody.parse(req.body);
+      const key = await getAgentOpenAIKey(app.pool, app.cfg.encKey, ctx.tenantId);
+      if (!key) throw new AppError('no_openai_key', 400, 'Set an OpenAI key first (embeddings need it)');
+      const embedding = await makeEmbed(key)(body.content);
+      const doc = await insertDocument(app.pool, { tenantId: ctx.tenantId, source: body.source, content: body.content, embedding });
+      return reply.code(201).send({ id: doc.id });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  app.delete('/api/agent/rag-documents', async (req, reply) => {
+    try {
+      const ctx = requireAdmin(req);
+      const source = (req.query as { source?: string }).source;
+      if (!source) throw new AppError('bad_request', 400, 'source query param required');
+      const n = await deleteDocumentsBySource(app.pool, ctx.tenantId, source);
+      return reply.send({ deleted: n });
     } catch (e) { sendError(reply, e); }
   });
 

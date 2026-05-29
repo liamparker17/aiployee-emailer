@@ -4,7 +4,21 @@ import {
   getAgentConfig, getAgentOpenAIKey, listThreadMessages, insertMessage, type MessageRow,
 } from '../repos/agent.js';
 import { listEnabledMcpServersWithAuth } from '../repos/mcpServers.js';
-import { defaultMcpProviderFactory, type McpProviderFactory, type McpToolProvider } from './mcp.js';
+import { listEnabledRagSqlSourcesWithConn } from '../repos/ragSqlSources.js';
+import { countRagDocuments } from '../repos/ragDocuments.js';
+import { defaultMcpProviderFactory, compositeProvider, type McpProviderFactory, type McpToolProvider } from './mcp.js';
+import { ragSqlProvider } from './ragSqlProvider.js';
+import { ragVectorProvider } from './ragVectorProvider.js';
+
+/** OpenAI embeddings (1536-dim) for the vector RAG tool, using the tenant's key. */
+export function makeEmbed(apiKey: string) {
+  return async (text: string): Promise<number[]> => {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey });
+    const r = await client.embeddings.create({ model: 'text-embedding-3-small', input: text });
+    return r.data[0].embedding;
+  };
+}
 
 export interface LlmTool { name: string; description: string; parameters: Record<string, unknown> }
 export interface LlmToolCall { id: string; name: string; arguments: string }
@@ -75,18 +89,28 @@ export async function runAgentTurn(args: {
   if (!cfg || !cfg.enabled) throw new AppError('agent_disabled', 400, 'Agent is not enabled for this tenant');
 
   let llm = args.llm;
+  let apiKey: string | null = null;
   if (!llm) {
-    const key = await getAgentOpenAIKey(pool, encKey, tenantId);
-    if (!key) throw new AppError('no_openai_key', 400, 'No OpenAI key configured for this tenant');
-    llm = (args.llmFactory ?? openAiFactory)(key);
+    apiKey = await getAgentOpenAIKey(pool, encKey, tenantId);
+    if (!apiKey) throw new AppError('no_openai_key', 400, 'No OpenAI key configured for this tenant');
+    llm = (args.llmFactory ?? openAiFactory)(apiKey);
   }
 
-  // Build the MCP tool provider (empty tool set if no servers configured).
-  let provider = args.mcpProvider;
-  if (!provider) {
-    const servers = await listEnabledMcpServersWithAuth(pool, encKey, tenantId);
-    provider = (args.mcpProviderFactory ?? defaultMcpProviderFactory)(servers);
+  // Assemble tool providers: MCP servers + RAG (SQL) + RAG (vector). Each is empty
+  // when nothing is configured, so with none the loop is a plain completion.
+  const mcp = args.mcpProvider
+    ?? (args.mcpProviderFactory ?? defaultMcpProviderFactory)(await listEnabledMcpServersWithAuth(pool, encKey, tenantId));
+  const providers: McpToolProvider[] = [mcp];
+
+  const sqlSources = await listEnabledRagSqlSourcesWithConn(pool, encKey, tenantId);
+  if (sqlSources.length) providers.push(ragSqlProvider(sqlSources));
+
+  if (await countRagDocuments(pool, tenantId) > 0) {
+    const embedKey = apiKey ?? await getAgentOpenAIKey(pool, encKey, tenantId);
+    if (embedKey) providers.push(ragVectorProvider({ pool, tenantId, enabled: true, embed: makeEmbed(embedKey) }));
   }
+
+  const provider = compositeProvider(providers);
 
   try {
     const tools = await provider.listTools();

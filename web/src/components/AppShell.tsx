@@ -36,7 +36,7 @@ export default function AppShell() {
           <NavLink to={`${base}/smtp`} className={link}><Server size={16} />SMTP configs</NavLink>
           <NavLink to={`${base}/api-keys`} className={link}><KeyRound size={16} />API keys</NavLink>
           <NavLink to={`${base}/jobix-builder`} className={link}><Wand2 size={16} />Jobix builder</NavLink>
-          <NavLink to={`${base}/ai-responses`} className={link}><Bot size={16} />AI responses</NavLink>
+          <NavLink to={`${base}/ai-responses`} className={link}><Bot size={16} />AI</NavLink>
           <NavLink to={`${base}/log`} className={link}><ScrollText size={16} />Email log</NavLink>
           <NavLink to={`${base}/suppressions`} className={link}><ShieldBan size={16} />Suppressions</NavLink>
           <NavLink to={`${base}/users`} className={link}><Users size={16} />Users</NavLink>

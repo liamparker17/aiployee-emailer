@@ -17,8 +17,13 @@ interface AgentConfig {
   jobix_webhook_url: string | null; has_webhook_secret: boolean;
 }
 interface McpServer { id: string; name: string; url: string; enabled: boolean; has_auth: boolean }
+interface RagSqlSource { id: string; name: string; enabled: boolean; has_connection: boolean }
+interface RagDocSource { source: string; documents: number }
 interface Thread { id: string; jobix_thread_ref: string; subject: string | null; status: string; updated_at: string }
 interface Msg { id: string; role: string; source: string; content: string; status: string; created_at: string }
+
+type Tab = 'settings' | 'inbox' | 'mcp' | 'knowledge';
+const TABS: [Tab, string][] = [['settings', 'Settings'], ['inbox', 'Inbox'], ['mcp', 'MCP tools'], ['knowledge', 'Knowledge']];
 
 const selectCls = 'w-full rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:outline-none focus:border-accent';
 
@@ -41,7 +46,7 @@ function IntegrationExplainer() {
         <div className="mt-4 space-y-4 text-sm text-ink-muted">
           <p>
             The agent does <strong className="text-ink">not</strong> read real inbound email — <strong className="text-ink">Jobix drives every conversation</strong>.
-            The loop is: <em>Jobix → agent runs → action → webhook back to Jobix</em>.
+            The loop is: <em>Jobix → agent runs (with MCP tools + RAG) → action → webhook back to Jobix</em>.
           </p>
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -52,15 +57,14 @@ function IntegrationExplainer() {
           </div>
           <ul className="list-disc pl-5 space-y-1">
             <li><strong className="text-ink">thread_ref</strong> — Jobix's own conversation id; reuse it per conversation so the agent keeps history.</li>
-            <li>The endpoint returns <strong className="text-ink">202</strong> immediately; the agent runs and (Phase 1) returns the reply inline as <code className="font-mono">response_text</code>.</li>
-            <li><strong className="text-ink">Jobix-sourced messages are auto-approved</strong> and acted on; messages created here in the UI wait for your approval below.</li>
+            <li><strong className="text-ink">Jobix-sourced messages are auto-approved</strong> and acted on; messages created here wait for approval in the Inbox.</li>
             <li><strong className="text-ink">message_ref</strong> makes retries idempotent.</li>
-            <li>MCP tools and RAG (coming in later phases) are configured per-tenant and only improve the reply — Jobix's contract doesn't change.</li>
+            <li>MCP tools and RAG (databases + knowledge documents) are configured in their tabs and only improve the reply — Jobix's contract doesn't change.</li>
           </ul>
-          <p><strong className="text-ink">Outbound webhook:</strong> set a Jobix webhook URL + secret below and the emailer POSTs an
+          <p><strong className="text-ink">Outbound webhook:</strong> set a Jobix webhook URL + secret in Settings and the emailer POSTs an
             <code className="font-mono"> agent.response</code> event back to Jobix on every outcome
-            (<code className="font-mono">status</code>: <code className="font-mono">sent</code> / <code className="font-mono">drafted</code> / <code className="font-mono">rejected</code>),
-            HMAC-signed in the <code className="font-mono">X-Aiployee-Signature</code> header so Jobix can verify it.</p>
+            (<code className="font-mono">sent</code> / <code className="font-mono">drafted</code> / <code className="font-mono">rejected</code>),
+            HMAC-signed in <code className="font-mono">X-Aiployee-Signature</code>.</p>
           <p className="text-xs text-ink-dim">Full contract: <code className="font-mono">docs/agent-jobix-integration.md</code>.</p>
         </div>
       )}
@@ -70,6 +74,7 @@ function IntegrationExplainer() {
 
 export default function AiResponses() {
   const toast = useToast();
+  const [tab, setTab] = useState<Tab>('settings');
   const [loading, setLoading] = useState(true);
   const [cfg, setCfg] = useState<AgentConfig | null>(null);
   const [form, setForm] = useState({ enabled: false, model: 'gpt-4o', systemPrompt: '', autoApproveJobix: true, maxToolIterations: 4, openaiKey: '', jobixWebhookUrl: '', jobixWebhookSecret: '' });
@@ -78,28 +83,15 @@ export default function AiResponses() {
   const [messages, setMessages] = useState<Record<string, Msg[]>>({});
   const [mcp, setMcp] = useState<McpServer[]>([]);
   const [mcpForm, setMcpForm] = useState({ name: '', url: '', authHeader: '' });
+  const [ragSql, setRagSql] = useState<RagSqlSource[]>([]);
+  const [ragSqlForm, setRagSqlForm] = useState({ name: '', connection: '' });
+  const [ragDocs, setRagDocs] = useState<RagDocSource[]>([]);
+  const [docForm, setDocForm] = useState({ source: '', content: '' });
 
   const loadThreads = () => api<{ threads: Thread[] }>('/api/agent/threads').then(r => setThreads(r.threads));
   const loadMcp = () => api<{ servers: McpServer[] }>('/api/agent/mcp-servers').then(r => setMcp(r.servers));
-
-  async function addMcp(e: React.FormEvent) {
-    e.preventDefault();
-    try {
-      const payload: Record<string, unknown> = { name: mcpForm.name, url: mcpForm.url };
-      if (mcpForm.authHeader.trim()) payload.authHeader = mcpForm.authHeader.trim();
-      await api('/api/agent/mcp-servers', { method: 'POST', body: JSON.stringify(payload) });
-      setMcpForm({ name: '', url: '', authHeader: '' });
-      loadMcp();
-      toast.success('MCP server added');
-    } catch (err: unknown) {
-      toast.error('Add failed: ' + (err as Error).message);
-    }
-  }
-  async function delMcp(id: string) {
-    if (!confirm('Remove this MCP server?')) return;
-    try { await api(`/api/agent/mcp-servers/${id}`, { method: 'DELETE' }); loadMcp(); toast.success('Removed'); }
-    catch (err: unknown) { toast.error('Remove failed: ' + (err as Error).message); }
-  }
+  const loadRagSql = () => api<{ sources: RagSqlSource[] }>('/api/agent/rag-sql-sources').then(r => setRagSql(r.sources));
+  const loadRagDocs = () => api<{ sources: RagDocSource[] }>('/api/agent/rag-documents').then(r => setRagDocs(r.sources));
 
   useEffect(() => {
     Promise.all([
@@ -114,6 +106,8 @@ export default function AiResponses() {
       setLoading(false);
     }).catch(() => setLoading(false));
     loadMcp().catch(() => {});
+    loadRagSql().catch(() => {});
+    loadRagDocs().catch(() => {});
   }, []);
 
   async function saveConfig(e: React.FormEvent) {
@@ -143,84 +137,109 @@ export default function AiResponses() {
       setMessages(m => ({ ...m, [id]: r.messages }));
     }
   }
-
   async function decide(threadId: string, msgId: string, action: 'approve' | 'reject') {
     try {
       await api(`/api/agent/messages/${msgId}/${action}`, { method: 'POST' });
       const r = await api<{ messages: Msg[] }>(`/api/agent/threads/${threadId}`);
       setMessages(m => ({ ...m, [threadId]: r.messages }));
       toast.success(action === 'approve' ? 'Approved' : 'Rejected');
-    } catch (err: unknown) {
-      toast.error('Failed: ' + (err as Error).message);
-    }
+    } catch (err: unknown) { toast.error('Failed: ' + (err as Error).message); }
+  }
+
+  async function addMcp(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const payload: Record<string, unknown> = { name: mcpForm.name, url: mcpForm.url };
+      if (mcpForm.authHeader.trim()) payload.authHeader = mcpForm.authHeader.trim();
+      await api('/api/agent/mcp-servers', { method: 'POST', body: JSON.stringify(payload) });
+      setMcpForm({ name: '', url: '', authHeader: '' }); loadMcp(); toast.success('MCP server added');
+    } catch (err: unknown) { toast.error('Add failed: ' + (err as Error).message); }
+  }
+  async function delMcp(id: string) {
+    if (!confirm('Remove this MCP server?')) return;
+    try { await api(`/api/agent/mcp-servers/${id}`, { method: 'DELETE' }); loadMcp(); toast.success('Removed'); }
+    catch (err: unknown) { toast.error('Remove failed: ' + (err as Error).message); }
+  }
+
+  async function addRagSql(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      await api('/api/agent/rag-sql-sources', { method: 'POST', body: JSON.stringify(ragSqlForm) });
+      setRagSqlForm({ name: '', connection: '' }); loadRagSql(); toast.success('Database connected');
+    } catch (err: unknown) { toast.error('Connect failed: ' + (err as Error).message); }
+  }
+  async function delRagSql(id: string) {
+    if (!confirm('Disconnect this database?')) return;
+    try { await api(`/api/agent/rag-sql-sources/${id}`, { method: 'DELETE' }); loadRagSql(); toast.success('Disconnected'); }
+    catch (err: unknown) { toast.error('Failed: ' + (err as Error).message); }
+  }
+  async function addDoc(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      await api('/api/agent/rag-documents', { method: 'POST', body: JSON.stringify(docForm) });
+      setDocForm({ source: '', content: '' }); loadRagDocs(); toast.success('Document added');
+    } catch (err: unknown) { toast.error('Add failed: ' + (err as Error).message); }
+  }
+  async function delDocSource(source: string) {
+    if (!confirm(`Delete all documents in "${source}"?`)) return;
+    try { await api(`/api/agent/rag-documents?source=${encodeURIComponent(source)}`, { method: 'DELETE' }); loadRagDocs(); toast.success('Deleted'); }
+    catch (err: unknown) { toast.error('Failed: ' + (err as Error).message); }
   }
 
   if (loading) {
-    return <div className="space-y-6"><PageHeader title="AI responses" /><Skeleton className="h-40" /></div>;
+    return <div className="space-y-6"><PageHeader title="AI" /><Skeleton className="h-40" /></div>;
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="AI responses" subtitle="An OpenAI agent that responds to Jobix-driven threads. Jobix-sourced replies auto-send; others wait for your approval." />
+      <PageHeader title="AI" subtitle="An OpenAI agent that responds to Jobix-driven threads, with MCP tools and RAG. Jobix-sourced replies auto-send; others wait for approval." />
 
-      <IntegrationExplainer />
+      <div className="flex gap-1 border-b border-line">
+        {TABS.map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)}
+            className={`px-4 py-2 text-sm -mb-px border-b-2 transition ${tab === id ? 'border-magenta text-ink font-medium' : 'border-transparent text-ink-muted hover:text-ink'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
 
-      <Card>
-        <h2 className="font-heading font-semibold text-ink mb-4">Agent settings</h2>
-        <form className="space-y-4 max-w-xl" onSubmit={saveConfig}>
-          <label className="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" checked={form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} />
-            Enable the agent
-          </label>
-          <Field label="Model" hint="Any OpenAI model id, e.g. gpt-4o.">
-            <Input value={form.model} onChange={e => setForm({ ...form, model: e.target.value })} />
-          </Field>
-          <Field label="System prompt" hint="Persona / instructions for the agent. Leave blank for a sensible default.">
-            <textarea className={`${selectCls} min-h-[100px]`} value={form.systemPrompt} onChange={e => setForm({ ...form, systemPrompt: e.target.value })} />
-          </Field>
-          <Field label="OpenAI API key" hint={cfg?.has_key ? 'A key is set. Leave blank to keep it, or paste a new one to replace.' : 'Required to run the agent.'}>
-            <Input type="password" value={form.openaiKey} placeholder={cfg?.has_key ? '•••••••••• (set)' : 'sk-...'} onChange={e => setForm({ ...form, openaiKey: e.target.value })} />
-          </Field>
-          <label className="flex items-center gap-2 text-sm text-ink">
-            <input type="checkbox" checked={form.autoApproveJobix} onChange={e => setForm({ ...form, autoApproveJobix: e.target.checked })} />
-            Auto-approve Jobix-sourced responses
-          </label>
-          <Field label="Jobix webhook URL" hint="Where to POST thread outcomes back to Jobix (agent.response events).">
-            <Input value={form.jobixWebhookUrl} placeholder="https://…/jobix-webhook" onChange={e => setForm({ ...form, jobixWebhookUrl: e.target.value })} />
-          </Field>
-          <Field label="Jobix webhook secret" hint={cfg?.has_webhook_secret ? 'A secret is set (used to HMAC-sign deliveries). Leave blank to keep it.' : 'Used to HMAC-sign deliveries so Jobix can verify them.'}>
-            <Input type="password" value={form.jobixWebhookSecret} placeholder={cfg?.has_webhook_secret ? '•••••••••• (set)' : 'whsec_…'} onChange={e => setForm({ ...form, jobixWebhookSecret: e.target.value })} />
-          </Field>
-          <div className="flex justify-end"><Button type="submit">Save settings</Button></div>
-        </form>
-      </Card>
+      {tab === 'settings' && (
+        <div className="space-y-6">
+          <IntegrationExplainer />
+          <Card>
+            <h2 className="font-heading font-semibold text-ink mb-4">Agent settings</h2>
+            <form className="space-y-4 max-w-xl" onSubmit={saveConfig}>
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input type="checkbox" checked={form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} />
+                Enable the agent
+              </label>
+              <Field label="Model" hint="Any OpenAI model id, e.g. gpt-4o.">
+                <Input value={form.model} onChange={e => setForm({ ...form, model: e.target.value })} />
+              </Field>
+              <Field label="System prompt" hint="Persona / instructions for the agent. Leave blank for a sensible default.">
+                <textarea className={`${selectCls} min-h-[100px]`} value={form.systemPrompt} onChange={e => setForm({ ...form, systemPrompt: e.target.value })} />
+              </Field>
+              <Field label="OpenAI API key" hint={cfg?.has_key ? 'A key is set. Leave blank to keep it, or paste a new one to replace.' : 'Required to run the agent (and to embed knowledge documents).'}>
+                <Input type="password" value={form.openaiKey} placeholder={cfg?.has_key ? '•••••••••• (set)' : 'sk-...'} onChange={e => setForm({ ...form, openaiKey: e.target.value })} />
+              </Field>
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input type="checkbox" checked={form.autoApproveJobix} onChange={e => setForm({ ...form, autoApproveJobix: e.target.checked })} />
+                Auto-approve Jobix-sourced responses
+              </label>
+              <Field label="Jobix webhook URL" hint="Where to POST thread outcomes back to Jobix (agent.response events).">
+                <Input value={form.jobixWebhookUrl} placeholder="https://…/jobix-webhook" onChange={e => setForm({ ...form, jobixWebhookUrl: e.target.value })} />
+              </Field>
+              <Field label="Jobix webhook secret" hint={cfg?.has_webhook_secret ? 'A secret is set (HMAC-signs deliveries). Leave blank to keep it.' : 'Used to HMAC-sign deliveries so Jobix can verify them.'}>
+                <Input type="password" value={form.jobixWebhookSecret} placeholder={cfg?.has_webhook_secret ? '•••••••••• (set)' : 'whsec_…'} onChange={e => setForm({ ...form, jobixWebhookSecret: e.target.value })} />
+              </Field>
+              <div className="flex justify-end"><Button type="submit">Save settings</Button></div>
+            </form>
+          </Card>
+        </div>
+      )}
 
-      <Card>
-        <h2 className="font-heading font-semibold text-ink mb-1">MCP tool servers</h2>
-        <p className="text-sm text-ink-dim mb-4">Connect MCP servers and the agent can call their tools while composing a reply. Tools are namespaced per server.</p>
-        {mcp.length > 0 && (
-          <div className="space-y-2 mb-4">
-            {mcp.map(s => (
-              <div key={s.id} className="flex items-center gap-3 rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm">
-                <span className="font-medium text-ink">{s.name}</span>
-                <span className="text-ink-dim font-mono text-xs truncate">{s.url}</span>
-                {s.has_auth && <span className="text-xs text-ink-dim">· auth set</span>}
-                <span className="ml-auto"><Button variant="danger" onClick={() => delMcp(s.id)}>Remove</Button></span>
-              </div>
-            ))}
-          </div>
-        )}
-        <form className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end" onSubmit={addMcp}>
-          <Field label="Name"><Input required value={mcpForm.name} onChange={e => setMcpForm({ ...mcpForm, name: e.target.value })} placeholder="My tools" /></Field>
-          <Field label="Server URL"><Input required value={mcpForm.url} onChange={e => setMcpForm({ ...mcpForm, url: e.target.value })} placeholder="https://…/mcp" /></Field>
-          <Field label="Auth header (optional)"><Input type="password" value={mcpForm.authHeader} onChange={e => setMcpForm({ ...mcpForm, authHeader: e.target.value })} placeholder="Bearer …" /></Field>
-          <div className="md:col-span-3 flex justify-end"><Button type="submit" variant="secondary">Add MCP server</Button></div>
-        </form>
-      </Card>
-
-      <div>
-        <h2 className="font-heading font-semibold text-ink mb-3">Threads</h2>
-        {threads.length === 0 ? (
+      {tab === 'inbox' && (
+        threads.length === 0 ? (
           <EmptyState icon={Bot} title="No threads yet" description="When Jobix posts to /v1/agent/messages, conversations appear here." />
         ) : (
           <div className="space-y-2">
@@ -254,8 +273,79 @@ export default function AiResponses() {
               </Card>
             ))}
           </div>
-        )}
-      </div>
+        )
+      )}
+
+      {tab === 'mcp' && (
+        <Card>
+          <h2 className="font-heading font-semibold text-ink mb-1">MCP tool servers</h2>
+          <p className="text-sm text-ink-dim mb-4">Connect MCP servers and the agent can call their tools while composing a reply. Tools are namespaced per server.</p>
+          {mcp.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {mcp.map(s => (
+                <div key={s.id} className="flex items-center gap-3 rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm">
+                  <span className="font-medium text-ink">{s.name}</span>
+                  <span className="text-ink-dim font-mono text-xs truncate">{s.url}</span>
+                  {s.has_auth && <span className="text-xs text-ink-dim">· auth set</span>}
+                  <span className="ml-auto"><Button variant="danger" onClick={() => delMcp(s.id)}>Remove</Button></span>
+                </div>
+              ))}
+            </div>
+          )}
+          <form className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end" onSubmit={addMcp}>
+            <Field label="Name"><Input required value={mcpForm.name} onChange={e => setMcpForm({ ...mcpForm, name: e.target.value })} placeholder="My tools" /></Field>
+            <Field label="Server URL"><Input required value={mcpForm.url} onChange={e => setMcpForm({ ...mcpForm, url: e.target.value })} placeholder="https://…/mcp" /></Field>
+            <Field label="Auth header (optional)"><Input type="password" value={mcpForm.authHeader} onChange={e => setMcpForm({ ...mcpForm, authHeader: e.target.value })} placeholder="Bearer …" /></Field>
+            <div className="md:col-span-3 flex justify-end"><Button type="submit" variant="secondary">Add MCP server</Button></div>
+          </form>
+        </Card>
+      )}
+
+      {tab === 'knowledge' && (
+        <div className="space-y-6">
+          <Card>
+            <h2 className="font-heading font-semibold text-ink mb-1">Connected databases</h2>
+            <p className="text-sm text-ink-dim mb-4">The agent gets a <strong className="text-ink">read-only</strong> SQL tool per database. Queries run in a read-only transaction with a timeout — the agent can read, never write.</p>
+            {ragSql.length > 0 && (
+              <div className="space-y-2 mb-4">
+                {ragSql.map(s => (
+                  <div key={s.id} className="flex items-center gap-3 rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm">
+                    <span className="font-medium text-ink">{s.name}</span>
+                    {s.has_connection && <span className="text-xs text-ink-dim">· connection stored (encrypted)</span>}
+                    <span className="ml-auto"><Button variant="danger" onClick={() => delRagSql(s.id)}>Disconnect</Button></span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <form className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end" onSubmit={addRagSql}>
+              <Field label="Name"><Input required value={ragSqlForm.name} onChange={e => setRagSqlForm({ ...ragSqlForm, name: e.target.value })} placeholder="Customers DB" /></Field>
+              <Field label="Connection string" hint="postgres://… — stored encrypted, used read-only."><Input required type="password" value={ragSqlForm.connection} onChange={e => setRagSqlForm({ ...ragSqlForm, connection: e.target.value })} placeholder="postgres://user:pass@host/db" /></Field>
+              <div className="md:col-span-2 flex justify-end"><Button type="submit" variant="secondary">Connect database</Button></div>
+            </form>
+          </Card>
+
+          <Card>
+            <h2 className="font-heading font-semibold text-ink mb-1">Knowledge documents</h2>
+            <p className="text-sm text-ink-dim mb-4">Add documents to embed into the knowledge base. The agent can semantically search them via a <code className="font-mono">search_knowledge</code> tool. Requires an OpenAI key (Settings).</p>
+            {ragDocs.length > 0 && (
+              <div className="space-y-2 mb-4">
+                {ragDocs.map(s => (
+                  <div key={s.source} className="flex items-center gap-3 rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm">
+                    <span className="font-medium text-ink">{s.source}</span>
+                    <span className="text-xs text-ink-dim">· {s.documents} document{s.documents === 1 ? '' : 's'}</span>
+                    <span className="ml-auto"><Button variant="danger" onClick={() => delDocSource(s.source)}>Delete</Button></span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <form className="space-y-3" onSubmit={addDoc}>
+              <Field label="Source / label" hint="Groups related documents, e.g. 'FAQ' or 'Pricing'."><Input required value={docForm.source} onChange={e => setDocForm({ ...docForm, source: e.target.value })} placeholder="FAQ" /></Field>
+              <Field label="Content"><textarea required className={`${selectCls} min-h-[120px]`} value={docForm.content} onChange={e => setDocForm({ ...docForm, content: e.target.value })} placeholder="Paste the knowledge text to embed…" /></Field>
+              <div className="flex justify-end"><Button type="submit" variant="secondary">Add document</Button></div>
+            </form>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
