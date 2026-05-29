@@ -16,6 +16,7 @@ import AdminTenants from './pages/AdminTenants';
 import TenantPicker from './pages/TenantPicker';
 import Onboarding from './pages/Onboarding';
 import JobixBuilder from './pages/JobixBuilder';
+import AiResponses from './pages/AiResponses';
 
 function Authed({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -64,6 +65,7 @@ export const router = createBrowserRouter([
       { path: 'smtp', element: <SmtpConfigs /> },
       { path: 'api-keys', element: <ApiKeys /> },
       { path: 'jobix-builder', element: <JobixBuilder /> },
+      { path: 'ai-responses', element: <AiResponses /> },
       { path: 'log', element: <EmailLog /> },
       { path: 'suppressions', element: <Suppressions /> },
       { path: 'users', element: <Users /> },
