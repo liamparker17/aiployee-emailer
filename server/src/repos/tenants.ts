@@ -19,3 +19,26 @@ export async function getTenant(pool: pg.Pool, id: string): Promise<Tenant | nul
   const r = await pool.query<Tenant>(`SELECT id, name, slug, created_at FROM tenants WHERE id = $1`, [id]);
   return r.rows[0] ?? null;
 }
+
+/**
+ * Permanently delete a tenant and all its data. FKs (tenant_id ON DELETE CASCADE)
+ * remove senders, smtp_configs, templates, api_keys, emails, suppressions, and
+ * users. We also clear the tenant members' sessions (no FK on the sessions table)
+ * so a deleted tenant's users can't keep acting on a stale cookie. Returns whether
+ * the tenant row existed.
+ */
+export async function deleteTenant(pool: pg.Pool, id: string): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM sessions WHERE sess->>'tenantId' = $1`, [id]);
+    const r = await client.query(`DELETE FROM tenants WHERE id = $1`, [id]);
+    await client.query('COMMIT');
+    return r.rowCount === 1;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}

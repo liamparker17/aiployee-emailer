@@ -21,6 +21,7 @@ export default function AdminTenants() {
   const [items, setItems] = useState<Tenant[]>([]);
   const [open, setOpen] = useState(false);
   const [invite, setInvite] = useState<{ url: string } | null>(null);
+  const [delTarget, setDelTarget] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = () => {
@@ -56,12 +57,17 @@ export default function AdminTenants() {
           <EmptyState icon={Building2} title="No tenants yet" description="Create your first tenant to get started." />
         ) : (
           <Table>
-            <thead><tr><Th>Name</Th><Th>Slug</Th><Th>Created</Th></tr></thead>
+            <thead><tr><Th>Name</Th><Th>Slug</Th><Th>Created</Th><Th>{''}</Th></tr></thead>
             <tbody>{items.map(t => (
               <tr key={t.id}>
                 <Td>{t.name}</Td>
                 <Td>{t.slug}</Td>
                 <Td>{new Date(t.created_at).toLocaleString()}</Td>
+                <Td>
+                  <div className="flex justify-end">
+                    <Button variant="danger" onClick={() => setDelTarget(t)}>Delete</Button>
+                  </div>
+                </Td>
               </tr>
             ))}</tbody>
           </Table>
@@ -81,8 +87,51 @@ export default function AdminTenants() {
             <div className="flex justify-end"><Button onClick={() => setInvite(null)}>Done</Button></div>
           </div>
         </Modal>
+
+        <DeleteTenantModal
+          tenant={delTarget}
+          onClose={() => setDelTarget(null)}
+          onDeleted={() => { setDelTarget(null); refresh(); toast.success('Tenant deleted'); }}
+          onError={m => toast.error('Delete failed: ' + m)}
+        />
       </div>
     </div>
+  );
+}
+
+function DeleteTenantModal({ tenant, onClose, onDeleted, onError }: {
+  tenant: Tenant | null;
+  onClose: () => void;
+  onDeleted: () => void;
+  onError: (m: string) => void;
+}) {
+  const [confirmText, setConfirmText] = useState('');
+  useEffect(() => { setConfirmText(''); }, [tenant]);
+  if (!tenant) return null;
+  const match = confirmText === tenant.slug;
+  return (
+    <Modal open={!!tenant} onClose={onClose} title={`Delete tenant "${tenant.name}"`}>
+      <div className="space-y-3">
+        <p className="text-sm text-ink-muted">
+          This permanently deletes <strong className="text-ink">{tenant.name}</strong> and all of its data —
+          senders, templates, SMTP configs, API keys, email log, suppressions, and users. This cannot be undone.
+        </p>
+        <Field label={`Type the slug "${tenant.slug}" to confirm`}>
+          <Input value={confirmText} onChange={e => setConfirmText(e.target.value)} />
+        </Field>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" type="button" onClick={onClose}>Cancel</Button>
+          <Button variant="danger" disabled={!match} onClick={async () => {
+            try {
+              await api(`/api/admin/tenants/${tenant.id}`, { method: 'DELETE' });
+              onDeleted();
+            } catch (e: unknown) {
+              onError((e as Error).message);
+            }
+          }}>Delete tenant</Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

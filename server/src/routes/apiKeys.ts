@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireTenantCtx } from '../auth/ctx.js';
 import { sendError, AppError } from '../util/errors.js';
 import { generateApiKey, hashApiKey, prefixOf } from '../auth/apiKey.js';
-import { insertApiKey, listApiKeys, revokeApiKey, getApiKeyById } from '../repos/apiKeys.js';
+import { insertApiKey, listApiKeys, revokeApiKey, getApiKeyById, deleteApiKeyPermanent } from '../repos/apiKeys.js';
 
 const CreateBody = z.object({ name: z.string().min(1), parentId: z.string().uuid().optional() });
 
@@ -40,6 +40,18 @@ export async function registerApiKeyRoutes(app: FastifyInstance) {
       // Revoking a master cascades to its sub-keys (handled in revokeApiKey).
       const ok = await revokeApiKey(app.pool, ctx.tenantId, id);
       if (!ok) throw new AppError('not_found', 404, 'API key not found or already revoked');
+      return reply.send({ ok: true });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // Permanent hard-delete — only allowed once the key is revoked. Deleting a
+  // master cascades its sub-keys; referencing email rows keep api_key_id = NULL.
+  app.delete('/api/api-keys/:id/permanent', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      const { id } = req.params as { id: string };
+      const ok = await deleteApiKeyPermanent(app.pool, ctx.tenantId, id);
+      if (!ok) throw new AppError('not_found', 404, 'API key not found or not revoked');
       return reply.send({ ok: true });
     } catch (e) { sendError(reply, e); }
   });

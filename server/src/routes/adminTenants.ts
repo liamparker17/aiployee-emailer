@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireSuperAdmin } from '../auth/ctx.js';
 import { sendError, AppError } from '../util/errors.js';
-import { createTenant, listTenants } from '../repos/tenants.js';
+import { createTenant, listTenants, deleteTenant } from '../repos/tenants.js';
 import { createInvitedUser } from '../repos/users.js';
 
 const CreateBody = z.object({
@@ -36,5 +36,15 @@ export async function registerAdminTenantRoutes(app: FastifyInstance) {
       if ((e as { code?: string }).code === '23505') return sendError(reply, new AppError('slug_taken', 409, 'Slug already in use'));
       sendError(reply, e);
     }
+  });
+
+  app.delete('/api/admin/tenants/:id', async (req, reply) => {
+    try {
+      requireSuperAdmin(req);
+      const { id } = req.params as { id: string };
+      const ok = await deleteTenant(app.pool, id);
+      if (!ok) throw new AppError('not_found', 404, 'Tenant not found');
+      return reply.send({ ok: true });
+    } catch (e) { sendError(reply, e); }
   });
 }

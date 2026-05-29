@@ -25,3 +25,37 @@ export async function listUsersForTenant(pool: pg.Pool, tenantId: string): Promi
     `SELECT id, tenant_id, email, role FROM users WHERE tenant_id = $1 ORDER BY email`, [tenantId]);
   return r.rows;
 }
+
+export async function getUserById(pool: pg.Pool, id: string): Promise<{ id: string; tenant_id: string | null; role: Role } | null> {
+  const r = await pool.query<{ id: string; tenant_id: string | null; role: Role }>(
+    `SELECT id, tenant_id, role FROM users WHERE id = $1`, [id]);
+  return r.rows[0] ?? null;
+}
+
+export async function countTenantAdmins(pool: pg.Pool, tenantId: string): Promise<number> {
+  const r = await pool.query<{ count: number }>(
+    `SELECT count(*)::int AS count FROM users WHERE tenant_id = $1 AND role = 'tenant_admin'`, [tenantId]);
+  return r.rows[0].count;
+}
+
+/**
+ * Permanently delete a user and clear their active sessions (no FK on the sessions
+ * table; ctx is built from the session cookie without re-checking the DB, so a
+ * lingering session would otherwise keep a deleted user authenticated). Returns
+ * whether the user row existed.
+ */
+export async function deleteUser(pool: pg.Pool, id: string): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM sessions WHERE sess->>'userId' = $1`, [id]);
+    const r = await client.query(`DELETE FROM users WHERE id = $1`, [id]);
+    await client.query('COMMIT');
+    return r.rowCount === 1;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}

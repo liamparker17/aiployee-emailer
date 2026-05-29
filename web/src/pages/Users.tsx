@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Users as UsersIcon } from 'lucide-react';
 import { api } from '../api';
+import { useAuth } from '../auth';
 import { Table, Th, Td } from '../components/Table';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
@@ -13,17 +14,31 @@ import { useToast } from '../components/Toast';
 interface U { id: string; email: string; role: string }
 
 export default function Users() {
+  const { user } = useAuth();
   const [items, setItems] = useState<U[]>([]);
   const [open, setOpen] = useState(false);
   const [invite, setInvite] = useState<{ url: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
+  const canDelete = user?.role === 'tenant_admin' || user?.role === 'super_admin';
+
   const refresh = () => {
     setLoading(true);
     api<{ users: U[] }>('/api/users').then(r => { setItems(r.users); setLoading(false); });
   };
   useEffect(() => { refresh(); }, []);
+
+  async function del(u: U) {
+    if (!confirm(`Delete ${u.email}? This permanently removes the user and signs them out.`)) return;
+    try {
+      await api(`/api/users/${u.id}`, { method: 'DELETE' });
+      toast.success('User deleted');
+      refresh();
+    } catch (e: unknown) {
+      toast.error('Delete failed: ' + (e as Error).message);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -42,9 +57,18 @@ export default function Users() {
         <EmptyState icon={UsersIcon} title="No users yet" description="Invite your first user to get started." />
       ) : (
         <Table>
-          <thead><tr><Th>Email</Th><Th>Role</Th></tr></thead>
+          <thead><tr><Th>Email</Th><Th>Role</Th><Th>{''}</Th></tr></thead>
           <tbody>{items.map(u => (
-            <tr key={u.id}><Td>{u.email}</Td><Td>{u.role}</Td></tr>
+            <tr key={u.id}>
+              <Td>{u.email}</Td><Td>{u.role}</Td>
+              <Td>
+                <div className="flex justify-end">
+                  {canDelete && u.id !== user?.id && (
+                    <Button variant="danger" onClick={() => del(u)}>Delete</Button>
+                  )}
+                </div>
+              </Td>
+            </tr>
           ))}</tbody>
         </Table>
       )}

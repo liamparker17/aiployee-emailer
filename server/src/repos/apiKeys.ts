@@ -44,3 +44,16 @@ export async function revokeApiKey(pool: pg.Pool, tenantId: string, id: string):
     [tenantId, id]);
   return r.rows.some(row => row.id === id);
 }
+
+/**
+ * Permanently delete a key — only if it is already revoked. Deleting a master key
+ * cascades to its sub-keys (parent_id ON DELETE CASCADE); emails that referenced
+ * the key keep their row with api_key_id set to NULL. Returns whether a row was
+ * deleted (false if not found, not in this tenant, or still active).
+ */
+export async function deleteApiKeyPermanent(pool: pg.Pool, tenantId: string, id: string): Promise<boolean> {
+  const r = await pool.query(
+    `DELETE FROM api_keys WHERE tenant_id = $1 AND id = $2 AND revoked_at IS NOT NULL`,
+    [tenantId, id]);
+  return r.rowCount === 1;
+}

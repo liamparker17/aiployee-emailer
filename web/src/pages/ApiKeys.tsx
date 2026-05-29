@@ -380,6 +380,20 @@ export default function ApiKeys() {
     }
   }
 
+  async function purge(k: Key) {
+    const msg = k.parent_id === null
+      ? `Permanently delete ${k.name}? This also removes its sub-keys and can't be undone.`
+      : `Permanently delete ${k.name}? This can't be undone.`;
+    if (!confirm(msg)) return;
+    try {
+      await api(`/api/api-keys/${k.id}/permanent`, { method: 'DELETE' });
+      toast.success('Key deleted.');
+      refresh();
+    } catch (e: unknown) {
+      toast.error('Delete failed: ' + (e as Error).message);
+    }
+  }
+
   const masters = items.filter(k => k.parent_id === null);
   const childrenOf = (id: string) => items.filter(k => k.parent_id === id);
   const renderRow = (k: Key, sub: boolean) => (
@@ -398,6 +412,7 @@ export default function ApiKeys() {
             <Button variant="secondary" onClick={() => setSubParent(k)}>Add sub-key</Button>
           )}
           {!k.revoked_at && <Button variant="danger" onClick={() => revoke(k)}>Revoke</Button>}
+          {k.revoked_at && <Button variant="danger" onClick={() => purge(k)}>Delete</Button>}
         </div>
       </Td>
     </tr>
