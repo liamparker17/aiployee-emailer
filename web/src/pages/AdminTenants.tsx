@@ -22,6 +22,7 @@ export default function AdminTenants() {
   const [open, setOpen] = useState(false);
   const [invite, setInvite] = useState<{ url: string } | null>(null);
   const [delTarget, setDelTarget] = useState<Tenant | null>(null);
+  const [renameTarget, setRenameTarget] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = () => {
@@ -64,7 +65,8 @@ export default function AdminTenants() {
                 <Td>{t.slug}</Td>
                 <Td>{new Date(t.created_at).toLocaleString()}</Td>
                 <Td>
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2">
+                    <Button variant="secondary" onClick={() => setRenameTarget(t)}>Rename</Button>
                     <Button variant="danger" onClick={() => setDelTarget(t)}>Delete</Button>
                   </div>
                 </Td>
@@ -88,6 +90,13 @@ export default function AdminTenants() {
           </div>
         </Modal>
 
+        <RenameTenantModal
+          tenant={renameTarget}
+          onClose={() => setRenameTarget(null)}
+          onRenamed={() => { setRenameTarget(null); refresh(); toast.success('Tenant renamed'); }}
+          onError={m => toast.error('Rename failed: ' + m)}
+        />
+
         <DeleteTenantModal
           tenant={delTarget}
           onClose={() => setDelTarget(null)}
@@ -96,6 +105,37 @@ export default function AdminTenants() {
         />
       </div>
     </div>
+  );
+}
+
+function RenameTenantModal({ tenant, onClose, onRenamed, onError }: {
+  tenant: Tenant | null;
+  onClose: () => void;
+  onRenamed: () => void;
+  onError: (m: string) => void;
+}) {
+  const [name, setName] = useState('');
+  useEffect(() => { setName(tenant?.name ?? ''); }, [tenant]);
+  if (!tenant) return null;
+  return (
+    <Modal open={!!tenant} onClose={onClose} title={`Rename "${tenant.name}"`}>
+      <form className="space-y-3" onSubmit={async e => {
+        e.preventDefault();
+        try {
+          await api(`/api/admin/tenants/${tenant.id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+          onRenamed();
+        } catch (err: unknown) {
+          onError((err as Error).message);
+        }
+      }}>
+        <Field label="Name"><Input required value={name} onChange={e => setName(e.target.value)} /></Field>
+        <p className="text-xs text-ink-dim">The slug (<code className="font-mono">{tenant.slug}</code>) stays the same so existing links keep working.</p>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit">Save</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

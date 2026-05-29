@@ -49,4 +49,35 @@ describe('admin tenants', () => {
     });
     expect(create.statusCode).toBe(403);
   });
+
+  it('super_admin renames a tenant (slug unchanged)', async () => {
+    await createUser(pool, { tenantId: null, email: 'root@x.com', password: 'pw12345!', role: 'super_admin' });
+    const headers = await loginAs('root@x.com', 'pw12345!');
+    const t = await pool.query(`INSERT INTO tenants(name,slug) VALUES ('Old Name','acme') RETURNING id`);
+    const r = await app.inject({
+      method: 'PATCH', url: `/api/admin/tenants/${t.rows[0].id}`, headers, payload: { name: 'New Name' },
+    });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().tenant.name).toBe('New Name');
+    expect(r.json().tenant.slug).toBe('acme');
+  });
+
+  it('rename rejects a non-super-admin with 403', async () => {
+    const t = await pool.query(`INSERT INTO tenants(name,slug) VALUES ('A','a') RETURNING id`);
+    await createUser(pool, { tenantId: t.rows[0].id, email: 'u@a.com', password: 'pw12345!', role: 'tenant_admin' });
+    const headers = await loginAs('u@a.com', 'pw12345!');
+    const r = await app.inject({
+      method: 'PATCH', url: `/api/admin/tenants/${t.rows[0].id}`, headers, payload: { name: 'X' },
+    });
+    expect(r.statusCode).toBe(403);
+  });
+
+  it('rename returns 404 for unknown tenant', async () => {
+    await createUser(pool, { tenantId: null, email: 'root@x.com', password: 'pw12345!', role: 'super_admin' });
+    const headers = await loginAs('root@x.com', 'pw12345!');
+    const r = await app.inject({
+      method: 'PATCH', url: '/api/admin/tenants/00000000-0000-0000-0000-000000000000', headers, payload: { name: 'X' },
+    });
+    expect(r.statusCode).toBe(404);
+  });
 });

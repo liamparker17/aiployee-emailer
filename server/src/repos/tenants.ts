@@ -20,6 +20,12 @@ export async function getTenant(pool: pg.Pool, id: string): Promise<Tenant | nul
   return r.rows[0] ?? null;
 }
 
+export async function renameTenant(pool: pg.Pool, id: string, name: string): Promise<Tenant | null> {
+  const r = await pool.query<Tenant>(
+    `UPDATE tenants SET name = $2 WHERE id = $1 RETURNING id, name, slug, created_at`, [id, name]);
+  return r.rows[0] ?? null;
+}
+
 /**
  * Permanently delete a tenant and all its data. FKs (tenant_id ON DELETE CASCADE)
  * remove senders, smtp_configs, templates, api_keys, emails, suppressions, and
