@@ -21,8 +21,10 @@ import { registerSuppressionRoutes } from './routes/suppressions.js';
 import { registerEmailRoutes } from './routes/emails.js';
 import { registerUserRoutes } from './routes/users.js';
 import { registerSessionRoutes } from './routes/session.js';
+import { registerAgentRoutes } from './routes/agent.js';
+import type { LlmFactory } from './agent/runner.js';
 
-export interface AppDeps { cfg?: Config }
+export interface AppDeps { cfg?: Config; agentLlmFactory?: LlmFactory }
 
 export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   const cfg = deps.cfg ?? loadConfig();
@@ -35,6 +37,8 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   app.decorate('cfg', cfg);
   const pool = getPool(cfg);
   app.decorate('pool', pool);
+  // Optional injected LLM factory (tests stub this so no real OpenAI call happens).
+  app.decorate('agentLlmFactory', deps.agentLlmFactory);
   // No in-process worker / scheduler. Sending happens inline in POST /v1/emails for immediate
   // sends, and via POST /v1/cron/* endpoints driven by an external cron (e.g. cron-job.org)
   // for scheduled + retry. This keeps the app stateless so it runs on Vercel/anywhere.
@@ -54,6 +58,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerEmailRoutes(app);
   await registerUserRoutes(app);
   await registerSessionRoutes(app);
+  await registerAgentRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -74,5 +79,6 @@ declare module 'fastify' {
   interface FastifyInstance {
     cfg: Config;
     pool: import('pg').Pool;
+    agentLlmFactory?: import('./agent/runner.js').LlmFactory;
   }
 }
