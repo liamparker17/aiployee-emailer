@@ -51,13 +51,29 @@ describe('POST /api/session/active-tenant', () => {
     expect(r.statusCode).toBe(404);
   });
 
-  it('returns 403 for non-super-admin', async () => {
+  it('lets a tenant member activate their own tenant (so the picker/gate work)', async () => {
     const t = await createTenant(pool, 'Acme2');
     await createUser(pool, { tenantId: t.id, email: 'user@example.com', password: 'pw12345678', role: 'tenant_admin' });
     const headers = await loginAs('user@example.com', 'pw12345678');
     const r = await app.inject({
       method: 'POST', url: '/api/session/active-tenant',
       headers, payload: { tenantId: t.id },
+    });
+    expect(r.statusCode).toBe(200);
+    expect(JSON.parse(r.body)).toEqual({ ok: true, tenantId: t.id });
+    // And tenant-scoped routes work for them.
+    const senders = await app.inject({ method: 'GET', url: '/api/senders', headers });
+    expect(senders.statusCode).toBe(200);
+  });
+
+  it('forbids a tenant member from activating a different tenant', async () => {
+    const own = await createTenant(pool, 'OwnCo');
+    const other = await createTenant(pool, 'OtherCo');
+    await createUser(pool, { tenantId: own.id, email: 'user@example.com', password: 'pw12345678', role: 'tenant_admin' });
+    const headers = await loginAs('user@example.com', 'pw12345678');
+    const r = await app.inject({
+      method: 'POST', url: '/api/session/active-tenant',
+      headers, payload: { tenantId: other.id },
     });
     expect(r.statusCode).toBe(403);
   });
@@ -99,5 +115,29 @@ describe('POST /api/session/active-tenant', () => {
     });
     expect(r.statusCode).toBeGreaterThanOrEqual(400);
     expect(r.statusCode).toBeLessThan(500);
+  });
+});
+
+describe('GET /api/session/tenants', () => {
+  it('returns ALL tenants for a super-admin', async () => {
+    await createTenant(pool, 'One');
+    await createTenant(pool, 'Two');
+    await createUser(pool, { tenantId: null, email: 'admin@example.com', password: 'pw12345678', role: 'super_admin' });
+    const headers = await loginAs('admin@example.com', 'pw12345678');
+    const r = await app.inject({ method: 'GET', url: '/api/session/tenants', headers });
+    expect(r.statusCode).toBe(200);
+    expect(JSON.parse(r.body).tenants).toHaveLength(2);
+  });
+
+  it('returns ONLY their own tenant for a tenant member (fixes "no access" on a new admin)', async () => {
+    const own = await createTenant(pool, 'Mine');
+    await createTenant(pool, 'NotMine');
+    await createUser(pool, { tenantId: own.id, email: 'member@example.com', password: 'pw12345678', role: 'tenant_admin' });
+    const headers = await loginAs('member@example.com', 'pw12345678');
+    const r = await app.inject({ method: 'GET', url: '/api/session/tenants', headers });
+    expect(r.statusCode).toBe(200);
+    const tenants = JSON.parse(r.body).tenants;
+    expect(tenants).toHaveLength(1);
+    expect(tenants[0].id).toBe(own.id);
   });
 });

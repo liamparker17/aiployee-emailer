@@ -14,7 +14,7 @@ export function useTenants() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api<{ tenants: TenantSummary[] }>('/api/admin/tenants');
+      const r = await api<{ tenants: TenantSummary[] }>('/api/session/tenants');
       setTenants(r.tenants);
     } finally { setLoading(false); }
   }, []);
