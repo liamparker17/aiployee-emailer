@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useEffect } from 'react';
-import { LayoutDashboard, Send, FileText, Server, KeyRound, ScrollText, ShieldBan, Users, Building2, LogOut } from 'lucide-react';
+import { LayoutDashboard, Send, FileText, Server, KeyRound, Wand2, ScrollText, ShieldBan, Users, Building2, LogOut } from 'lucide-react';
 import { useAuth } from '../auth';
 import TenantSwitcher from './TenantSwitcher';
 
@@ -34,6 +34,7 @@ export default function AppShell() {
           <NavLink to={`${base}/templates`} className={link}><FileText size={16} />Templates</NavLink>
           <NavLink to={`${base}/smtp`} className={link}><Server size={16} />SMTP configs</NavLink>
           <NavLink to={`${base}/api-keys`} className={link}><KeyRound size={16} />API keys</NavLink>
+          <NavLink to={`${base}/jobix-builder`} className={link}><Wand2 size={16} />Jobix builder</NavLink>
           <NavLink to={`${base}/log`} className={link}><ScrollText size={16} />Email log</NavLink>
           <NavLink to={`${base}/suppressions`} className={link}><ShieldBan size={16} />Suppressions</NavLink>
           <NavLink to={`${base}/users`} className={link}><Users size={16} />Users</NavLink>
