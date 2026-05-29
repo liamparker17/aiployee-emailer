@@ -17,8 +17,30 @@ const cfg = loadConfig({
   CRON_SECRET: 'c'.repeat(24),
 });
 
-// Stub LLM so no real OpenAI call happens. Echoes a fixed reply.
-const stubFactory = () => ({ respond: async () => 'STUB REPLY' });
+// Configurable stub LLM (no real OpenAI). When `toolMode` is on and tools are
+// offered, the first chat returns a tool call, the next returns text.
+let toolMode = false;
+const stubFactory = () => {
+  let calls = 0;
+  return {
+    chat: async ({ tools }: { tools?: Array<{ name: string }> }) => {
+      calls++;
+      if (toolMode && tools && tools.length && calls === 1) {
+        return { content: null, toolCalls: [{ id: 'tc1', name: tools[0].name, arguments: '{}' }] };
+      }
+      return { content: 'STUB REPLY', toolCalls: [] };
+    },
+  };
+};
+
+// Stub MCP provider — exposes `mcpTools` and records calls. No real MCP connection.
+let mcpTools: Array<{ name: string; description: string; parameters: Record<string, unknown> }> = [];
+const mcpCalls: string[] = [];
+const stubMcpFactory = () => ({
+  async listTools() { return mcpTools; },
+  async callTool(name: string) { mcpCalls.push(name); return 'TOOL RESULT'; },
+  async close() { /* noop */ },
+});
 
 // Capture webhook deliveries instead of making real HTTP calls.
 let captured: Array<{ url: string; signature: string; raw: string; body: Record<string, unknown> }> = [];
@@ -31,8 +53,8 @@ const captureSender = {
 
 let app: Awaited<ReturnType<typeof buildApp>>;
 const pool = makePool();
-beforeAll(async () => { app = await buildApp({ cfg, agentLlmFactory: stubFactory, agentWebhookSender: captureSender }); });
-beforeEach(async () => { await truncateAll(pool); captured = []; });
+beforeAll(async () => { app = await buildApp({ cfg, agentLlmFactory: stubFactory, agentWebhookSender: captureSender, agentMcpProviderFactory: stubMcpFactory }); });
+beforeEach(async () => { await truncateAll(pool); captured = []; toolMode = false; mcpTools = []; mcpCalls.length = 0; });
 afterAll(async () => { await app.close(); await pool.end(); });
 
 async function loginAs(email: string, password: string) {
@@ -135,6 +157,35 @@ describe('POST /v1/agent/messages', () => {
     expect(ok.statusCode).toBe(200);
     const detail2 = (await app.inject({ method: 'GET', url: `/api/agent/threads/${threads[0].id}`, headers })).json();
     expect(detail2.messages.find((m: { role: string }) => m.role === 'agent').status).toBe('approved');
+  });
+});
+
+describe('MCP tools (Phase 3)', () => {
+  it('runs a tool-calling loop and invokes the MCP tool', async () => {
+    const { key } = await setup({ autoApprove: true });
+    toolMode = true;
+    mcpTools = [{ name: 'srv__lookup', description: 'Look something up', parameters: { type: 'object', properties: {} } }];
+    const r = await app.inject({ method: 'POST', url: '/v1/agent/messages', headers: bearer(key), payload: { thread_ref: 't1', message: 'use the tool' } });
+    expect(r.statusCode).toBe(202);
+    expect(r.json().response_text).toBe('STUB REPLY');     // final turn after the tool result
+    expect(mcpCalls).toContain('srv__lookup');             // the tool was actually called
+  });
+
+  it('CRUD: create, list, delete an MCP server (admin only)', async () => {
+    const { headers } = await setup();
+    const create = await app.inject({ method: 'POST', url: '/api/agent/mcp-servers', headers, payload: { name: 'My MCP', url: 'https://mcp.example/sse', authHeader: 'Bearer xyz' } });
+    expect(create.statusCode).toBe(201);
+    expect(create.json().server.has_auth).toBe(true);
+    expect(create.json().server).not.toHaveProperty('auth_header_encrypted');
+    const id = create.json().server.id;
+
+    const list = await app.inject({ method: 'GET', url: '/api/agent/mcp-servers', headers });
+    expect(list.json().servers).toHaveLength(1);
+
+    const del = await app.inject({ method: 'DELETE', url: `/api/agent/mcp-servers/${id}`, headers });
+    expect(del.statusCode).toBe(200);
+    const list2 = await app.inject({ method: 'GET', url: '/api/agent/mcp-servers', headers });
+    expect(list2.json().servers).toHaveLength(0);
   });
 });
 

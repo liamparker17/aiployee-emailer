@@ -24,8 +24,12 @@ import { registerSessionRoutes } from './routes/session.js';
 import { registerAgentRoutes } from './routes/agent.js';
 import type { LlmFactory } from './agent/runner.js';
 import type { WebhookSender } from './agent/webhook.js';
+import type { McpProviderFactory } from './agent/mcp.js';
 
-export interface AppDeps { cfg?: Config; agentLlmFactory?: LlmFactory; agentWebhookSender?: WebhookSender }
+export interface AppDeps {
+  cfg?: Config; agentLlmFactory?: LlmFactory; agentWebhookSender?: WebhookSender;
+  agentMcpProviderFactory?: McpProviderFactory;
+}
 
 export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   const cfg = deps.cfg ?? loadConfig();
@@ -41,6 +45,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   // Optional injected LLM factory (tests stub this so no real OpenAI call happens).
   app.decorate('agentLlmFactory', deps.agentLlmFactory);
   app.decorate('agentWebhookSender', deps.agentWebhookSender);
+  app.decorate('agentMcpProviderFactory', deps.agentMcpProviderFactory);
   // No in-process worker / scheduler. Sending happens inline in POST /v1/emails for immediate
   // sends, and via POST /v1/cron/* endpoints driven by an external cron (e.g. cron-job.org)
   // for scheduled + retry. This keeps the app stateless so it runs on Vercel/anywhere.
@@ -83,5 +88,6 @@ declare module 'fastify' {
     pool: import('pg').Pool;
     agentLlmFactory?: import('./agent/runner.js').LlmFactory;
     agentWebhookSender?: import('./agent/webhook.js').WebhookSender;
+    agentMcpProviderFactory?: import('./agent/mcp.js').McpProviderFactory;
   }
 }

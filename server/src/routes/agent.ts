@@ -8,6 +8,7 @@ import {
   getAgentConfig, upsertAgentConfig, upsertThread, insertMessage, findMessageByRef,
   listThreads, getThread, listThreadMessages, getMessage, setMessageStatus,
 } from '../repos/agent.js';
+import { listMcpServers, createMcpServer, deleteMcpServer } from '../repos/mcpServers.js';
 
 function requireAdmin(req: FastifyRequest) {
   const ctx = requireTenantCtx(req);
@@ -79,7 +80,8 @@ export async function registerAgentRoutes(app: FastifyInstance) {
 
       const { message } = await runAgentTurn({
         pool: app.pool, encKey: app.cfg.encKey, tenantId: ctx.tenantId,
-        threadId: thread.id, triggerSource: 'jobix', llmFactory: app.agentLlmFactory,
+        threadId: thread.id, triggerSource: 'jobix',
+        llmFactory: app.agentLlmFactory, mcpProviderFactory: app.agentMcpProviderFactory,
       });
 
       // Notify Jobix of the outcome on this thread (no-op if no webhook configured).
@@ -110,6 +112,34 @@ export async function registerAgentRoutes(app: FastifyInstance) {
       const body = ConfigBody.parse(req.body);
       const cfg = await upsertAgentConfig(app.pool, app.cfg.encKey, ctx.tenantId, body);
       return reply.send({ config: cfg });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // ── Session UI: MCP servers (tools the agent can call) ──────────────────────────
+  app.get('/api/agent/mcp-servers', async (req, reply) => {
+    try {
+      const ctx = requireAdmin(req);
+      return reply.send({ servers: await listMcpServers(app.pool, ctx.tenantId) });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  const McpBody = z.object({ name: z.string().min(1), url: z.string().url(), authHeader: z.string().min(1).optional() });
+  app.post('/api/agent/mcp-servers', async (req, reply) => {
+    try {
+      const ctx = requireAdmin(req);
+      const body = McpBody.parse(req.body);
+      const server = await createMcpServer(app.pool, app.cfg.encKey, { tenantId: ctx.tenantId, ...body });
+      return reply.code(201).send({ server });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  app.delete('/api/agent/mcp-servers/:id', async (req, reply) => {
+    try {
+      const ctx = requireAdmin(req);
+      const { id } = req.params as { id: string };
+      const ok = await deleteMcpServer(app.pool, ctx.tenantId, id);
+      if (!ok) throw new AppError('not_found', 404, 'MCP server not found');
+      return reply.send({ ok: true });
     } catch (e) { sendError(reply, e); }
   });
 

@@ -19,6 +19,7 @@
     "@fastify/cors": "^10.0.1",
     "@fastify/session": "^11.0.2",
     "@fastify/static": "^8.0.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "bcryptjs": "^2.4.3",
     "connect-pg-simple": "^9.0.1",
     "dotenv": "^16.4.5",

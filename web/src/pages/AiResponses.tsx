@@ -16,6 +16,7 @@ interface AgentConfig {
   auto_approve_jobix: boolean; max_tool_iterations: number; has_key: boolean;
   jobix_webhook_url: string | null; has_webhook_secret: boolean;
 }
+interface McpServer { id: string; name: string; url: string; enabled: boolean; has_auth: boolean }
 interface Thread { id: string; jobix_thread_ref: string; subject: string | null; status: string; updated_at: string }
 interface Msg { id: string; role: string; source: string; content: string; status: string; created_at: string }
 
@@ -75,8 +76,30 @@ export default function AiResponses() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [openThread, setOpenThread] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, Msg[]>>({});
+  const [mcp, setMcp] = useState<McpServer[]>([]);
+  const [mcpForm, setMcpForm] = useState({ name: '', url: '', authHeader: '' });
 
   const loadThreads = () => api<{ threads: Thread[] }>('/api/agent/threads').then(r => setThreads(r.threads));
+  const loadMcp = () => api<{ servers: McpServer[] }>('/api/agent/mcp-servers').then(r => setMcp(r.servers));
+
+  async function addMcp(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const payload: Record<string, unknown> = { name: mcpForm.name, url: mcpForm.url };
+      if (mcpForm.authHeader.trim()) payload.authHeader = mcpForm.authHeader.trim();
+      await api('/api/agent/mcp-servers', { method: 'POST', body: JSON.stringify(payload) });
+      setMcpForm({ name: '', url: '', authHeader: '' });
+      loadMcp();
+      toast.success('MCP server added');
+    } catch (err: unknown) {
+      toast.error('Add failed: ' + (err as Error).message);
+    }
+  }
+  async function delMcp(id: string) {
+    if (!confirm('Remove this MCP server?')) return;
+    try { await api(`/api/agent/mcp-servers/${id}`, { method: 'DELETE' }); loadMcp(); toast.success('Removed'); }
+    catch (err: unknown) { toast.error('Remove failed: ' + (err as Error).message); }
+  }
 
   useEffect(() => {
     Promise.all([
@@ -90,6 +113,7 @@ export default function AiResponses() {
       setThreads(t.threads);
       setLoading(false);
     }).catch(() => setLoading(false));
+    loadMcp().catch(() => {});
   }, []);
 
   async function saveConfig(e: React.FormEvent) {
@@ -168,6 +192,29 @@ export default function AiResponses() {
             <Input type="password" value={form.jobixWebhookSecret} placeholder={cfg?.has_webhook_secret ? '•••••••••• (set)' : 'whsec_…'} onChange={e => setForm({ ...form, jobixWebhookSecret: e.target.value })} />
           </Field>
           <div className="flex justify-end"><Button type="submit">Save settings</Button></div>
+        </form>
+      </Card>
+
+      <Card>
+        <h2 className="font-heading font-semibold text-ink mb-1">MCP tool servers</h2>
+        <p className="text-sm text-ink-dim mb-4">Connect MCP servers and the agent can call their tools while composing a reply. Tools are namespaced per server.</p>
+        {mcp.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {mcp.map(s => (
+              <div key={s.id} className="flex items-center gap-3 rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm">
+                <span className="font-medium text-ink">{s.name}</span>
+                <span className="text-ink-dim font-mono text-xs truncate">{s.url}</span>
+                {s.has_auth && <span className="text-xs text-ink-dim">· auth set</span>}
+                <span className="ml-auto"><Button variant="danger" onClick={() => delMcp(s.id)}>Remove</Button></span>
+              </div>
+            ))}
+          </div>
+        )}
+        <form className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end" onSubmit={addMcp}>
+          <Field label="Name"><Input required value={mcpForm.name} onChange={e => setMcpForm({ ...mcpForm, name: e.target.value })} placeholder="My tools" /></Field>
+          <Field label="Server URL"><Input required value={mcpForm.url} onChange={e => setMcpForm({ ...mcpForm, url: e.target.value })} placeholder="https://…/mcp" /></Field>
+          <Field label="Auth header (optional)"><Input type="password" value={mcpForm.authHeader} onChange={e => setMcpForm({ ...mcpForm, authHeader: e.target.value })} placeholder="Bearer …" /></Field>
+          <div className="md:col-span-3 flex justify-end"><Button type="submit" variant="secondary">Add MCP server</Button></div>
         </form>
       </Card>
 
