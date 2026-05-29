@@ -12,6 +12,7 @@
     { "source": "/healthz",        "destination": "/api/index" },
     { "source": "/auth/:path*",    "destination": "/api/index" },
     { "source": "/api/:path*",     "destination": "/api/index" },
-    { "source": "/v1/:path*",      "destination": "/api/index" }
+    { "source": "/v1/:path*",      "destination": "/api/index" },
+    { "source": "/(.*)",           "destination": "/index.html" }
   ]
 }
