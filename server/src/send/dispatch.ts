@@ -55,6 +55,9 @@ async function sendOne(
       attachments: (email.attachments as Array<{ filename: string; content: string; content_type?: string }>).map(a => ({
         filename: a.filename, content: Buffer.from(a.content, 'base64'), contentType: a.content_type,
       })),
+      headers: email.list_unsubscribe
+        ? { 'List-Unsubscribe': `<${email.list_unsubscribe}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }
+        : undefined,
     });
     await markSent(pool, email.id, info.messageId);
     return { ok: true, emailId: email.id, messageId: info.messageId };

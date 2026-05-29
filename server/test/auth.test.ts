@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { makePool, truncateAll } from './helpers/db.js';
-import { createUser } from './helpers/factories.js';
+import { createUser, createTenant } from './helpers/factories.js';
+import { createInvitedUser } from '../src/repos/users.js';
 import { csrfFor } from './helpers/auth.js';
 
 const cfg = loadConfig({
@@ -45,5 +46,28 @@ describe('auth', () => {
       payload: { email: 'root@x.com', password: 'wrong' },
     });
     expect(r.statusCode).toBe(401);
+  });
+
+  it('accepts an invite, persists the password, and the user can log in', async () => {
+    const t = await createTenant(pool);
+    const { user, inviteToken } = await createInvitedUser(pool, { tenantId: t.id, email: 'new@x.com', role: 'tenant_admin' });
+    const headers = await csrfHeaders();
+
+    const accept = await app.inject({ method: 'POST', url: '/auth/invite/accept', headers, payload: { token: inviteToken, password: 'brandnew123' } });
+    expect(accept.statusCode).toBe(200);
+
+    const row = await pool.query<{ invite_token: string | null }>('SELECT invite_token FROM users WHERE id = $1', [user.id]);
+    expect(row.rows[0].invite_token).toBeNull(); // token consumed
+
+    const login = await app.inject({ method: 'POST', url: '/auth/login', headers, payload: { email: 'new@x.com', password: 'brandnew123' } });
+    expect(login.statusCode).toBe(200);
+  });
+
+  it('accepts an invite WITHOUT a CSRF token (token is the auth; fixes the magic-link race)', async () => {
+    const t = await createTenant(pool);
+    const { inviteToken } = await createInvitedUser(pool, { tenantId: t.id, email: 'noc@x.com', role: 'tenant_admin' });
+    // No CSRF headers — this 403'd before the exemption, blocking invite acceptance.
+    const accept = await app.inject({ method: 'POST', url: '/auth/invite/accept', payload: { token: inviteToken, password: 'brandnew123' } });
+    expect(accept.statusCode).toBe(200);
   });
 });

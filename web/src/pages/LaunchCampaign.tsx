@@ -61,6 +61,7 @@ export default function LaunchCampaign() {
     e.preventDefault();
     if (!rows.length) { toast.error('Upload a recipients CSV first'); return; }
     if (!form.senderId) { toast.error('Pick a sender'); return; }
+    if (rows.length > 450 && !confirm(`This list has ${rows.length} recipients. Sends go through your own SMTP, which usually caps daily volume (e.g. Gmail/Workspace ≈ 500/day) — recipients beyond the cap will stay queued and retry over the following days. Launch anyway?`)) return;
     setBusy(true);
     try {
       const payload: Record<string, unknown> = {

@@ -16,20 +16,6 @@ export async function registerV1EmailRoutes(app: FastifyInstance) {
     try {
       const ctx = requireCtx(req);
       if (ctx.role !== 'api_key') throw new AppError('unauthorized', 401, 'API key required');
-      // TEMP DIAGNOSTIC LOG — remove once Jobix wiring confirmed.
-      // Logs the keys + value lengths of the variables Jobix sends, no PII content.
-      try {
-        const rawBody = req.body as { template?: string; variables?: Record<string, unknown> };
-        const varSummary = rawBody?.variables
-          ? Object.fromEntries(Object.entries(rawBody.variables).map(([k, v]) => [k, {
-              type: typeof v,
-              length: typeof v === 'string' ? v.length : null,
-              empty: v === '' || v == null,
-              preview: typeof v === 'string' ? v.slice(0, 80) : v,
-            }]))
-          : null;
-        req.log.info({ template: rawBody?.template, variables: varSummary }, 'v1_emails_diagnostic');
-      } catch {}
       const body = ApiSendBody.parse(req.body);
 
       // Insert; pipeline does NOT trigger the worker — we drive that ourselves below.

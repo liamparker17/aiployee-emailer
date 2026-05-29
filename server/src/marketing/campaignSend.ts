@@ -49,12 +49,13 @@ export async function sendCampaign(args: {
     const subject = render(c.subject, vars, { escape: false });
     const body = render(c.body_html, vars); // escape variable values in HTML
     const token = signUnsubToken(tenantId, contact.id, encKey);
+    const unsubUrl = `${base}/v1/unsubscribe/${token}`;
     const footer = `<div style="margin-top:28px;padding-top:12px;border-top:1px solid #eee;font-size:12px;color:#888">` +
-      `<a href="${base}/v1/unsubscribe/${token}" style="color:#888">Unsubscribe</a></div>`;
+      `<a href="${unsubUrl}" style="color:#888">Unsubscribe</a></div>`;
     await insertEmail(pool, {
       tenantId, senderId: c.sender_id, toAddr: contact.email,
       subject, bodyHtml: body + footer, status: 'queued',
-      scheduledFor: c.scheduled_for, campaignId: c.id,
+      scheduledFor: c.scheduled_for, campaignId: c.id, listUnsubscribe: unsubUrl,
     });
     queued++;
   }

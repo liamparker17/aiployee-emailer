@@ -126,4 +126,19 @@ export async function registerCampaignRoutes(app: FastifyInstance) {
       return reply.type('text/html').send(page("You've been unsubscribed."));
     }
   });
+
+  // One-click unsubscribe (RFC 8058 List-Unsubscribe-Post target). Mail clients POST here.
+  app.post('/v1/unsubscribe/:token', async (req, reply) => {
+    try {
+      const { token } = req.params as { token: string };
+      const parsed = verifyUnsubToken(token, app.cfg.encKey);
+      if (!parsed) return reply.code(400).send({ ok: false });
+      const contact = await getContact(app.pool, parsed.tenantId, parsed.contactId);
+      if (contact) {
+        await updateContact(app.pool, parsed.tenantId, parsed.contactId, { subscribed: false });
+        await addSuppression(app.pool, { tenantId: parsed.tenantId, address: contact.email, reason: 'manual' });
+      }
+      return reply.send({ ok: true });
+    } catch { return reply.send({ ok: true }); }
+  });
 }

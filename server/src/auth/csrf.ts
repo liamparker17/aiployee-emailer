@@ -22,6 +22,10 @@ export function registerCsrf(app: FastifyInstance) {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return;
     if (req.url.startsWith('/v1/')) return; // API key routes use bearer auth, not CSRF
     if (req.url === '/healthz') return;
+    // Invite acceptance is authorized by the single-use invite token in the body, not by
+    // an ambient session cookie — so CSRF double-submit adds no protection and would break
+    // it when the emailed link is opened directly (the aip_csrf cookie isn't set yet).
+    if (req.url.split('?')[0] === '/auth/invite/accept') return;
     const cookie = req.cookies[COOKIE];
     const header = req.headers[HEADER];
     const headerStr = Array.isArray(header) ? header[0] : header;
