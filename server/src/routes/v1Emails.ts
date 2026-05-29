@@ -47,7 +47,7 @@ export async function registerV1EmailRoutes(app: FastifyInstance) {
         // queued email in 'sending' state waiting for the stuck-row cron to requeue it.
         const ours = await claimForSend(app.pool, email.id);
         if (ours) {
-          const result = await dispatchEmail({ pool: app.pool, encKey: app.cfg.encKey, email: ours });
+          const result = await dispatchEmail({ pool: app.pool, encKey: app.cfg.encKey, email: ours, baseUrl: app.cfg.publicBaseUrl });
           if (result.ok) {
             return reply.code(202).send({ id: email.id, status: 'sent', message_id: result.messageId, error: null });
           }

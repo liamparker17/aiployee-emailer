@@ -20,7 +20,7 @@ export async function registerCronRoutes(app: FastifyInstance) {
     try {
       requireCronAuth(req, app.cfg.cronSecret);
       const claimed = await claimDueForSend(app.pool, app.cfg.cronBatchSize);
-      const results = await dispatchBatch({ pool: app.pool, encKey: app.cfg.encKey, emails: claimed });
+      const results = await dispatchBatch({ pool: app.pool, encKey: app.cfg.encKey, emails: claimed, baseUrl: app.cfg.publicBaseUrl });
       const sent = results.filter(r => r.ok).length;
       const failed = results.length - sent;
       return reply.send({ ok: true, claimed: claimed.length, sent, failed });

@@ -24,6 +24,8 @@ import { registerSessionRoutes } from './routes/session.js';
 import { registerAgentRoutes } from './routes/agent.js';
 import { registerDomainRoutes } from './routes/domains.js';
 import { registerEventWebhookRoutes } from './routes/eventWebhooks.js';
+import { registerTrackRoutes } from './routes/track.js';
+import { registerAnalyticsRoutes } from './routes/analytics.js';
 import type { LlmFactory } from './agent/runner.js';
 import type { WebhookSender } from './agent/webhook.js';
 import type { McpProviderFactory } from './agent/mcp.js';
@@ -70,6 +72,8 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerAgentRoutes(app);
   await registerDomainRoutes(app);
   await registerEventWebhookRoutes(app);
+  await registerTrackRoutes(app);
+  await registerAnalyticsRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));

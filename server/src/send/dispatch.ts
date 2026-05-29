@@ -6,6 +6,7 @@ import { markSent, markFailed, type EmailRow } from '../repos/emails.js';
 import { getSenderById, type Sender } from '../repos/senders.js';
 import { getSmtpConfigWithPassword, type SmtpConfigRow } from '../repos/smtpConfigs.js';
 import { deliverEmailEvent } from '../webhooks/eventDelivery.js';
+import { injectTracking } from './tracking.js';
 
 /** Best-effort: notify tenant event webhooks that an email was sent. Never throws. */
 async function fireSent(pool: pg.Pool, encKey: Buffer, email: EmailRow): Promise<void> {
@@ -39,6 +40,7 @@ async function sendOne(
   tx: Transporter,
   sender: Sender,
   email: EmailRow,
+  baseUrl: string,
 ): Promise<DispatchOutcome> {
   try {
     const info = await tx.sendMail({
@@ -48,7 +50,7 @@ async function sendOne(
       bcc: email.bcc.length ? email.bcc : undefined,
       replyTo: email.reply_to ?? sender.reply_to ?? undefined,
       subject: email.subject,
-      html: email.body_html,
+      html: injectTracking(email.body_html, { emailId: email.id, baseUrl }),
       text: email.body_text ?? undefined,
       attachments: (email.attachments as Array<{ filename: string; content: string; content_type?: string }>).map(a => ({
         filename: a.filename, content: Buffer.from(a.content, 'base64'), contentType: a.content_type,
@@ -69,8 +71,9 @@ export async function dispatchEmail(args: {
   pool: pg.Pool;
   encKey: Buffer;
   email: EmailRow;
+  baseUrl: string;
 }): Promise<DispatchOutcome> {
-  const { pool, encKey, email } = args;
+  const { pool, encKey, email, baseUrl } = args;
   try {
     const sender = await getSenderById(pool, email.tenant_id, email.sender_id);
     if (!sender) throw new Error(`sender ${email.sender_id} not found`);
@@ -78,7 +81,7 @@ export async function dispatchEmail(args: {
     if (!cfg) throw new Error(`smtp_config ${sender.smtp_config_id} not found`);
     const tx = buildPooledTransport(cfg);
     let outcome: DispatchOutcome;
-    try { outcome = await sendOne(pool, tx, sender, email); }
+    try { outcome = await sendOne(pool, tx, sender, email, baseUrl); }
     finally { tx.close(); }
     if (outcome.ok) await fireSent(pool, encKey, email);
     return outcome;
@@ -98,8 +101,9 @@ export async function dispatchBatch(args: {
   pool: pg.Pool;
   encKey: Buffer;
   emails: EmailRow[];
+  baseUrl: string;
 }): Promise<DispatchOutcome[]> {
-  const { pool, encKey, emails } = args;
+  const { pool, encKey, emails, baseUrl } = args;
   if (emails.length === 0) return [];
 
   // Look up all senders + configs in parallel up-front
@@ -142,7 +146,7 @@ export async function dispatchBatch(args: {
     try {
       return await Promise.all(groupEmails.map(async e => {
         const sender = senders.get(e.sender_id)!;
-        const out = await sendOne(pool, tx, sender, e);
+        const out = await sendOne(pool, tx, sender, e, baseUrl);
         if (out.ok) await fireSent(pool, encKey, e);
         return out;
       }));

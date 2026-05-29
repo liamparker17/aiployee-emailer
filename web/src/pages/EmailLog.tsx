@@ -8,7 +8,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { Skeleton } from '../components/Skeleton';
 import { EmptyState } from '../components/EmptyState';
 
-interface Email { id: string; to_addr: string; subject: string; status: string; created_at: string; error: string | null; message_id: string | null; body_html: string }
+interface Email { id: string; to_addr: string; subject: string; status: string; created_at: string; error: string | null; message_id: string | null; body_html: string; open_count: number; click_count: number }
 
 const STATUSES = ['', 'queued', 'sending', 'sent', 'failed', 'bounced', 'complained', 'suppressed'];
 
@@ -42,13 +42,15 @@ export default function EmailLog() {
         <EmptyState icon={ScrollText} title="No emails logged" />
       ) : (
         <Table>
-          <thead><tr><Th>Time</Th><Th>To</Th><Th>Subject</Th><Th>Status</Th></tr></thead>
+          <thead><tr><Th>Time</Th><Th>To</Th><Th>Subject</Th><Th>Status</Th><Th>Opens</Th><Th>Clicks</Th></tr></thead>
           <tbody>{items.map(e => (
             <tr key={e.id} className="cursor-pointer hover:bg-surface" onClick={() => setSel(e)}>
               <Td className="text-ink-dim">{new Date(e.created_at).toLocaleString()}</Td>
               <Td>{e.to_addr}</Td>
               <Td>{e.subject}</Td>
               <Td><StatusBadge status={e.status} /></Td>
+              <Td className={e.open_count > 0 ? 'text-magenta' : 'text-ink-dim'}>{e.open_count}</Td>
+              <Td className={e.click_count > 0 ? 'text-accent' : 'text-ink-dim'}>{e.click_count}</Td>
             </tr>
           ))}</tbody>
         </Table>

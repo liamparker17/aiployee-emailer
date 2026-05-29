@@ -46,16 +46,21 @@ export async function getEmail(pool: pg.Pool, tenantId: string, id: string): Pro
   return r.rows[0] ?? null;
 }
 
+export interface EmailListRow extends EmailRow { open_count: number; click_count: number }
+
 export async function listEmails(pool: pg.Pool, tenantId: string, opts: {
   status?: EmailStatus; since?: Date; limit?: number;
-} = {}): Promise<EmailRow[]> {
+} = {}): Promise<EmailListRow[]> {
   const where = ['tenant_id = $1'];
   const params: unknown[] = [tenantId];
   if (opts.status) { params.push(opts.status); where.push(`status = $${params.length}`); }
   if (opts.since) { params.push(opts.since); where.push(`created_at >= $${params.length}`); }
   params.push(Math.min(opts.limit ?? 100, 500));
-  const r = await pool.query<EmailRow>(
-    `SELECT ${SELECT} FROM emails WHERE ${where.join(' AND ')}
+  const r = await pool.query<EmailListRow>(
+    `SELECT ${SELECT},
+       (SELECT count(*)::int FROM email_events ev WHERE ev.email_id = emails.id AND ev.type = 'open') AS open_count,
+       (SELECT count(*)::int FROM email_events ev WHERE ev.email_id = emails.id AND ev.type = 'click') AS click_count
+     FROM emails WHERE ${where.join(' AND ')}
      ORDER BY created_at DESC LIMIT $${params.length}`, params);
   return r.rows;
 }
