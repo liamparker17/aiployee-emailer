@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import { KeyRound } from 'lucide-react';
 import { api } from '../api';
 import { Table, Th, Td } from '../components/Table';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { Input, Field } from '../components/Input';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
+import { Skeleton } from '../components/Skeleton';
+import { useToast } from '../components/Toast';
 
 interface Key { id: string; name: string; key_prefix: string; created_at: string; last_used_at: string | null; revoked_at: string | null }
 interface Sender { id: string; email: string; display_name: string; is_default: boolean }
@@ -16,11 +21,13 @@ function endpointUrl() {
 
 function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }) {
   const [done, setDone] = useState(false);
+  const toast = useToast();
   return (
     <button type="button" onClick={async () => {
       await navigator.clipboard.writeText(value);
       setDone(true); setTimeout(() => setDone(false), 1500);
-    }} className="text-xs px-2 py-1 rounded border border-line hover:bg-surface text-muted hover:text-ink shrink-0">
+      toast.success('Copied');
+    }} className="text-xs px-2 py-1 rounded border border-line hover:bg-surface text-ink-muted hover:text-ink shrink-0">
       {done ? 'Copied' : label}
     </button>
   );
@@ -29,21 +36,21 @@ function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }
 function Code({ children, copy }: { children: string; copy?: boolean }) {
   return (
     <div className="relative">
-      <pre className="bg-surface rounded-md p-3 text-xs whitespace-pre-wrap break-all font-mono">{children}</pre>
+      <pre className="bg-surface-raised rounded-md p-3 text-xs whitespace-pre-wrap break-all font-mono text-ink-muted">{children}</pre>
       {copy && <div className="absolute top-2 right-2"><CopyButton value={children} /></div>}
     </div>
   );
 }
 
 function Inline({ children }: { children: string }) {
-  return <code className="font-mono bg-surface px-1 py-0.5 rounded text-xs">{children}</code>;
+  return <code className="font-mono bg-surface-raised px-1 py-0.5 rounded text-xs text-ink-muted">{children}</code>;
 }
 
 function StepHeader({ n, title }: { n: number; title: string }) {
   return (
     <div className="flex items-center gap-3 mb-3">
-      <span className="w-7 h-7 rounded-full bg-ink text-white text-sm font-medium flex items-center justify-center shrink-0">{n}</span>
-      <h3 className="text-base font-heading font-semibold">{title}</h3>
+      <span className="w-7 h-7 rounded-full bg-brand text-white text-sm font-medium flex items-center justify-center shrink-0">{n}</span>
+      <h3 className="text-base font-heading font-semibold text-ink">{title}</h3>
     </div>
   );
 }
@@ -92,15 +99,15 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
   const payload = useMemo(() => samplePayload(fromEmail || 'sender@yourdomain.com'), [fromEmail]);
 
   return (
-    <div className="space-y-8">
+    <div className="bg-surface border border-line rounded-2xl p-5 space-y-8">
       {isReal && (
-        <div className="border border-yellow-300 bg-yellow-50 text-yellow-900 rounded-md p-3 text-sm">
+        <div className="border border-accent/40 bg-accent/10 text-accent rounded-md p-3 text-sm">
           This is the only time the full key below will be shown. Copy it now and store it securely.
           You can revoke this key at any time from the table — that immediately stops all calls using it.
         </div>
       )}
 
-      <div className="text-sm text-muted">
+      <div className="text-sm text-ink-muted">
         This walks through the exact configuration in <strong className="text-ink">Jobix</strong> to send call
         summaries through this tenant's API key. Four steps, ~10 minutes the first time, then it's just
         editing the template.
@@ -110,7 +117,7 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
       <section>
         <StepHeader n={1} title="Author the email template in this app" />
         <div className="space-y-3 text-sm">
-          <p className="text-muted">
+          <p className="text-ink-muted">
             Sidebar → <strong className="text-ink">Templates</strong> → "New template". Author it{' '}
             <strong className="text-ink">before</strong> configuring Jobix — the placeholder names you put
             in the template have to match the field names you'll set in Jobix.
@@ -118,23 +125,23 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <div className="text-xs uppercase text-muted tracking-wide">Suggested template name</div>
+              <div className="text-xs uppercase text-ink-muted tracking-wide">Suggested template name</div>
               <CopyButton value={SAMPLE_TEMPLATE_NAME} />
             </div>
             <Code>{SAMPLE_TEMPLATE_NAME}</Code>
           </div>
 
           <div>
-            <div className="text-xs uppercase text-muted tracking-wide mb-1">Suggested subject</div>
+            <div className="text-xs uppercase text-ink-muted tracking-wide mb-1">Suggested subject</div>
             <Code copy>{SAMPLE_SUBJECT}</Code>
           </div>
 
           <div>
-            <div className="text-xs uppercase text-muted tracking-wide mb-1">Suggested HTML body</div>
+            <div className="text-xs uppercase text-ink-muted tracking-wide mb-1">Suggested HTML body</div>
             <Code copy>{SAMPLE_HTML}</Code>
           </div>
 
-          <p className="text-xs text-muted">
+          <p className="text-xs text-ink-muted">
             The placeholders <Inline>{`{{caller_name}}`}</Inline>, <Inline>{`{{summary}}`}</Inline>, etc.
             will be filled at send time from the JSON Jobix sends us. Keep the spelling exact — a mismatch
             doesn't error, it just renders the literal placeholder text in the email.
@@ -146,12 +153,12 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
       <section>
         <StepHeader n={2} title="Add an LLM summary node in Jobix" />
         <div className="space-y-3 text-sm">
-          <p className="text-muted">
+          <p className="text-ink-muted">
             In your Jobix call flow, add an <strong className="text-ink">LLM</strong> action node
             (Actions → AI → LLM) at the point where you have enough of the conversation to summarize —
             usually right before the call ends.
           </p>
-          <p className="text-muted">
+          <p className="text-ink-muted">
             Open the node, switch to the <strong className="text-ink">General</strong> tab, and write a
             system prompt that tells the model to extract caller details + write a short summary. Then in
             the <strong className="text-ink">Output LLM JSON structure</strong> box, paste this schema:
@@ -159,12 +166,12 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
 
           <Code copy>{SAMPLE_LLM_SCHEMA}</Code>
 
-          <p className="text-xs text-muted">
+          <p className="text-xs text-ink-muted">
             This locks the LLM's output to these exact field names — it can't drift. Use the same names
             you used as <Inline>{`{{placeholders}}`}</Inline> in Step 1.
           </p>
 
-          <p className="text-xs text-muted">
+          <p className="text-xs text-ink-muted">
             <strong className="text-ink">Rename the node</strong> from "Unnamed LLM node" to something
             stable like <Inline>LLM Summary</Inline> — Jobix uses the node name in variable references,
             and a rename later will break them.
@@ -176,38 +183,38 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
       <section>
         <StepHeader n={3} title="Add a Call website/API node in Jobix" />
         <div className="space-y-3 text-sm">
-          <p className="text-muted">
+          <p className="text-ink-muted">
             Right after the LLM Summary node, add{' '}
             <strong className="text-ink">Actions → Integrations → Call website/API</strong>.{' '}
             <strong className="text-ink">Don't use the "Webhook" action</strong> — that one only takes
             flat key/value strings and can't send a nested JSON body.
           </p>
 
-          <p className="text-muted">In the node's <strong className="text-ink">General</strong> tab:</p>
+          <p className="text-ink-muted">In the node's <strong className="text-ink">General</strong> tab:</p>
 
           <div className="border border-line rounded-md overflow-hidden text-sm">
             <table className="w-full">
               <tbody className="font-mono">
                 <tr className="border-b border-line">
-                  <td className="px-3 py-2 bg-surface w-1/3">URL</td>
-                  <td className="px-3 py-2 break-all">{endpointUrl()}</td>
+                  <td className="px-3 py-2 bg-surface-raised w-1/3 text-ink-muted">URL</td>
+                  <td className="px-3 py-2 break-all text-ink">{endpointUrl()}</td>
                   <td className="px-2 py-2"><CopyButton value={endpointUrl()} /></td>
                 </tr>
                 <tr className="border-b border-line">
-                  <td className="px-3 py-2 bg-surface">Method</td>
-                  <td className="px-3 py-2">POST</td>
+                  <td className="px-3 py-2 bg-surface-raised text-ink-muted">Method</td>
+                  <td className="px-3 py-2 text-ink">POST</td>
                   <td></td>
                 </tr>
                 <tr className="border-b border-line">
-                  <td className="px-3 py-2 bg-surface">Content-Type</td>
-                  <td className="px-3 py-2">application/json</td>
+                  <td className="px-3 py-2 bg-surface-raised text-ink-muted">Content-Type</td>
+                  <td className="px-3 py-2 text-ink">application/json</td>
                   <td></td>
                 </tr>
                 <tr>
-                  <td className="px-3 py-2 bg-surface align-top">Add header</td>
-                  <td className="px-3 py-2 align-top">
-                    <div><span className="text-muted">Key:</span> api_key</div>
-                    <div className="break-all"><span className="text-muted">Value:</span> {apiKey}</div>
+                  <td className="px-3 py-2 bg-surface-raised align-top text-ink-muted">Add header</td>
+                  <td className="px-3 py-2 align-top text-ink">
+                    <div><span className="text-ink-muted">Key:</span> api_key</div>
+                    <div className="break-all"><span className="text-ink-muted">Value:</span> {apiKey}</div>
                   </td>
                   <td className="px-2 py-2 align-top"><CopyButton value={apiKey} label="Copy key" /></td>
                 </tr>
@@ -215,14 +222,14 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
             </table>
           </div>
 
-          <p className="text-muted mt-4">
+          <p className="text-ink-muted mt-4">
             Then in the <strong className="text-ink">Edit Payload</strong> box (a strict JSON editor),
             paste exactly this — then do the find-and-replace step underneath:
           </p>
 
           <Code copy>{payload}</Code>
 
-          <div className="bg-yellow-50 border border-yellow-300 text-yellow-900 rounded-md p-3 text-xs space-y-2">
+          <div className="bg-surface-raised border border-line-strong text-ink rounded-md p-3 text-xs space-y-2">
             <p>
               <strong>1. Replace <Inline>llm_node_X</Inline> with your actual LLM node ID.</strong>{' '}
               Jobix auto-assigns IDs like <Inline>llm_node_21</Inline>. To find yours: in the same Call
@@ -235,7 +242,7 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
             </p>
             <p>
               <strong>2. Anchors MUST be inside quoted strings.</strong> The editor will show{' '}
-              <span className="text-red-700 font-medium">"Invalid JSON"</span> if you paste an anchor
+              <span className="text-error font-medium">"Invalid JSON"</span> if you paste an anchor
               naked. Wrap every reference in <Inline>"..."</Inline> as in the template above. At runtime
               Jobix interpolates the value into that string — so <Inline>{`"to": "{{ llm_node_21.recipient_email }}"`}</Inline>{' '}
               becomes <Inline>"to": "agent@firstassist.co.za"</Inline>.
@@ -253,49 +260,49 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
       <section>
         <StepHeader n={4} title="Test the wiring before going live" />
         <div className="space-y-3 text-sm">
-          <p className="text-muted">
+          <p className="text-ink-muted">
             In the Call website/API node, switch to the <strong className="text-ink">Response Mapping</strong>
             tab. There's a <strong className="text-ink">Send</strong> button — fire it with whatever mock
             values the LLM is currently producing.
           </p>
-          <p className="text-muted">
+          <p className="text-ink-muted">
             Then, in this app, open sidebar → <strong className="text-ink">Email log</strong>. Within a few
             seconds the test fire should appear as a row.
           </p>
 
           <div className="border border-line rounded-md overflow-hidden text-sm">
             <table className="w-full">
-              <thead className="bg-surface text-xs uppercase text-muted">
+              <thead className="bg-surface-raised text-xs uppercase text-ink-muted">
                 <tr><th className="text-left px-3 py-2">If you see</th><th className="text-left px-3 py-2">It means</th></tr>
               </thead>
               <tbody>
                 <tr className="border-t border-line">
-                  <td className="px-3 py-2">Status <strong>sent</strong> + email in your inbox</td>
-                  <td className="px-3 py-2">Wired correctly. Go live.</td>
+                  <td className="px-3 py-2 text-ink">Status <strong>sent</strong> + email in your inbox</td>
+                  <td className="px-3 py-2 text-ink">Wired correctly. Go live.</td>
                 </tr>
                 <tr className="border-t border-line">
-                  <td className="px-3 py-2">Status <strong>failed</strong></td>
-                  <td className="px-3 py-2">Click the row — the SMTP error is shown verbatim (auth, blocked address, etc).</td>
+                  <td className="px-3 py-2 text-ink">Status <strong>failed</strong></td>
+                  <td className="px-3 py-2 text-ink">Click the row — the SMTP error is shown verbatim (auth, blocked address, etc).</td>
                 </tr>
                 <tr className="border-t border-line">
-                  <td className="px-3 py-2">Email arrives but with literal <Inline>{`{{placeholder}}`}</Inline> text</td>
-                  <td className="px-3 py-2">A placeholder name in the template doesn't match a key in <Inline>variables</Inline>. Recheck spelling — case-sensitive.</td>
+                  <td className="px-3 py-2 text-ink">Email arrives but with literal <Inline>{`{{placeholder}}`}</Inline> text</td>
+                  <td className="px-3 py-2 text-ink">A placeholder name in the template doesn't match a key in <Inline>variables</Inline>. Recheck spelling — case-sensitive.</td>
                 </tr>
                 <tr className="border-t border-line">
-                  <td className="px-3 py-2">Nothing appears in the log</td>
-                  <td className="px-3 py-2">Jobix didn't reach us — usually wrong URL, missing <Inline>api_key</Inline> header, or wrong key.</td>
+                  <td className="px-3 py-2 text-ink">Nothing appears in the log</td>
+                  <td className="px-3 py-2 text-ink">Jobix didn't reach us — usually wrong URL, missing <Inline>api_key</Inline> header, or wrong key.</td>
                 </tr>
                 <tr className="border-t border-line">
-                  <td className="px-3 py-2">Status <strong>suppressed</strong></td>
-                  <td className="px-3 py-2">Recipient is on this tenant's suppression list. Not an error — it's intentional.</td>
+                  <td className="px-3 py-2 text-ink">Status <strong>suppressed</strong></td>
+                  <td className="px-3 py-2 text-ink">Recipient is on this tenant's suppression list. Not an error — it's intentional.</td>
                 </tr>
                 <tr className="border-t border-line">
-                  <td className="px-3 py-2"><strong>"Invalid JSON"</strong> in Jobix's editor (red banner)</td>
-                  <td className="px-3 py-2">An anchor like <Inline>{`{{ llm_node_21.field }}`}</Inline> was pasted outside of a <Inline>"..."</Inline> string. Wrap every anchor in quotes.</td>
+                  <td className="px-3 py-2 text-ink"><strong>"Invalid JSON"</strong> in Jobix's editor (red banner)</td>
+                  <td className="px-3 py-2 text-ink">An anchor like <Inline>{`{{ llm_node_21.field }}`}</Inline> was pasted outside of a <Inline>"..."</Inline> string. Wrap every anchor in quotes.</td>
                 </tr>
                 <tr className="border-t border-line">
-                  <td className="px-3 py-2">Email arrives but with literal <Inline>{`{{ llm_node_X.summary }}`}</Inline> text</td>
-                  <td className="px-3 py-2">You didn't replace <Inline>llm_node_X</Inline> with the real node ID. Open Anchors Search to find it.</td>
+                  <td className="px-3 py-2 text-ink">Email arrives but with literal <Inline>{`{{ llm_node_X.summary }}`}</Inline> text</td>
+                  <td className="px-3 py-2 text-ink">You didn't replace <Inline>llm_node_X</Inline> with the real node ID. Open Anchors Search to find it.</td>
                 </tr>
               </tbody>
             </table>
@@ -307,27 +314,27 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
       <section>
         <StepHeader n={5} title="Optional: send more than one email per call" />
         <div className="space-y-3 text-sm">
-          <p className="text-muted">
+          <p className="text-ink-muted">
             Drop a <strong className="text-ink">second Call website/API node</strong> right after the first
             (or in parallel). Both reference the same LLM Summary node. Use a different{' '}
             <Inline>template</Inline> and <Inline>to</Inline> in each payload.
           </p>
-          <p className="text-muted">Example use case — one internal notification, one customer acknowledgement:</p>
+          <p className="text-ink-muted">Example use case — one internal notification, one customer acknowledgement:</p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-            <div className="border border-line rounded-md p-3 space-y-1">
-              <div className="font-medium">Node A — internal</div>
-              <div><span className="text-muted">template:</span> <Inline>internal_call_notify</Inline></div>
-              <div><span className="text-muted">to:</span> <Inline>ops@yourcompany.com</Inline></div>
+            <div className="border border-line rounded-md p-3 space-y-1 bg-surface-raised">
+              <div className="font-medium text-ink">Node A — internal</div>
+              <div><span className="text-ink-muted">template:</span> <Inline>internal_call_notify</Inline></div>
+              <div><span className="text-ink-muted">to:</span> <Inline>ops@yourcompany.com</Inline></div>
             </div>
-            <div className="border border-line rounded-md p-3 space-y-1">
-              <div className="font-medium">Node B — customer</div>
-              <div><span className="text-muted">template:</span> <Inline>customer_ack</Inline></div>
-              <div><span className="text-muted">to:</span> <Inline>{`{{LLM Summary.caller_email}}`}</Inline></div>
+            <div className="border border-line rounded-md p-3 space-y-1 bg-surface-raised">
+              <div className="font-medium text-ink">Node B — customer</div>
+              <div><span className="text-ink-muted">template:</span> <Inline>customer_ack</Inline></div>
+              <div><span className="text-ink-muted">to:</span> <Inline>{`{{LLM Summary.caller_email}}`}</Inline></div>
             </div>
           </div>
 
-          <p className="text-xs text-muted">
+          <p className="text-xs text-ink-muted">
             If the LLM should choose recipients dynamically (e.g. emergencies route differently), add fields
             like <Inline>internal_recipient</Inline> and <Inline>customer_recipient</Inline> to the LLM
             schema in Step 2 and reference them in each node's payload.
@@ -341,16 +348,18 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
 export default function ApiKeys() {
   const [items, setItems] = useState<Key[]>([]);
   const [senders, setSenders] = useState<Sender[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [created, setCreated] = useState<{ key: string } | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
+  const toast = useToast();
 
   const fromEmail = useMemo(() => {
     if (!senders.length) return '';
     return (senders.find(s => s.is_default) ?? senders[0]).email;
   }, [senders]);
 
-  const refresh = () => api<{ keys: Key[] }>('/api/api-keys').then(r => setItems(r.keys));
+  const refresh = () => api<{ keys: Key[] }>('/api/api-keys').then(r => { setItems(r.keys); setLoading(false); });
   useEffect(() => {
     refresh();
     api<{ senders: Sender[] }>('/api/senders').then(r => setSenders(r.senders)).catch(() => {});
@@ -358,28 +367,45 @@ export default function ApiKeys() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-heading font-semibold">API keys</h1>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => setGuideOpen(true)}>Jobix setup guide</Button>
-          <Button onClick={() => setOpen(true)}>Generate</Button>
-        </div>
-      </div>
+      <PageHeader
+        title="API keys"
+        subtitle="Keys used to authenticate calls from Jobix."
+        actions={
+          <>
+            <Button variant="ghost" onClick={() => setGuideOpen(true)}>Jobix setup guide</Button>
+            <Button onClick={() => setOpen(true)}>Generate</Button>
+          </>
+        }
+      />
 
-      <Table>
-        <thead><tr><Th>Name</Th><Th>Prefix</Th><Th>Last used</Th><Th>Status</Th><Th>{''}</Th></tr></thead>
-        <tbody>{items.map(k => (
-          <tr key={k.id}>
-            <Td>{k.name}</Td><Td className="font-mono">{k.key_prefix}…</Td>
-            <Td>{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'never'}</Td>
-            <Td>{k.revoked_at ? 'revoked' : 'active'}</Td>
-            <Td>{!k.revoked_at && <Button variant="danger" onClick={async () => {
-              if (!confirm(`Revoke ${k.name}?`)) return;
-              await api(`/api/api-keys/${k.id}`, { method: 'DELETE' }); refresh();
-            }}>Revoke</Button>}</Td>
-          </tr>
-        ))}</tbody>
-      </Table>
+      {loading ? (
+        <div className="space-y-2">
+          {[0, 1, 2].map(i => <Skeleton key={i} className="h-9" />)}
+        </div>
+      ) : items.length === 0 ? (
+        <EmptyState icon={KeyRound} title="No API keys" description="Create a key to integrate Jobix." />
+      ) : (
+        <Table>
+          <thead><tr><Th>Name</Th><Th>Prefix</Th><Th>Last used</Th><Th>Status</Th><Th>{''}</Th></tr></thead>
+          <tbody>{items.map(k => (
+            <tr key={k.id}>
+              <Td>{k.name}</Td><Td className="font-mono">{k.key_prefix}…</Td>
+              <Td>{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'never'}</Td>
+              <Td>{k.revoked_at ? 'revoked' : 'active'}</Td>
+              <Td>{!k.revoked_at && <Button variant="danger" onClick={async () => {
+                if (!confirm(`Revoke ${k.name}?`)) return;
+                try {
+                  await api(`/api/api-keys/${k.id}`, { method: 'DELETE' });
+                  toast.success('Key revoked.');
+                  refresh();
+                } catch (e: unknown) {
+                  toast.error('Revoke failed: ' + (e as Error).message);
+                }
+              }}>Revoke</Button>}</Td>
+            </tr>
+          ))}</tbody>
+        </Table>
+      )}
 
       <Modal open={open} onClose={() => setOpen(false)} title="Generate API key">
         <Generate onDone={key => { setCreated({ key }); setOpen(false); refresh(); }} />
@@ -394,7 +420,7 @@ export default function ApiKeys() {
 
       <Modal open={guideOpen} onClose={() => setGuideOpen(false)} title="Jobix setup guide">
         <IntegrationGuide apiKey={PLACEHOLDER_KEY} fromEmail={fromEmail} />
-        <p className="text-xs text-muted mt-3">
+        <p className="text-xs text-ink-muted mt-3">
           Replace <code className="font-mono">{PLACEHOLDER_KEY}</code> in the header above with a real key
           from the table. Generate a new key if you don't already have one stored.
         </p>
@@ -408,11 +434,17 @@ export default function ApiKeys() {
 
 function Generate({ onDone }: { onDone: (plaintext: string) => void }) {
   const [name, setName] = useState('');
+  const toast = useToast();
   return (
     <form className="space-y-3" onSubmit={async e => {
       e.preventDefault();
-      const r = await api<{ plaintext: string }>('/api/api-keys', { method: 'POST', body: JSON.stringify({ name }) });
-      onDone(r.plaintext);
+      try {
+        const r = await api<{ plaintext: string }>('/api/api-keys', { method: 'POST', body: JSON.stringify({ name }) });
+        toast.success('API key generated.');
+        onDone(r.plaintext);
+      } catch (e: unknown) {
+        toast.error('Failed to generate key: ' + (e as Error).message);
+      }
     }}>
       <Field label="Name"><Input required value={name} onChange={e => setName(e.target.value)} /></Field>
       <div className="flex justify-end"><Button type="submit">Generate</Button></div>

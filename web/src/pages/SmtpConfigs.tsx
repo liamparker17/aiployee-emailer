@@ -1,41 +1,63 @@
 import { useEffect, useState } from 'react';
+import { Server } from 'lucide-react';
 import { api } from '../api';
 import { Table, Th, Td } from '../components/Table';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { Input, Field } from '../components/Input';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
+import { Skeleton } from '../components/Skeleton';
+import { useToast } from '../components/Toast';
 
 interface Cfg { id: string; name: string; host: string; port: number; secure: boolean; username: string; from_domain: string; is_default: boolean }
 
 export default function SmtpConfigs() {
   const [items, setItems] = useState<Cfg[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const refresh = () => api<{ configs: Cfg[] }>('/api/smtp-configs').then(r => setItems(r.configs));
+  const toast = useToast();
+  const refresh = () => api<{ configs: Cfg[] }>('/api/smtp-configs').then(r => { setItems(r.configs); setLoading(false); });
   useEffect(() => { refresh(); }, []);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-heading font-semibold">SMTP configs</h1>
-        <Button onClick={() => setOpen(true)}>Add</Button>
-      </div>
-      <Table>
-        <thead><tr><Th>Name</Th><Th>Host</Th><Th>Port</Th><Th>From domain</Th><Th>{''}</Th></tr></thead>
-        <tbody>{items.map(c => (
-          <tr key={c.id}>
-            <Td>{c.name}</Td><Td>{c.host}</Td><Td>{c.port}</Td><Td>{c.from_domain}</Td>
-            <Td>
-              <div className="flex gap-2 justify-end">
-                <TestBtn id={c.id} />
-                <Button variant="danger" onClick={async () => {
-                  if (!confirm(`Delete ${c.name}?`)) return;
-                  await api(`/api/smtp-configs/${c.id}`, { method: 'DELETE' }); refresh();
-                }}>Delete</Button>
-              </div>
-            </Td>
-          </tr>
-        ))}</tbody>
-      </Table>
+      <PageHeader
+        title="SMTP configs"
+        subtitle="Manage the SMTP servers used to send mail."
+        actions={<Button onClick={() => setOpen(true)}>Add</Button>}
+      />
+      {loading ? (
+        <div className="space-y-2">
+          {[0, 1, 2].map(i => <Skeleton key={i} className="h-9" />)}
+        </div>
+      ) : items.length === 0 ? (
+        <EmptyState icon={Server} title="No SMTP configs" description="Add an SMTP server to send mail." />
+      ) : (
+        <Table>
+          <thead><tr><Th>Name</Th><Th>Host</Th><Th>Port</Th><Th>From domain</Th><Th>{''}</Th></tr></thead>
+          <tbody>{items.map(c => (
+            <tr key={c.id}>
+              <Td>{c.name}</Td><Td>{c.host}</Td><Td>{c.port}</Td><Td>{c.from_domain}</Td>
+              <Td>
+                <div className="flex gap-2 justify-end">
+                  <TestBtn id={c.id} />
+                  <Button variant="danger" onClick={async () => {
+                    if (!confirm(`Delete ${c.name}?`)) return;
+                    try {
+                      await api(`/api/smtp-configs/${c.id}`, { method: 'DELETE' });
+                      toast.success('Config deleted.');
+                      refresh();
+                    } catch (e: unknown) {
+                      toast.error('Delete failed: ' + (e as Error).message);
+                    }
+                  }}>Delete</Button>
+                </div>
+              </Td>
+            </tr>
+          ))}</tbody>
+        </Table>
+      )}
       <AddModal open={open} onClose={() => { setOpen(false); refresh(); }} />
     </div>
   );
@@ -43,18 +65,23 @@ export default function SmtpConfigs() {
 
 function TestBtn({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
   return <Button variant="ghost" disabled={busy} onClick={async () => {
     const to = prompt('Send a test email to:');
     if (!to) return;
     setBusy(true);
-    try { await api(`/api/smtp-configs/${id}/test`, { method: 'POST', body: JSON.stringify({ to }) }); alert('Sent.'); }
-    catch (e: unknown) { alert('Failed: ' + (e as Error).message); }
+    try {
+      await api(`/api/smtp-configs/${id}/test`, { method: 'POST', body: JSON.stringify({ to }) });
+      toast.success('Test email sent.');
+    }
+    catch (e: unknown) { toast.error('Failed: ' + (e as Error).message); }
     finally { setBusy(false); }
   }}>Test</Button>;
 }
 
 function AddModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [form, setForm] = useState({ name: '', host: '', port: 587, secure: false, username: '', password: '', fromDomain: '', isDefault: false });
+  const toast = useToast();
   // Presets fill host/port/secure. Both Gmail and Microsoft use STARTTLS on 587.
   const applyPreset = (p: 'gmail' | 'outlook') => setForm(f => ({
     ...f,
@@ -67,24 +94,29 @@ function AddModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     <Modal open={open} onClose={onClose} title="Add SMTP config">
       <form className="space-y-3" onSubmit={async e => {
         e.preventDefault();
-        await api('/api/smtp-configs', { method: 'POST', body: JSON.stringify(form) });
-        onClose();
+        try {
+          await api('/api/smtp-configs', { method: 'POST', body: JSON.stringify(form) });
+          toast.success('SMTP config saved.');
+          onClose();
+        } catch (e: unknown) {
+          toast.error('Save failed: ' + (e as Error).message);
+        }
       }}>
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-muted">Quick fill:</span>
+          <span className="text-ink-muted">Quick fill:</span>
           <Button variant="ghost" type="button" onClick={() => applyPreset('gmail')}>Gmail</Button>
           <Button variant="ghost" type="button" onClick={() => applyPreset('outlook')}>Outlook</Button>
         </div>
         {provider === 'gmail' && (
-          <div className="rounded-md border border-line bg-bg px-3 py-2 text-xs text-muted space-y-1">
+          <div className="rounded-md border border-line bg-surface-raised px-3 py-2 text-xs text-ink-muted space-y-1">
             <p className="font-medium text-ink">Gmail caveats</p>
-            <p>From address is rewritten to your Gmail account unless the sender's email is a verified “Send mail as” alias.</p>
+            <p>From address is rewritten to your Gmail account unless the sender's email is a verified "Send mail as" alias.</p>
             <p>No delivery/bounce webhooks — the suppression list and email events won't update for Gmail sends.</p>
             <p>Daily send limits apply (~500/day free, ~2,000/day Workspace).</p>
           </div>
         )}
         {provider === 'outlook' && (
-          <div className="rounded-md border border-line bg-bg px-3 py-2 text-xs text-muted space-y-1">
+          <div className="rounded-md border border-line bg-surface-raised px-3 py-2 text-xs text-ink-muted space-y-1">
             <p className="font-medium text-ink">Outlook / Microsoft 365 caveats</p>
             <p>Host is <code>smtp.office365.com</code> for Microsoft 365; personal Outlook.com uses <code>smtp-mail.outlook.com</code>.</p>
             <p>The mailbox must have SMTP AUTH enabled; if it has MFA, use an app password (not the normal password).</p>

@@ -1,9 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Building2 } from 'lucide-react';
 import { useAuth } from '../auth';
 import { useTenants } from '../lib/tenants';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
 
 export default function TenantPicker() {
   const { user, setActiveTenant, logout } = useAuth();
@@ -28,29 +31,31 @@ export default function TenantPicker() {
   if (loading) return null;
 
   return (
-    <div className="min-h-screen p-8 max-w-6xl mx-auto">
+    <div className="min-h-screen bg-surface p-8 max-w-6xl mx-auto">
       <header className="flex items-center justify-between mb-8">
-        <div className="font-heading font-semibold text-xl">AIployee Emailer</div>
-        <div className="flex items-center gap-4 text-sm text-muted">
+        <div className="font-heading font-semibold text-xl text-ink">AIployee Emailer</div>
+        <div className="flex items-center gap-4 text-sm text-ink-muted">
           <span>{user?.email}</span>
-          <button onClick={async () => { await logout(); nav('/login'); }}
-            className="hover:text-ink">Sign out</button>
+          <button
+            onClick={async () => { await logout(); nav('/login'); }}
+            className="hover:text-ink transition">
+            Sign out
+          </button>
         </div>
       </header>
 
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-heading font-semibold">Tenants</h1>
-        <Link to="/onboarding">
-          <Button>+ New tenant</Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Tenants"
+        actions={<Link to="/onboarding"><Button>+ New tenant</Button></Link>}
+      />
 
       {tenants.length === 0 ? (
-        <div className="border border-line rounded-lg p-12 text-center">
-          <div className="text-lg font-medium mb-2">No tenants yet</div>
-          <div className="text-muted mb-6">Create your first one to get started.</div>
-          <Link to="/onboarding"><Button>+ New tenant</Button></Link>
-        </div>
+        <EmptyState
+          icon={Building2}
+          title="No tenants yet"
+          description="Create your first one to get started."
+          action={<Link to="/onboarding"><Button>+ New tenant</Button></Link>}
+        />
       ) : (
         <>
           {tenants.length > 8 && (
@@ -60,19 +65,21 @@ export default function TenantPicker() {
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map(t => (
-              <button key={t.id} onClick={() => open(t.id)}
-                className="border border-line rounded-lg p-5 text-left hover:bg-surface transition">
-                <div className="font-medium text-lg">{t.name}</div>
-                <div className="text-xs text-muted mt-1">{t.slug}</div>
+              <button
+                key={t.id}
+                onClick={() => open(t.id)}
+                className="bg-surface border border-line hover:border-accent rounded-2xl p-5 text-left transition">
+                <div className="font-medium text-lg text-ink">{t.name}</div>
+                <div className="text-xs text-ink-dim mt-1">{t.slug}</div>
                 {t.id === incompleteId && (
-                  <div className="mt-3 inline-block text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                  <div className="mt-3 inline-block text-xs bg-magenta/15 text-magenta px-2 py-0.5 rounded-btn">
                     Setup incomplete
                   </div>
                 )}
               </button>
             ))}
             {filtered.length === 0 && (
-              <div className="col-span-full text-muted text-sm">No tenants match "{q}".</div>
+              <div className="col-span-full text-ink-muted text-sm">No tenants match "{q}".</div>
             )}
           </div>
         </>

@@ -3,6 +3,7 @@ import { api } from '../../api';
 import { useWizardState } from './state';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
+import { useToast } from '../../components/Toast';
 
 interface Preset { label: string; host: string; port: number; secure: boolean }
 const PRESETS: Record<string, Preset> = {
@@ -13,6 +14,7 @@ const PRESETS: Record<string, Preset> = {
 
 export function StepSender() {
   const [state, update] = useWizardState();
+  const toast = useToast();
   const [preset, setPreset] = useState<keyof typeof PRESETS>('gmail');
   const [host, setHost] = useState(PRESETS.gmail.host);
   const [port, setPort] = useState<number>(PRESETS.gmail.port);
@@ -70,76 +72,83 @@ export function StepSender() {
         senderEmail: sender.sender.email,
         fromDomain,
       });
+      toast.success('Sender saved.');
     } catch (e: unknown) {
-      setErr((e as Error)?.message ?? 'Failed to create sender.');
+      const msg = (e as Error)?.message ?? 'Failed to create sender.';
+      setErr(msg);
+      toast.error(msg);
     } finally { setSubmitting(false); }
   }
 
   return (
-    <form onSubmit={onNext} className="space-y-5 max-w-md">
-      <h2 className="text-xl font-heading font-semibold">Add a sender</h2>
+    <div className="bg-surface-raised border border-line-strong rounded-2xl p-6">
+      <form onSubmit={onNext} className="space-y-5 max-w-md">
+        <h2 className="text-xl font-heading font-semibold text-ink">Add a sender</h2>
 
-      <div>
-        <label className="block text-sm mb-1">From name</label>
-        <Input value={fromName} onChange={e => setFromName(e.target.value)} required />
-      </div>
-      <div>
-        <label className="block text-sm mb-1">From email</label>
-        <Input type="email" value={fromEmail} onChange={e => setFromEmail(e.target.value)} required />
-      </div>
-
-      <div>
-        <div className="text-sm mb-2">SMTP provider</div>
-        <div className="flex gap-2">
-          {(Object.keys(PRESETS) as Array<keyof typeof PRESETS>).map(k => (
-            <button type="button" key={k} onClick={() => selectPreset(k)}
-              className={`px-3 py-1.5 text-sm rounded-md border ${
-                preset === k ? 'bg-ink text-white border-ink' : 'border-line text-muted hover:text-ink'
-              }`}>{PRESETS[k].label}</button>
-          ))}
+        <div>
+          <label className="block text-sm mb-1 text-ink-muted">From name</label>
+          <Input value={fromName} onChange={e => setFromName(e.target.value)} required />
         </div>
-      </div>
+        <div>
+          <label className="block text-sm mb-1 text-ink-muted">From email</label>
+          <Input type="email" value={fromEmail} onChange={e => setFromEmail(e.target.value)} required />
+        </div>
 
-      {preset === 'custom' && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
-            <label className="block text-sm mb-1">Host</label>
-            <Input value={host} onChange={e => setHost(e.target.value)} required />
-          </div>
-          <div>
-            <label className="block text-sm mb-1">Port</label>
-            <Input type="number" value={port} onChange={e => setPort(Number(e.target.value))} required />
-          </div>
-          <div className="flex items-end">
-            <label className="text-sm flex items-center gap-2">
-              <input type="checkbox" checked={secure} onChange={e => setSecure(e.target.checked)} />
-              Use TLS
-            </label>
+        <div>
+          <div className="text-sm mb-2 text-ink-muted">SMTP provider</div>
+          <div className="flex gap-2">
+            {(Object.keys(PRESETS) as Array<keyof typeof PRESETS>).map(k => (
+              <button type="button" key={k} onClick={() => selectPreset(k)}
+                className={`px-3 py-1.5 text-sm rounded-btn border transition-colors ${
+                  preset === k
+                    ? 'bg-brand text-white border-transparent'
+                    : 'border-line text-ink-muted hover:text-ink hover:border-line-strong'
+                }`}>{PRESETS[k].label}</button>
+            ))}
           </div>
         </div>
-      )}
 
-      <div>
-        <label className="block text-sm mb-1">SMTP username</label>
-        <Input value={username} onChange={e => setUsername(e.target.value)} required />
-      </div>
-      <div>
-        <label className="block text-sm mb-1">SMTP password</label>
-        <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-        {preset === 'gmail' && (
-          <p className="text-xs text-muted mt-1">
-            For Gmail, use an App Password (not your account password). Spaces in app passwords are stripped automatically.
-          </p>
+        {preset === 'custom' && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="block text-sm mb-1 text-ink-muted">Host</label>
+              <Input value={host} onChange={e => setHost(e.target.value)} required />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-ink-muted">Port</label>
+              <Input type="number" value={port} onChange={e => setPort(Number(e.target.value))} required />
+            </div>
+            <div className="flex items-end">
+              <label className="text-sm flex items-center gap-2 text-ink-muted">
+                <input type="checkbox" checked={secure} onChange={e => setSecure(e.target.checked)} />
+                Use TLS
+              </label>
+            </div>
+          </div>
         )}
-      </div>
 
-      {err && <div className="text-sm text-red-600">{err}</div>}
-      <div className="flex gap-3">
-        <Button type="button" variant="ghost" onClick={() => update({ step: '1' })}>Back</Button>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Next'}
-        </Button>
-      </div>
-    </form>
+        <div>
+          <label className="block text-sm mb-1 text-ink-muted">SMTP username</label>
+          <Input value={username} onChange={e => setUsername(e.target.value)} required />
+        </div>
+        <div>
+          <label className="block text-sm mb-1 text-ink-muted">SMTP password</label>
+          <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+          {preset === 'gmail' && (
+            <p className="text-xs text-ink-dim mt-1">
+              For Gmail, use an App Password (not your account password). Spaces in app passwords are stripped automatically.
+            </p>
+          )}
+        </div>
+
+        {err && <div className="text-sm text-error">{err}</div>}
+        <div className="flex gap-3">
+          <Button type="button" variant="ghost" onClick={() => update({ step: '1' })}>Back</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? 'Saving…' : 'Next'}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }

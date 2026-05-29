@@ -10,16 +10,20 @@ export default function AcceptInvite() {
   const [pw, setPw] = useState(''); const [err, setErr] = useState('');
   const nav = useNavigate();
   return (
-    <div className="min-h-screen grid place-items-center bg-surface">
-      <form className="bg-bg p-8 rounded-lg w-[380px] shadow border border-line space-y-4"
+    <div className="min-h-screen grid place-items-center p-4 bg-surface">
+      <form className="bg-surface-raised border border-line-strong p-8 rounded-2xl w-[380px] shadow-glow space-y-4"
             onSubmit={async e => {
               e.preventDefault(); setErr('');
               try { await api('/auth/invite/accept', { method: 'POST', body: JSON.stringify({ token, password: pw }) }); nav('/login'); }
               catch (x: unknown) { setErr((x as Error).message); }
             }}>
-        <h1 className="text-xl font-heading font-semibold">Set your password</h1>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="h-9 w-9 rounded-lg bg-brand shadow-glow" />
+          <span className="font-heading font-semibold text-xl bg-brand bg-clip-text text-transparent">AIployee</span>
+        </div>
+        <h1 className="text-xl font-heading font-semibold text-ink">Set your password</h1>
         <Field label="New password"><Input type="password" required minLength={8} value={pw} onChange={e => setPw(e.target.value)} /></Field>
-        {err && <div className="text-sm text-red-600">{err}</div>}
+        {err && <div className="text-sm text-error">{err}</div>}
         <Button type="submit">Continue</Button>
       </form>
     </div>

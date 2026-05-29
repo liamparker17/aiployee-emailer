@@ -9,13 +9,17 @@ export default function Login() {
   const nav = useNavigate();
   const [email, setEmail] = useState(''); const [pw, setPw] = useState(''); const [err, setErr] = useState('');
   return (
-    <div className="min-h-screen grid place-items-center bg-surface">
-      <form className="bg-bg p-8 rounded-lg w-[380px] shadow border border-line space-y-4"
+    <div className="min-h-screen grid place-items-center p-4 bg-surface">
+      <form className="bg-surface-raised border border-line-strong p-8 rounded-2xl w-[380px] shadow-glow space-y-4"
             onSubmit={async e => { e.preventDefault(); setErr(''); try { await login(email, pw); nav('/'); } catch (x: unknown) { setErr((x as Error).message); } }}>
-        <h1 className="text-xl font-heading font-semibold">Sign in to AIployee Emailer</h1>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="h-9 w-9 rounded-lg bg-brand shadow-glow" />
+          <span className="font-heading font-semibold text-xl bg-brand bg-clip-text text-transparent">AIployee</span>
+        </div>
+        <h1 className="text-xl font-heading font-semibold text-ink">Sign in to AIployee Emailer</h1>
         <Field label="Email"><Input type="email" required value={email} onChange={e => setEmail(e.target.value)} /></Field>
         <Field label="Password"><Input type="password" required value={pw} onChange={e => setPw(e.target.value)} /></Field>
-        {err && <div className="text-sm text-red-600">{err}</div>}
+        {err && <div className="text-sm text-error">{err}</div>}
         <Button type="submit" variant="primary">Sign in</Button>
       </form>
     </div>
