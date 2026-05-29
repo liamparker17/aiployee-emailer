@@ -10,7 +10,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 
-interface Key { id: string; name: string; key_prefix: string; created_at: string; last_used_at: string | null; revoked_at: string | null }
+interface Key { id: string; name: string; key_prefix: string; parent_id: string | null; created_at: string; last_used_at: string | null; revoked_at: string | null }
 interface Sender { id: string; email: string; display_name: string; is_default: boolean }
 
 const PLACEHOLDER_KEY = 'aip_live_XXXXXXXXXXXXXXXXXXXXXXXX';
@@ -350,6 +350,7 @@ export default function ApiKeys() {
   const [senders, setSenders] = useState<Sender[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [subParent, setSubParent] = useState<Key | null>(null);
   const [created, setCreated] = useState<{ key: string } | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
   const toast = useToast();
@@ -364,6 +365,43 @@ export default function ApiKeys() {
     refresh();
     api<{ senders: Sender[] }>('/api/senders').then(r => setSenders(r.senders)).catch(() => {});
   }, []);
+
+  async function revoke(k: Key) {
+    const msg = k.parent_id === null
+      ? `Revoke ${k.name}? This also revokes its sub-keys.`
+      : `Revoke ${k.name}?`;
+    if (!confirm(msg)) return;
+    try {
+      await api(`/api/api-keys/${k.id}`, { method: 'DELETE' });
+      toast.success('Key revoked.');
+      refresh();
+    } catch (e: unknown) {
+      toast.error('Revoke failed: ' + (e as Error).message);
+    }
+  }
+
+  const masters = items.filter(k => k.parent_id === null);
+  const childrenOf = (id: string) => items.filter(k => k.parent_id === id);
+  const renderRow = (k: Key, sub: boolean) => (
+    <tr key={k.id} className={sub ? 'bg-surface-raised/40' : ''}>
+      <Td>
+        <span className={`flex items-center gap-1 ${sub ? 'pl-6 text-ink-muted' : 'text-ink'}`}>
+          {sub && <span className="text-ink-dim">↳</span>}{k.name}
+        </span>
+      </Td>
+      <Td className="font-mono">{k.key_prefix}…</Td>
+      <Td>{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'never'}</Td>
+      <Td>{k.revoked_at ? 'revoked' : 'active'}</Td>
+      <Td>
+        <div className="flex justify-end gap-2">
+          {!k.revoked_at && k.parent_id === null && (
+            <Button variant="secondary" onClick={() => setSubParent(k)}>Add sub-key</Button>
+          )}
+          {!k.revoked_at && <Button variant="danger" onClick={() => revoke(k)}>Revoke</Button>}
+        </div>
+      </Td>
+    </tr>
+  );
 
   return (
     <div className="space-y-6">
@@ -387,28 +425,14 @@ export default function ApiKeys() {
       ) : (
         <Table>
           <thead><tr><Th>Name</Th><Th>Prefix</Th><Th>Last used</Th><Th>Status</Th><Th>{''}</Th></tr></thead>
-          <tbody>{items.map(k => (
-            <tr key={k.id}>
-              <Td>{k.name}</Td><Td className="font-mono">{k.key_prefix}…</Td>
-              <Td>{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'never'}</Td>
-              <Td>{k.revoked_at ? 'revoked' : 'active'}</Td>
-              <Td>{!k.revoked_at && <Button variant="danger" onClick={async () => {
-                if (!confirm(`Revoke ${k.name}?`)) return;
-                try {
-                  await api(`/api/api-keys/${k.id}`, { method: 'DELETE' });
-                  toast.success('Key revoked.');
-                  refresh();
-                } catch (e: unknown) {
-                  toast.error('Revoke failed: ' + (e as Error).message);
-                }
-              }}>Revoke</Button>}</Td>
-            </tr>
-          ))}</tbody>
+          <tbody>{masters.flatMap(m => [renderRow(m, false), ...childrenOf(m.id).map(c => renderRow(c, true))])}</tbody>
         </Table>
       )}
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Generate API key">
-        <Generate onDone={key => { setCreated({ key }); setOpen(false); refresh(); }} />
+      <Modal open={open || !!subParent} onClose={() => { setOpen(false); setSubParent(null); }}
+        title={subParent ? `Add sub-key under “${subParent.name}”` : 'Generate API key'}>
+        <Generate parentId={subParent?.id}
+          onDone={key => { setCreated({ key }); setOpen(false); setSubParent(null); refresh(); }} />
       </Modal>
 
       <Modal open={!!created} onClose={() => setCreated(null)} title="Your new API key — Jobix setup guide">
@@ -432,21 +456,26 @@ export default function ApiKeys() {
   );
 }
 
-function Generate({ onDone }: { onDone: (plaintext: string) => void }) {
+function Generate({ onDone, parentId }: { onDone: (plaintext: string) => void; parentId?: string }) {
   const [name, setName] = useState('');
   const toast = useToast();
   return (
     <form className="space-y-3" onSubmit={async e => {
       e.preventDefault();
       try {
-        const r = await api<{ plaintext: string }>('/api/api-keys', { method: 'POST', body: JSON.stringify({ name }) });
-        toast.success('API key generated.');
+        const r = await api<{ plaintext: string }>('/api/api-keys', {
+          method: 'POST', body: JSON.stringify(parentId ? { name, parentId } : { name }),
+        });
+        toast.success(parentId ? 'Sub-key generated.' : 'API key generated.');
         onDone(r.plaintext);
       } catch (e: unknown) {
         toast.error('Failed to generate key: ' + (e as Error).message);
       }
     }}>
-      <Field label="Name"><Input required value={name} onChange={e => setName(e.target.value)} /></Field>
+      <Field label={parentId ? 'Flow / sub-key name' : 'Name'}
+        hint={parentId ? 'Label this sub-key by the flow it powers (e.g. "Cold outreach").' : undefined}>
+        <Input required value={name} onChange={e => setName(e.target.value)} />
+      </Field>
       <div className="flex justify-end"><Button type="submit">Generate</Button></div>
     </form>
   );

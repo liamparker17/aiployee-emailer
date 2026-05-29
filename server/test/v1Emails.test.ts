@@ -66,4 +66,27 @@ describe('POST /v1/emails', () => {
     const r = await app.inject({ method: 'POST', url: '/v1/emails', payload: {} });
     expect(r.statusCode).toBe(401);
   });
+
+  it('authenticates a sub-key as the tenant', async () => {
+    const t = await createTenant(pool);
+    const sc = await createSmtpConfig(pool, KEY, {
+      tenantId: t.id, name: 'local', host: '127.0.0.1', port: 2527, secure: false,
+      username: 'u', password: 'p', fromDomain: 'x.com', isDefault: true,
+    });
+    const s = await createSender(pool, { tenantId: t.id, email: 'a@x.com', displayName: 'A', smtpConfigId: sc.id });
+    const masterPlain = generateApiKey();
+    const master = await insertApiKey(pool, { tenantId: t.id, name: 'master', keyHash: hashApiKey(masterPlain), keyPrefix: prefixOf(masterPlain) });
+    const subPlain = generateApiKey();
+    await insertApiKey(pool, { tenantId: t.id, name: 'sub', keyHash: hashApiKey(subPlain), keyPrefix: prefixOf(subPlain), parentId: master.id });
+
+    const recv = smtp.lastMail();
+    const r = await app.inject({
+      method: 'POST', url: '/v1/emails',
+      headers: { authorization: `Bearer ${subPlain}` },
+      payload: { from: s.email, to: 'r@x.com', subject: 'Sub', html: '<p>x</p>' },
+    });
+    expect(r.statusCode).toBe(202);
+    expect((r.json() as { status: string }).status).toBe('sent');
+    await recv;
+  });
 });
