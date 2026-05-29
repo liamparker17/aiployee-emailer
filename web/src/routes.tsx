@@ -19,6 +19,8 @@ import JobixBuilder from './pages/JobixBuilder';
 import AiResponses from './pages/AiResponses';
 import Domains from './pages/Domains';
 import EventWebhooks from './pages/EventWebhooks';
+import Contacts from './pages/Contacts';
+import Lists from './pages/Lists';
 
 function Authed({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -65,6 +67,8 @@ export const router = createBrowserRouter([
       { path: 'senders', element: <Senders /> },
       { path: 'domains', element: <Domains /> },
       { path: 'event-webhooks', element: <EventWebhooks /> },
+      { path: 'contacts', element: <Contacts /> },
+      { path: 'lists', element: <Lists /> },
       { path: 'templates', element: <Templates /> },
       { path: 'smtp', element: <SmtpConfigs /> },
       { path: 'api-keys', element: <ApiKeys /> },
