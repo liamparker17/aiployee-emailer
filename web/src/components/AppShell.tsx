@@ -1,10 +1,15 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useEffect } from 'react';
+import { LayoutDashboard, Send, FileText, Server, KeyRound, ScrollText, ShieldBan, Users, Building2, LogOut } from 'lucide-react';
 import { useAuth } from '../auth';
 import TenantSwitcher from './TenantSwitcher';
 
 const link = ({ isActive }: { isActive: boolean }) =>
-  `block px-3 py-2 rounded-md text-sm ${isActive ? 'bg-surface text-ink font-medium' : 'text-muted hover:text-ink'}`;
+  `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${
+    isActive
+      ? 'bg-magenta/15 text-white font-medium shadow-[inset_3px_0_0_0_#c026f2]'
+      : 'text-ink-muted hover:text-white hover:bg-surface'
+  }`;
 
 export default function AppShell() {
   const { user, logout } = useAuth();
@@ -16,23 +21,28 @@ export default function AppShell() {
   }, [tenantId]);
   const base = `/t/${tenantId}`;
   return (
-    <div className="min-h-full grid grid-cols-[240px_1fr]">
-      <aside className="border-r border-line p-4 flex flex-col gap-6">
-        <div className="font-heading font-semibold text-lg">AIployee Emailer</div>
+    <div className="min-h-full grid grid-cols-[248px_1fr]">
+      <aside className="border-r border-line bg-surface/60 p-4 flex flex-col gap-6">
+        <div className="flex items-center gap-2 px-2">
+          <div className="h-8 w-8 rounded-lg bg-brand shadow-glow" />
+          <span className="font-heading font-semibold text-lg bg-brand bg-clip-text text-transparent">AIployee</span>
+        </div>
         <TenantSwitcher />
         <nav className="flex flex-col gap-1">
-          <NavLink to={base} end className={link}>Dashboard</NavLink>
-          <NavLink to={`${base}/senders`} className={link}>Senders</NavLink>
-          <NavLink to={`${base}/templates`} className={link}>Templates</NavLink>
-          <NavLink to={`${base}/smtp`} className={link}>SMTP configs</NavLink>
-          <NavLink to={`${base}/api-keys`} className={link}>API keys</NavLink>
-          <NavLink to={`${base}/log`} className={link}>Email log</NavLink>
-          <NavLink to={`${base}/suppressions`} className={link}>Suppressions</NavLink>
-          <NavLink to={`${base}/users`} className={link}>Users</NavLink>
-          {user?.role === 'super_admin' && <NavLink to="/admin/tenants" className={link}>Tenants</NavLink>}
+          <NavLink to={base} end className={link}><LayoutDashboard size={16} />Dashboard</NavLink>
+          <NavLink to={`${base}/senders`} className={link}><Send size={16} />Senders</NavLink>
+          <NavLink to={`${base}/templates`} className={link}><FileText size={16} />Templates</NavLink>
+          <NavLink to={`${base}/smtp`} className={link}><Server size={16} />SMTP configs</NavLink>
+          <NavLink to={`${base}/api-keys`} className={link}><KeyRound size={16} />API keys</NavLink>
+          <NavLink to={`${base}/log`} className={link}><ScrollText size={16} />Email log</NavLink>
+          <NavLink to={`${base}/suppressions`} className={link}><ShieldBan size={16} />Suppressions</NavLink>
+          <NavLink to={`${base}/users`} className={link}><Users size={16} />Users</NavLink>
+          {user?.role === 'super_admin' && <NavLink to="/admin/tenants" className={link}><Building2 size={16} />Tenants</NavLink>}
         </nav>
         <button onClick={async () => { await logout(); nav('/login'); }}
-          className="mt-auto text-sm text-muted hover:text-ink text-left">Sign out</button>
+          className="mt-auto flex items-center gap-2 text-sm text-ink-dim hover:text-white text-left px-3 py-2 rounded-lg hover:bg-surface transition">
+          <LogOut size={16} />Sign out
+        </button>
       </aside>
       <main className="p-8 max-w-5xl"><Outlet /></main>
     </div>
