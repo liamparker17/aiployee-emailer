@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { LayoutDashboard, Send, FileText, Server, KeyRound, Wand2, ScrollText, ShieldBan, Users, Building2, LogOut } from 'lucide-react';
 import { useAuth } from '../auth';
 import TenantSwitcher from './TenantSwitcher';
+import { Logo } from './Logo';
 
 const link = ({ isActive }: { isActive: boolean }) =>
   `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${
@@ -24,8 +25,8 @@ export default function AppShell() {
     <div className="min-h-full grid grid-cols-[248px_1fr]">
       <aside className="border-r border-line bg-surface/60 p-4 flex flex-col gap-6">
         <div className="flex items-center gap-2 px-2">
-          <div className="h-8 w-8 rounded-lg bg-brand shadow-glow" />
-          <span className="font-heading font-semibold text-lg bg-brand bg-clip-text text-transparent">AIployee</span>
+          <Logo size={32} />
+          <span className="font-heading font-semibold text-lg text-ink">Aiployee</span>
         </div>
         <TenantSwitcher />
         <nav className="flex flex-col gap-1">

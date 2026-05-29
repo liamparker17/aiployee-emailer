@@ -33,7 +33,7 @@ export default function TenantPicker() {
   return (
     <div className="min-h-screen bg-surface p-8 max-w-6xl mx-auto">
       <header className="flex items-center justify-between mb-8">
-        <div className="font-heading font-semibold text-xl text-ink">AIployee Emailer</div>
+        <div className="font-heading font-semibold text-xl text-ink">Aiployee Emailer</div>
         <div className="flex items-center gap-4 text-sm text-ink-muted">
           <span>{user?.email}</span>
           <button

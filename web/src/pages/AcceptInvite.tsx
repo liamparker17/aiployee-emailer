@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { Button } from '../components/Button';
 import { Input, Field } from '../components/Input';
+import { Logo } from '../components/Logo';
 
 export default function AcceptInvite() {
   const [params] = useSearchParams();
@@ -18,8 +19,8 @@ export default function AcceptInvite() {
               catch (x: unknown) { setErr((x as Error).message); }
             }}>
         <div className="flex items-center gap-2 mb-2">
-          <div className="h-9 w-9 rounded-lg bg-brand shadow-glow" />
-          <span className="font-heading font-semibold text-xl bg-brand bg-clip-text text-transparent">AIployee</span>
+          <Logo size={36} />
+          <span className="font-heading font-semibold text-xl text-ink">Aiployee</span>
         </div>
         <h1 className="text-xl font-heading font-semibold text-ink">Set your password</h1>
         <Field label="New password"><Input type="password" required minLength={8} value={pw} onChange={e => setPw(e.target.value)} /></Field>
