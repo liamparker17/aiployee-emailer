@@ -4,6 +4,7 @@ import { Card } from '../Card';
 import { Button } from '../Button';
 import AbeFeed from './AbeFeed';
 import PendingApprovals from './PendingApprovals';
+import ManageAbe from './ManageAbe';
 import type { AbeGoal } from '../../lib/abe';
 
 interface Props { goal: AbeGoal; onChange: () => void }
@@ -13,9 +14,8 @@ function statusLine(goal: AbeGoal): string {
   return 'On shift · re-engaging dormant contacts';
 }
 
-export default function AbeHome({ goal, onChange: _onChange }: Props) {
-  // TODO (Task C6): replace with real ManageAbe panel
-  const [_managePanelOpen, setManagePanelOpen] = useState(false);
+export default function AbeHome({ goal, onChange }: Props) {
+  const [manageOpen, setManageOpen] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -28,17 +28,20 @@ export default function AbeHome({ goal, onChange: _onChange }: Props) {
           <p className="text-lg font-heading font-semibold text-ink">Abe</p>
           <p className="text-sm text-ink-muted mt-0.5">{statusLine(goal)}</p>
         </div>
-        {/* Manage Abe — panel wired in Task C6 */}
         <Button
           variant="secondary"
-          onClick={() => setManagePanelOpen(true)}
-          // TODO (Task C6): remove disabled once ManageAbe panel is wired
-          disabled
-          title="Manage Abe settings (coming soon)"
+          onClick={() => setManageOpen(true)}
         >
           Manage Abe
         </Button>
       </Card>
+
+      <ManageAbe
+        open={manageOpen}
+        onClose={() => setManageOpen(false)}
+        goal={goal}
+        onSaved={onChange}
+      />
 
       {/* ── Pending approvals (action items — shown above feed) ── */}
       <section>
