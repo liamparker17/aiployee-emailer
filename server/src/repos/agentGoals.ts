@@ -17,6 +17,12 @@ export interface GoalRow {
   updated_at: Date;
 }
 
+/**
+ * Sparse-patch semantics: an omitted field keeps the existing DB value.
+ * Passing `null` for `lineManagerEmail` or `brandVoice` also keeps the existing
+ * value — clearing a field is NOT supported in v1 (the COALESCE upsert treats
+ * null as "no change").
+ */
 export interface GoalPatch {
   enabled?: boolean;
   dormantWindowDays?: number;
@@ -35,6 +41,7 @@ export async function getGoal(pool: pg.Pool, tenantId: string): Promise<GoalRow 
   return r.rows[0] ?? null;
 }
 
+// Cross-tenant query — intended for the scheduler/cron caller only (not tenant-scoped).
 export async function listEnabledGoals(pool: pg.Pool): Promise<GoalRow[]> {
   const r = await pool.query<GoalRow>(
     `SELECT * FROM agent_goals WHERE enabled = true ORDER BY created_at ASC`,

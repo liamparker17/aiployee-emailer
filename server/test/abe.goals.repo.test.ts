@@ -18,6 +18,14 @@ describe('agentGoals repo', () => {
     expect(again?.id).toBe(g.id); // upsert is idempotent per (tenant, kind)
   });
 
+  it('upsert update path preserves fields omitted from the patch', async () => {
+    const t = await createTenant(pool);
+    await upsertGoal(pool, t.id, { enabled: true, dormantWindowDays: 60 });
+    const updated = await upsertGoal(pool, t.id, { dormantWindowDays: 30 });
+    expect(updated.dormant_window_days).toBe(30); // changed field applied
+    expect(updated.enabled).toBe(true);           // omitted field preserved
+  });
+
   it('listEnabledGoals returns only enabled goals across tenants', async () => {
     const a = await createTenant(pool);
     const b = await createTenant(pool);
