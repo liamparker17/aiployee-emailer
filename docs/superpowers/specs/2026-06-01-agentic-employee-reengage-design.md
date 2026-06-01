@@ -85,6 +85,10 @@ signals for dormancy (email-engagement only); full natural-language inbound-emai
    auto-skips anyone who re-engages mid-sequence (outcome-reactivity).
 6. **The agent is named Abe** and is presented as a team member throughout the UX and
    in every email he sends.
+7. **Abe is the product's centerpiece, not a feature.** The primary experience is
+   *hiring and managing an employee*, not "configuring an AI tool." Onboarding is framed
+   as an employee setup; Abe is a top-level, hero surface (not buried in a settings tab).
+   See "Positioning & onboarding" below — this framing is a hard requirement, not polish.
 
 ---
 
@@ -175,14 +179,39 @@ signals for dormancy (email-engagement only); full natural-language inbound-emai
 
 ---
 
-## UI — the "Employee" surface (extends the existing "AI" tab)
+## Positioning & onboarding — Abe is the centerpiece (hard requirement)
 
-- **Config panel:** enable goal, dormant window, auto-fire threshold, max touches/spacing,
-  **line-manager email** (with verify), cadence.
-- **Activity feed:** reverse-chronological, first-person Abe entries (thinking / proposed /
-  acted / reported / learned), with pending-approval plays showing Approve/Edit/Reject
-  inline *and* noting "also emailed to <manager>". A reply box lets the user steer Abe
-  conversationally. This is a **colleague thread, not a dashboard.**
+The product must feel like **hiring an employee**, not configuring a tool. This is the
+core differentiator and it drives the IA, the onboarding, and the copy.
+
+- **Abe is top-level**, not a sub-tab. The primary surface a user lands on *is Abe* —
+  his profile/avatar, what he's working on, his latest updates. The Brevo-parity tooling
+  (campaigns, contacts, segments) becomes "the systems Abe uses," not the headline.
+- **Onboarding = a hiring/first-day flow**, not a settings form. The setup wizard is
+  written as onboarding a new hire, in this order:
+  1. **Meet Abe** — short intro: who he is, what job he does (re-engage dormant contacts).
+  2. **Assign his manager** — enter the **line-manager email** (verified); framed as
+     "who does Abe report to?" Abe will email this person for sign-off.
+  3. **Brief him on the goal** — confirm the objective and dormant definition in plain
+     language ("win back contacts who've gone quiet for 60+ days").
+  4. **Set his working limits** — the guardrails *as an employment agreement*: how many
+     he can contact without asking, send pace, tone/brand voice, do-not-contact.
+  5. **Abe starts his first shift** — the wizard ends by Abe immediately running PERCEIVE
+     and posting his first proposed play. The "kill-the-blank-page" wedge is the literal
+     last step of onboarding — the user *sees Abe start working* before they finish setup.
+- **Copy is employee-voiced throughout** — "Abe's goals," "Abe's manager," "Abe's first
+  shift," "Abe's work log," "Abe is waiting on your approval," "Abe learned something."
+
+## UI — Abe's home (the hero surface)
+
+- **Abe header:** avatar + name + current status ("On shift · working on re-engagement",
+  "Waiting on Sarah's approval", "Off — resume?"). Reinforces he's a person doing a job.
+- **Work log (activity feed):** reverse-chronological, first-person Abe entries (thinking /
+  proposed / acted / reported / learned). Pending-approval plays show Approve/Edit/Reject
+  inline *and* note "also emailed to <manager> for sign-off." A reply box lets the user
+  steer Abe conversationally. This is a **colleague thread / standup, not a dashboard.**
+- **Manage Abe panel:** the same fields from onboarding (goal, manager, working limits,
+  cadence), framed as managing an employee rather than editing config.
 
 ---
 
