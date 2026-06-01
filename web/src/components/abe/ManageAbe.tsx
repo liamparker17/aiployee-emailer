@@ -111,7 +111,7 @@ export default function ManageAbe({ open, onClose, goal, onSaved }: Props) {
             <Field label="Max audience per play" hint="Cap on contacts per re-engage run">
               <Input
                 type="number"
-                min={1}
+                min={0}
                 value={autoFireMaxAudience}
                 disabled={!isAdmin}
                 onChange={e => setAutoFireMaxAudience(e.target.value)}

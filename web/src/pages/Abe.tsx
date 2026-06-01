@@ -12,7 +12,7 @@ export default function Abe() {
   useEffect(() => { reload().finally(() => setLoading(false)); }, []);
 
   if (loading) return <div className="p-8"><Spinner /></div>;
-  const hired = !!goal?.enabled;
+  const hired = goal !== null;
   return hired
     ? <AbeHome goal={goal!} onChange={reload} />
     : <HireAbeWizard goal={goal} onHired={reload} />;

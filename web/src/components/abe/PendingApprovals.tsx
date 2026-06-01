@@ -20,7 +20,7 @@ export default function PendingApprovals({ goal, onChange }: Props) {
   const load = () =>
     api<{ plays: AbePlay[] }>('/api/agent/plays')
       .then(r => setPlays(r.plays.filter(p => p.status === 'pending_approval')))
-      .catch(() => { /* silent — feed carries narrative */ });
+      .catch(() => { setPlays([]); toast.error("Could not load Abe's plays."); });
 
   useEffect(() => { load(); }, []);
 

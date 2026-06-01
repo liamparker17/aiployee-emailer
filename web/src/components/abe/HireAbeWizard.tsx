@@ -113,7 +113,7 @@ export default function HireAbeWizard({ goal, onHired }: Props) {
               When a play needs sign-off, I'll email this address for approval — so make sure it's
               someone who can act quickly. You can verify the address after hiring me.
             </p>
-            <Field label="Who does Abe report to?" hint="Optional — leave blank to skip email sign-off for now.">
+            <Field label="Manager email address" hint="Optional — leave blank to skip email sign-off for now.">
               <Input
                 type="email"
                 placeholder="manager@yourcompany.com"

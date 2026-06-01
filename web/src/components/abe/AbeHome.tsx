@@ -16,6 +16,8 @@ function statusLine(goal: AbeGoal): string {
 
 export default function AbeHome({ goal, onChange }: Props) {
   const [manageOpen, setManageOpen] = useState(false);
+  const [feedKey, setFeedKey] = useState(0);
+  const refresh = () => { setFeedKey((k) => k + 1); onChange(); };
 
   return (
     <div className="space-y-6">
@@ -36,19 +38,21 @@ export default function AbeHome({ goal, onChange }: Props) {
         </Button>
       </Card>
 
-      <ManageAbe
-        open={manageOpen}
-        onClose={() => setManageOpen(false)}
-        goal={goal}
-        onSaved={onChange}
-      />
+      {manageOpen && (
+        <ManageAbe
+          open
+          onClose={() => setManageOpen(false)}
+          goal={goal}
+          onSaved={refresh}
+        />
+      )}
 
       {/* ── Pending approvals (action items — shown above feed) ── */}
       <section>
         <h2 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-3">
           Needs your sign-off
         </h2>
-        <PendingApprovals goal={goal} onChange={onChange} />
+        <PendingApprovals goal={goal} onChange={refresh} />
       </section>
 
       {/* ── Work log ── */}
@@ -56,7 +60,7 @@ export default function AbeHome({ goal, onChange }: Props) {
         <h2 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-3">
           Abe's work log
         </h2>
-        <AbeFeed />
+        <AbeFeed key={feedKey} />
       </section>
     </div>
   );
