@@ -106,3 +106,50 @@ export async function updatePlayOutcomes(pool: pg.Pool, playId: string): Promise
     [playId, eng.opens, eng.clicks, eng.reactivations, closed],
   );
 }
+
+/**
+ * A short, first-person-free learning hint summarizing the tenant's most recent completed
+ * (status 'done') play that has recorded sends. Fed into the NEXT shift's drafting so Abe
+ * can reference how the last win-back performed. Returns null if there is nothing to learn from.
+ */
+export async function lastCompletedPlayOutcome(pool: pg.Pool, tenantId: string): Promise<string | null> {
+  const r = await pool.query<{ sends: number; opens: number; reactivations: number }>(
+    `SELECT o.sends, o.opens, o.reactivations
+       FROM agent_plays p
+       JOIN agent_play_outcomes o ON o.play_id = p.id AND o.touch_index = 0
+      WHERE p.tenant_id = $1 AND p.status = 'done' AND o.sends > 0
+      ORDER BY p.executed_at DESC NULLS LAST, p.created_at DESC
+      LIMIT 1`,
+    [tenantId],
+  );
+  if (r.rows.length === 0) return null;
+  const { sends, opens, reactivations } = r.rows[0];
+  const reactPct = sends > 0 ? Math.round((reactivations / sends) * 100) : 0;
+  const openPct = sends > 0 ? Math.round((opens / sends) * 100) : 0;
+  return `Your last win-back reached ${sends} contacts; ${openPct}% opened and ${reactPct}% reactivated.`;
+}
+
+export interface PlayOutcomeRow {
+  id: string;
+  play_id: string;
+  tenant_id: string;
+  touch_index: number;
+  sends: number;
+  opens: number;
+  clicks: number;
+  reactivations: number;
+  window_closed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/** All outcome rows for a play (tenant-scoped), ordered by touch index. */
+export async function getPlayOutcomes(pool: pg.Pool, tenantId: string, playId: string): Promise<PlayOutcomeRow[]> {
+  const r = await pool.query<PlayOutcomeRow>(
+    `SELECT * FROM agent_play_outcomes
+      WHERE tenant_id = $1 AND play_id = $2
+      ORDER BY touch_index ASC`,
+    [tenantId, playId],
+  );
+  return r.rows;
+}

@@ -79,3 +79,19 @@ export async function setPlayStatus(
   );
   return r.rows[0] ?? null;
 }
+
+/**
+ * Plays whose outcomes may still change: status executing/done where the touch_index = 0
+ * outcome row exists and its window has not been closed yet. Cross-tenant (cron runs globally).
+ */
+export async function listPlaysForOutcomeRollup(pool: pg.Pool): Promise<Array<{ id: string }>> {
+  const r = await pool.query<{ id: string }>(
+    `SELECT p.id
+       FROM agent_plays p
+       JOIN agent_play_outcomes o ON o.play_id = p.id AND o.touch_index = 0
+      WHERE p.status IN ('executing','done')
+        AND o.window_closed_at IS NULL
+      ORDER BY p.executed_at ASC NULLS LAST`,
+  );
+  return r.rows;
+}

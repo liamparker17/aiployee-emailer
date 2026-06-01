@@ -8,6 +8,8 @@ import { sendManagerVerifyEmail } from '../agent/abe/approvalEmail.js';
 import { listPlays, getPlay, setPlayStatus } from '../repos/agentPlays.js';
 import { startPlayExecution } from '../agent/abe/execute.js';
 import { getActiveApprovalByPlay, consumeApproval } from '../repos/agentApprovals.js';
+import { buildFeed } from '../agent/abe/feed.js';
+import { getPlayOutcomes } from '../repos/agentOutcomes.js';
 
 const GoalBody = z.object({
   enabled: z.boolean().optional(),
@@ -54,7 +56,16 @@ export function registerAbeRoutes(app: FastifyInstance): void {
       const { id } = req.params as { id: string };
       const play = await getPlay(app.pool, ctx.tenantId, id);
       if (!play) throw new AppError('not_found', 404, 'Play not found');
-      return reply.send({ play });
+      const outcomes = await getPlayOutcomes(app.pool, ctx.tenantId, id);
+      return reply.send({ play, outcomes });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  app.get('/api/agent/feed', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      const feed = await buildFeed(app.pool, ctx.tenantId);
+      return reply.send({ feed });
     } catch (e) { sendError(reply, e); }
   });
 

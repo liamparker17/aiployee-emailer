@@ -6,9 +6,10 @@ import { dispatchBatch } from '../send/dispatch.js';
 import { listEnabledGoals, getGoal } from '../repos/agentGoals.js';
 import { runAbeShift } from '../agent/abe/shift.js';
 import { openAiFactory } from '../agent/runner.js';
-import { listExecutingPlays } from '../repos/agentPlays.js';
+import { listExecutingPlays, listPlaysForOutcomeRollup } from '../repos/agentPlays.js';
 import { getDefaultSender } from '../repos/senders.js';
 import { advancePlayTouches } from '../agent/abe/touches.js';
+import { updatePlayOutcomes } from '../repos/agentOutcomes.js';
 
 function requireCronAuth(req: FastifyRequest, secret: string): void {
   const auth = req.headers.authorization ?? '';
@@ -97,6 +98,26 @@ export async function registerCronRoutes(app: FastifyInstance) {
         } catch (err) { skipped.push({ playId: p.id, reason: err instanceof Error ? err.message : String(err) }); }
       }
       return reply.send({ ok: true, plays: plays.length, touchesQueued, done, skipped });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // POST /v1/cron/abe-outcomes — periodically roll up engagement (opens/clicks/reactivations)
+  // for executing/done plays whose attribution window has not yet closed. Mirrors abe-shift.
+  app.post('/v1/cron/abe-outcomes', async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      requireCronAuth(req, app.cfg.cronSecret);
+      const plays = await listPlaysForOutcomeRollup(app.pool);
+      let updated = 0;
+      const errors: Array<{ playId: string; error: string }> = [];
+      for (const p of plays) {
+        try {
+          await updatePlayOutcomes(app.pool, p.id);
+          updated += 1;
+        } catch (err) {
+          errors.push({ playId: p.id, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      return reply.send({ ok: true, plays: plays.length, updated, errors });
     } catch (e) { sendError(reply, e); }
   });
 }

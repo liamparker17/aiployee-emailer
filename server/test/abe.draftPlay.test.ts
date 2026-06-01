@@ -30,4 +30,20 @@ describe('draftReengagePlay', () => {
       llm: bad, model: 'gpt-4.1', brandVoice: null, maxTouches: 3, touchSpacingDays: 3, audienceSize: 40,
     })).rejects.toThrow();
   });
+
+  it('appends the prior-outcome learning hint to the user prompt when provided', async () => {
+    let captured = '';
+    const capturingLlm = {
+      chat: async (args: { model: string; messages: Array<{ role: string; content: string }> }) => {
+        captured = args.messages.find((m) => m.role === 'user')?.content ?? '';
+        return { content: JSON.stringify({ touches: [{ subject: 's', body_html: '<p>h</p>' }] }), toolCalls: [] };
+      },
+    };
+    await draftReengagePlay({
+      llm: capturingLlm, model: 'gpt-4.1', brandVoice: null,
+      maxTouches: 3, touchSpacingDays: 3, audienceSize: 10,
+      priorOutcomeHint: 'Your last win-back reached 50 contacts; 40% opened and 12% reactivated.',
+    });
+    expect(captured).toContain('Your last win-back reached 50 contacts');
+  });
 });

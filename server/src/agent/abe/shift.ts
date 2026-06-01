@@ -6,6 +6,7 @@ import { insertPlay, getPlay, type PlayRow } from '../../repos/agentPlays.js';
 import { draftReengagePlay } from './draftPlay.js';
 import { scoreRisk, requiresApproval } from './risk.js';
 import { getAgentConfig, getAgentOpenAIKey } from '../../repos/agent.js';
+import { lastCompletedPlayOutcome } from '../../repos/agentOutcomes.js';
 import { startPlayExecution } from './execute.js';
 import { escalatePlay } from './escalate.js';
 
@@ -35,6 +36,8 @@ export async function runAbeShift(args: {
   const dormant = await findDormantContacts(pool, tenantId, goal.dormant_window_days);
   if (dormant.length === 0) return { status: 'skipped', reason: 'no_dormant_contacts' };
 
+  const priorOutcomeHint = await lastCompletedPlayOutcome(pool, tenantId);
+
   const touches = await draftReengagePlay({
     llm: args.llmFactory(apiKey),
     model,
@@ -42,6 +45,7 @@ export async function runAbeShift(args: {
     maxTouches: goal.max_touches,
     touchSpacingDays: goal.touch_spacing_days,
     audienceSize: dormant.length,
+    priorOutcomeHint,
   });
 
   const audienceSize = dormant.length;

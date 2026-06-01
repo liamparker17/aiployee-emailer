@@ -15,11 +15,13 @@ export async function draftReengagePlay(args: {
   maxTouches: number;
   touchSpacingDays: number;
   audienceSize: number;
+  priorOutcomeHint?: string | null;
 }): Promise<Touch[]> {
   const user =
     `Audience: ${args.audienceSize} dormant contacts. ` +
     `Produce at most ${args.maxTouches} touches. ` +
     (args.brandVoice ? `Brand voice to match: ${args.brandVoice}. ` : '') +
+    (args.priorOutcomeHint ? `For context, how your last win-back performed: ${args.priorOutcomeHint} ` : '') +
     `Each touch needs a "subject" and an HTML "body_html".`;
 
   const messages: LlmMessage[] = [
