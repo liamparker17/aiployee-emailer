@@ -3,6 +3,7 @@ import { AlertTriangle } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { Card } from '../Card';
 import { api } from '../../api';
+import { useAuth } from '../../auth';
 
 interface Sender { id: string; is_default: boolean }
 
@@ -13,12 +14,21 @@ interface Props {
 export default function AbeReadiness({ onReady }: Props) {
   const { tenantId } = useParams<{ tenantId: string }>();
   const base = `/t/${tenantId}`;
+  const { user } = useAuth();
+  const isAdmin = user?.role !== 'tenant_user';
 
   // null = loading, true/false = resolved
   const [hasKey, setHasKey] = useState<boolean | null>(null);
   const [hasDefaultSender, setHasDefaultSender] = useState<boolean | null>(null);
 
+  // Non-admins: can't access the admin endpoint — assume ready so they see no banner
   useEffect(() => {
+    if (!isAdmin) onReady?.(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
     const ac = new AbortController();
     const signal = ac.signal;
 
@@ -34,6 +44,8 @@ export default function AbeReadiness({ onReady }: Props) {
 
     return () => ac.abort();
   }, []);
+
+  if (!isAdmin) return null;
 
   const loading = hasKey === null || hasDefaultSender === null;
   const ready = hasKey === true && hasDefaultSender === true;

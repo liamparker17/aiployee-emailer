@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
@@ -30,10 +30,31 @@ interface Props {
   onSaved: () => void;
 }
 
+interface AgentCfg {
+  has_key: boolean;
+  enabled: boolean;
+  model: string;
+  system_prompt: string;
+  auto_approve_jobix: boolean;
+  max_tool_iterations: number;
+}
+
 export default function ManageAbe({ open, onClose, goal, onSaved }: Props) {
   const toast = useToast();
   const { user } = useAuth();
   const isAdmin = user?.role !== 'tenant_user';
+
+  const [agentCfg, setAgentCfg] = useState<AgentCfg | null>(null);
+  const [openaiKey, setOpenaiKey] = useState('');
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    api<{ config: AgentCfg | null }>('/api/agent/config')
+      .then(r => { if (!cancelled) setAgentCfg(r.config); })
+      .catch(() => { /* non-fatal */ });
+    return () => { cancelled = true; };
+  }, [isAdmin]);
 
   const [enabled, setEnabled] = useState(goal.enabled);
   const [dormantWindowDays, setDormantWindowDays] = useState(goal.dormant_window_days);
@@ -64,7 +85,27 @@ export default function ManageAbe({ open, onClose, goal, onSaved }: Props) {
           brandVoice: brandVoice || null,
         }),
       });
+      if (openaiKey.trim()) {
+        try {
+          await api('/api/agent/config', {
+            method: 'PUT',
+            body: JSON.stringify({
+              enabled: agentCfg?.enabled ?? false,
+              model: agentCfg?.model || 'gpt-4.1',
+              systemPrompt: agentCfg?.system_prompt ?? '',
+              autoApproveJobix: agentCfg?.auto_approve_jobix ?? true,
+              maxToolIterations: agentCfg?.max_tool_iterations ?? 4,
+              openaiKey: openaiKey.trim(),
+            }),
+          });
+        } catch (err) {
+          toast.error(describeError(err));
+          setSaving(false);
+          return;
+        }
+      }
       toast.success('Saved.');
+      setOpenaiKey('');
       onSaved();
       onClose();
     } catch (err) {
@@ -220,6 +261,26 @@ export default function ManageAbe({ open, onClose, goal, onSaved }: Props) {
             <p className="mt-2 text-xs text-ink-dim">Pending verification by an admin.</p>
           )}
         </section>
+
+        {/* ── OpenAI API key (admin only) ── */}
+        {isAdmin && (
+          <section>
+            <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-wide mb-3">OpenAI connection</h4>
+            <Field
+              label="OpenAI API key"
+              hint={agentCfg?.has_key
+                ? 'Connected — leave blank to keep the current key.'
+                : 'Not connected — Abe can\'t run without this.'}
+            >
+              <Input
+                type="password"
+                placeholder="sk-…"
+                value={openaiKey}
+                onChange={e => setOpenaiKey(e.target.value)}
+              />
+            </Field>
+          </section>
+        )}
 
         {/* ── Read-only note for non-admins ── */}
         {!isAdmin && (

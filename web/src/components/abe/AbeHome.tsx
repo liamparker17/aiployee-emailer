@@ -20,16 +20,17 @@ function statusLine(goal: AbeGoal, ready: boolean | null): string {
 export default function AbeHome({ goal, onChange }: Props) {
   const [manageOpen, setManageOpen] = useState(false);
   const [feedKey, setFeedKey] = useState(0);
+  const [readinessKey, setReadinessKey] = useState(0);
   // null = loading, true/false = resolved from AbeReadiness
   const [ready, setReady] = useState<boolean | null>(null);
   const handleReady = useCallback((r: boolean) => setReady(r), []);
 
-  const refresh = () => { setFeedKey((k) => k + 1); onChange(); };
+  const refresh = () => { setFeedKey((k) => k + 1); setReadinessKey((k) => k + 1); onChange(); };
 
   return (
     <div className="space-y-6">
       {/* ── Readiness banner (renders nothing when both prereqs are met) ── */}
-      <AbeReadiness onReady={handleReady} />
+      <AbeReadiness key={readinessKey} onReady={handleReady} />
 
       {/* ── Employee header ── */}
       <Card className="flex items-center gap-4">
