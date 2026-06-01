@@ -39,6 +39,15 @@ export async function getSenderById(pool: pg.Pool, tenantId: string, id: string)
   return r.rows[0] ?? null;
 }
 
+export async function getDefaultSender(pool: pg.Pool, tenantId: string): Promise<Sender | null> {
+  const r = await pool.query<Sender>(
+    `SELECT id, tenant_id, email, display_name, reply_to, smtp_config_id, is_default, created_at
+     FROM senders WHERE tenant_id = $1 AND is_default = true ORDER BY created_at ASC LIMIT 1`,
+    [tenantId],
+  );
+  return r.rows[0] ?? null;
+}
+
 export async function deleteSender(pool: pg.Pool, tenantId: string, id: string): Promise<boolean> {
   const r = await pool.query(`DELETE FROM senders WHERE tenant_id = $1 AND id = $2`, [tenantId, id]);
   return r.rowCount === 1;
