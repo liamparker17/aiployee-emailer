@@ -69,7 +69,7 @@ const TOOLS: AgentTool[] = [
   {
     name: 'trigger_shift',
     description:
-      'Run a shift now: find dormant contacts and PROPOSE a re-engagement play. This never sends email by itself — large plays wait for human approval.',
+      'Run a shift now: find dormant contacts and create a re-engagement play. Plays larger than the tenant\'s auto-fire cap are queued for human approval; this never overrides that cap.',
     parameters: { type: 'object', properties: {} },
   },
 ];
@@ -124,7 +124,11 @@ export function makeAbeChatProvider(ctx: {
           if ('maxTouches' in a) patch.maxTouches = clamp(a.maxTouches, 1, 5, 3);
           if ('touchSpacingDays' in a) patch.touchSpacingDays = clamp(a.touchSpacingDays, 1, 60, 3);
           if (typeof a.brandVoice === 'string') patch.brandVoice = a.brandVoice.slice(0, 2000);
-          if (typeof a.lineManagerEmail === 'string') patch.lineManagerEmail = a.lineManagerEmail;
+          if (typeof a.lineManagerEmail === 'string') {
+            const e = a.lineManagerEmail.trim().slice(0, 254);
+            if (e === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) patch.lineManagerEmail = e || null;
+            // else: ignore an invalid email rather than persist it
+          }
           const goal = await upsertGoal(pool, tenantId, patch);
           return ok({ updated: true, settings: goal });
         }
