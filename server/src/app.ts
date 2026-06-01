@@ -22,6 +22,7 @@ import { registerEmailRoutes } from './routes/emails.js';
 import { registerUserRoutes } from './routes/users.js';
 import { registerSessionRoutes } from './routes/session.js';
 import { registerAgentRoutes } from './routes/agent.js';
+import { registerAbeRoutes } from './routes/abe.js';
 import { registerDomainRoutes } from './routes/domains.js';
 import { registerEventWebhookRoutes } from './routes/eventWebhooks.js';
 import { registerTrackRoutes } from './routes/track.js';
@@ -73,6 +74,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerUserRoutes(app);
   await registerSessionRoutes(app);
   await registerAgentRoutes(app);
+  registerAbeRoutes(app);
   await registerDomainRoutes(app);
   await registerEventWebhookRoutes(app);
   await registerTrackRoutes(app);
