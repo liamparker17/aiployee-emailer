@@ -3,6 +3,7 @@ import { Bot } from 'lucide-react';
 import { Card } from '../Card';
 import { Button } from '../Button';
 import AbeFeed from './AbeFeed';
+import PendingApprovals from './PendingApprovals';
 import type { AbeGoal } from '../../lib/abe';
 
 interface Props { goal: AbeGoal; onChange: () => void }
@@ -38,6 +39,14 @@ export default function AbeHome({ goal, onChange: _onChange }: Props) {
           Manage Abe
         </Button>
       </Card>
+
+      {/* ── Pending approvals (action items — shown above feed) ── */}
+      <section>
+        <h2 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-3">
+          Needs your sign-off
+        </h2>
+        <PendingApprovals goal={goal} onChange={onChange} />
+      </section>
 
       {/* ── Work log ── */}
       <section>
