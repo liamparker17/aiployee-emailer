@@ -1,45 +1,46 @@
 # Cron setup — Abe (+ existing send jobs)
 
-The app has **no in-process scheduler**. All `/v1/cron/*` endpoints are triggered by an
-**external cron service** (e.g. cron-job.org), the same way `process-queue`/`retry-failed`
-already are. They are **POST** requests authenticated with the `CRON_SECRET`.
+The app has **no in-process scheduler**; all `/v1/cron/*` endpoints are externally triggered.
+As of 2026-06-01 they are registered as **Vercel-native cron jobs** in `vercel.json` (`crons`).
+The cron routes accept **both GET and POST**, so the external POST triggers (cron-job.org /
+`curl`) still work as a manual fallback.
 
-> Note: Vercel-native crons (`vercel.json` `crons`) are **not** used here — they issue `GET`,
-> but these routes are `POST`. Keep using the external scheduler. (If you ever want
-> Vercel-native crons, the routes would need `GET` handlers added.)
+## How Vercel crons authenticate
+Vercel invokes each `crons[].path` with a **GET** request and includes
+`Authorization: Bearer $CRON_SECRET` **when the `CRON_SECRET` env var is set** on the project.
+The app's `requireCronAuth` (`server/src/routes/cron.ts`) accepts `Authorization: Bearer <secret>`
+or `X-Cron-Secret: <secret>`.
 
-## Auth
-Every request must include the secret, either header works (see `requireCronAuth` in
-`server/src/routes/cron.ts`):
-- `Authorization: Bearer <CRON_SECRET>`  — or —
-- `X-Cron-Secret: <CRON_SECRET>`
+> ✅ **Required:** `CRON_SECRET` must be set in the Vercel project env (Production). Without it,
+> Vercel won't send the bearer token and every job will 401. (Per memory this was previously
+> "unverified" — confirm it's set.)
 
-Base URL (prod): `https://aiployee-emailer.vercel.app`
+## Registered jobs (`vercel.json` → `crons`)
 
-## Jobs to register
-
-| Endpoint (POST) | Purpose | Suggested schedule |
+| Path (GET) | Purpose | Schedule (UTC) |
 |---|---|---|
-| `/v1/cron/process-queue` | Dispatch due/queued emails (incl. Abe's touch sends) | every **1–2 min** |
-| `/v1/cron/retry-failed` | Requeue failed/stuck sends | every **10 min** |
-| `/v1/cron/abe-shift` | Abe's heartbeat: scan dormant contacts → propose/auto-fire a play per enabled tenant | **daily** (e.g. 08:00) |
-| `/v1/cron/abe-touches` | Advance executing plays to their next due touch (auto-skips re-engaged contacts) | **daily** (e.g. 08:15) — or hourly for tighter timing |
-| `/v1/cron/abe-outcomes` | Roll up engagement (opens/clicks/reactivations) per play; close attribution windows | **daily** (e.g. 09:00) |
+| `/v1/cron/process-queue` | Dispatch due/queued emails (incl. Abe's touch sends) | `* * * * *` (every min) |
+| `/v1/cron/retry-failed` | Requeue failed/stuck sends | `*/10 * * * *` |
+| `/v1/cron/abe-shift` | Abe's heartbeat: propose/auto-fire a play per enabled tenant | `0 8 * * *` (daily 08:00) |
+| `/v1/cron/abe-touches` | Advance executing plays to their next due touch (auto-skips re-engaged) | `30 8 * * *` |
+| `/v1/cron/abe-outcomes` | Roll up engagement; close attribution windows | `0 9 * * *` |
 
-Notes:
-- `abe-touches` only sends a touch when it's due (`executed_at + touchIndex × touch_spacing_days`),
-  so daily is sufficient; run hourly only if you want touches to go out closer to their exact due time.
-- `abe-shift`/`abe-touches`/`abe-outcomes` are no-ops for tenants without an enabled goal / configured
-  OpenAI key / default sender, so it's safe to run them across all tenants on one schedule.
-- Touch emails are merely **queued** by `abe-touches`; they actually send via `process-queue`, so keep
-  that job running frequently.
+## Plan / cost notes
+- **Sub-daily schedules (e.g. `process-queue` every minute) require a Vercel plan that allows it**
+  (Hobby is limited to once-per-day). On a team/Pro plan this is fine. If a deploy rejects the
+  schedule, coarsen it (e.g. `*/2 * * * *`) or keep `process-queue`/`retry-failed` on your existing
+  external scheduler and remove them from `crons`.
+- If you ALSO have an external scheduler hitting these, double-runs are **safe** — `process-queue`
+  claims due emails atomically (`FOR UPDATE SKIP LOCKED`) and the Abe jobs are idempotent — but
+  redundant; pick one.
 
-## Example (cron-job.org / curl)
+## Manual trigger (fallback / testing)
 ```
 curl -X POST https://aiployee-emailer.vercel.app/v1/cron/abe-shift \
   -H "X-Cron-Secret: $CRON_SECRET"
 ```
 
-## Verify CRON_SECRET is set in prod
-The endpoints 401 without the secret. Confirm `CRON_SECRET` is configured in the Vercel
-project env (it powers all five jobs above).
+## After deploy — verify
+- Vercel project → **Settings → Cron Jobs** lists the 5 jobs.
+- Trigger `abe-shift` once (button in the dashboard, or the curl above) and confirm a 200 +
+  (for a tenant with an enabled goal, OpenAI key, default sender, and dormant contacts) a new play.
