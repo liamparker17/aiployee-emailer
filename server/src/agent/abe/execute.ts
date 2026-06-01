@@ -53,7 +53,7 @@ export async function startPlayExecution(args: {
 
   const upd = await pool.query(
     `UPDATE agent_plays SET status = 'executing', executed_at = now(), updated_at = now()
-       WHERE id = $1 RETURNING *`, [play.id]);
+       WHERE id = $1 AND tenant_id = $2 RETURNING *`, [play.id, play.tenant_id]);
   const executing = upd.rows[0] as PlayRow;
 
   return queuePlayTouch({ pool, encKey, baseUrl, play: executing, touchIndex: 0, sender, reengagedSince: null });

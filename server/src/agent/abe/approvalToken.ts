@@ -33,3 +33,11 @@ export function verifyApprovalToken(token: string, key: Buffer): { id: string; e
 export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
+
+// Constant-time comparison of two token hashes (sha256 hex). Both are fixed 64-char hex.
+export function tokenHashesEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}

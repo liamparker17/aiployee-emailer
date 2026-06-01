@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireTenantCtx } from '../auth/ctx.js';
 import { AppError, sendError } from '../util/errors.js';
 import { getGoal, upsertGoal, markManagerVerified } from '../repos/agentGoals.js';
-import { verifyApprovalToken, hashToken } from '../agent/abe/approvalToken.js';
+import { verifyApprovalToken, hashToken, tokenHashesEqual } from '../agent/abe/approvalToken.js';
 import { sendManagerVerifyEmail } from '../agent/abe/approvalEmail.js';
 import { listPlays, getPlay, setPlayStatus } from '../repos/agentPlays.js';
 import { startPlayExecution } from '../agent/abe/execute.js';
@@ -126,7 +126,7 @@ export function registerAbeRoutes(app: FastifyInstance): void {
 
       // parsed.id is the playId. Find the active (unconsumed) approval and validate the hash.
       const approval = await getActiveApprovalByPlay(app.pool, parsed.id);
-      if (!approval || approval.token_hash !== hashToken(token)) {
+      if (!approval || !tokenHashesEqual(approval.token_hash, hashToken(token))) {
         return fail('This approval link has already been used or is no longer valid.');
       }
       const play = await getPlay(app.pool, approval.tenant_id, parsed.id);

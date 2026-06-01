@@ -15,7 +15,7 @@ declare module 'fastify' {
 
 export function registerCtx(app: FastifyInstance) {
   app.addHook('preHandler', async (req: FastifyRequest, reply) => {
-    if (req.url === '/healthz' || req.url.startsWith('/v1/webhooks/') || req.url.startsWith('/v1/cron/') || req.url.startsWith('/v1/track/') || req.url.startsWith('/v1/unsubscribe/') || req.url.startsWith('/v1/agent/')) return;
+    if (req.url === '/healthz' || req.url.startsWith('/v1/webhooks/') || req.url.startsWith('/v1/cron/') || req.url.startsWith('/v1/track/') || req.url.startsWith('/v1/unsubscribe/') || req.url.startsWith('/v1/agent/approve/') || req.url.startsWith('/v1/agent/verify-manager/')) return;
 
     if (req.url.startsWith('/v1/')) {
       // Resolve the API key in precedence order: api_key, X-Api-Key, Authorization: Bearer.
