@@ -34,27 +34,54 @@ async function seedDormant(tenantId: string, email: string) {
   );
 }
 
+async function seedDefaultSender(tenantId: string) {
+  const cfg = await pool.query(
+    `INSERT INTO smtp_configs (tenant_id, name, host, port, secure, username, password_encrypted, from_domain)
+     VALUES ($1,'def','h',25,false,'u','\\x00','x.io') RETURNING id`, [tenantId]);
+  await pool.query(
+    `INSERT INTO senders (tenant_id, email, display_name, smtp_config_id, is_default)
+     VALUES ($1,'from@x.io','X',$2,true)`, [tenantId, cfg.rows[0].id]);
+}
+
 describe('runAbeShift', () => {
-  it('creates a proposed play for a tenant with dormant contacts', async () => {
+  it('creates a pending_approval play for a tenant with dormant contacts (auto_fire_max_audience=0)', async () => {
     const t = await createTenant(pool);
     await seedAgentConfig(t.id);
     await upsertGoal(pool, t.id, { enabled: true });
     await seedDormant(t.id, 'a@x.io');
     await seedDormant(t.id, 'b@x.io');
 
-    const res = await runAbeShift({ pool, encKey, tenantId: t.id, llmFactory: stubFactory });
-    expect(res.status).toBe('proposed');
+    const res = await runAbeShift({ pool, encKey, tenantId: t.id, baseUrl: 'http://localhost', llmFactory: stubFactory });
+    expect(res.status).toBe('pending_approval');
     const plays = await listPlays(pool, t.id);
     expect(plays).toHaveLength(1);
     expect(plays[0].audience_snapshot.size).toBe(2);
     expect(plays[0].risk_score).toBe(2);
   });
 
+  it('auto-fires when under the audience cap', async () => {
+    const t = await createTenant(pool);
+    await seedAgentConfig(t.id);
+    await seedDefaultSender(t.id);
+    await upsertGoal(pool, t.id, { enabled: true, autoFireMaxAudience: 100 });
+    await seedDormant(t.id, 'a@x.io');
+    await seedDormant(t.id, 'b@x.io');
+
+    const res = await runAbeShift({ pool, encKey, tenantId: t.id, baseUrl: 'http://localhost', llmFactory: stubFactory });
+    expect(res.status).toBe('executed');
+    if (res.status === 'executed') {
+      expect(res.queued).toBe(2);
+    }
+    const plays = await listPlays(pool, t.id);
+    expect(plays).toHaveLength(1);
+    expect(plays[0].status).toBe('executing');
+  });
+
   it('skips when there are no dormant contacts', async () => {
     const t = await createTenant(pool);
     await seedAgentConfig(t.id);
     await upsertGoal(pool, t.id, { enabled: true });
-    const res = await runAbeShift({ pool, encKey, tenantId: t.id, llmFactory: stubFactory });
+    const res = await runAbeShift({ pool, encKey, tenantId: t.id, baseUrl: 'http://localhost', llmFactory: stubFactory });
     expect(res.status).toBe('skipped');
     if (res.status === 'skipped') expect(res.reason).toBe('no_dormant_contacts');
   });
@@ -63,7 +90,7 @@ describe('runAbeShift', () => {
     const t = await createTenant(pool);
     await upsertGoal(pool, t.id, { enabled: true });
     await seedDormant(t.id, 'a@x.io');
-    const res = await runAbeShift({ pool, encKey, tenantId: t.id, llmFactory: stubFactory });
+    const res = await runAbeShift({ pool, encKey, tenantId: t.id, baseUrl: 'http://localhost', llmFactory: stubFactory });
     expect(res.status).toBe('skipped');
     if (res.status === 'skipped') expect(res.reason).toBe('no_openai_key');
   });

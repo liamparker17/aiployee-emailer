@@ -36,22 +36,25 @@ export async function registerCronRoutes(app: FastifyInstance) {
       requireCronAuth(req, app.cfg.cronSecret);
       const llmFactory = app.agentLlmFactory ?? openAiFactory;
       const goals = await listEnabledGoals(app.pool);
-      let proposed = 0;
+      let executed = 0;
+      let pendingApproval = 0;
       const skipped: Array<{ tenantId: string; reason: string }> = [];
       // Sequential: one LLM call per enabled tenant. Revisit (queue/concurrency) if tenant count grows large.
       for (const g of goals) {
         try {
           const r = await runAbeShift({
             pool: app.pool, encKey: app.cfg.encKey, tenantId: g.tenant_id,
+            baseUrl: app.cfg.publicBaseUrl,
             llmFactory,
           });
-          if (r.status === 'proposed') proposed += 1;
+          if (r.status === 'executed') executed += 1;
+          else if (r.status === 'pending_approval') pendingApproval += 1;
           else skipped.push({ tenantId: g.tenant_id, reason: r.reason });
         } catch (err) {
           skipped.push({ tenantId: g.tenant_id, reason: err instanceof Error ? err.message : String(err) });
         }
       }
-      return reply.send({ ok: true, goals: goals.length, proposed, skipped });
+      return reply.send({ ok: true, goals: goals.length, executed, pendingApproval, skipped });
     } catch (e) { sendError(reply, e); }
   });
 

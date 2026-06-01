@@ -2,19 +2,22 @@ import type pg from 'pg';
 import type { LlmClient } from '../runner.js';
 import { getGoal } from '../../repos/agentGoals.js';
 import { findDormantContacts } from '../../repos/agentDormant.js';
-import { insertPlay, type PlayRow } from '../../repos/agentPlays.js';
+import { insertPlay, getPlay, type PlayRow } from '../../repos/agentPlays.js';
 import { draftReengagePlay } from './draftPlay.js';
-import { scoreRisk } from './risk.js';
+import { scoreRisk, requiresApproval } from './risk.js';
 import { getAgentConfig, getAgentOpenAIKey } from '../../repos/agent.js';
+import { startPlayExecution } from './execute.js';
 
 export type ShiftResult =
-  | { status: 'proposed'; playId: string; audienceSize: number }
+  | { status: 'executed'; playId: string; audienceSize: number; queued: number }
+  | { status: 'pending_approval'; playId: string; audienceSize: number }
   | { status: 'skipped'; reason: 'no_goal' | 'goal_disabled' | 'no_openai_key' | 'no_dormant_contacts' };
 
 export async function runAbeShift(args: {
   pool: pg.Pool;
   encKey: Buffer;
   tenantId: string;
+  baseUrl: string;
   llmFactory: (apiKey: string) => LlmClient;
 }): Promise<ShiftResult> {
   const { pool, encKey, tenantId } = args;
@@ -40,13 +43,20 @@ export async function runAbeShift(args: {
     audienceSize: dormant.length,
   });
 
+  const audienceSize = dormant.length;
   const play: PlayRow = await insertPlay(pool, {
     tenantId,
     goalId: goal.id,
-    riskScore: scoreRisk({ audienceSize: dormant.length }),
-    audienceSnapshot: { contact_ids: dormant.map((c) => c.id), size: dormant.length },
+    riskScore: scoreRisk({ audienceSize }),
+    audienceSnapshot: { contact_ids: dormant.map((c) => c.id), size: audienceSize },
     touches,
   });
 
-  return { status: 'proposed', playId: play.id, audienceSize: dormant.length };
+  if (requiresApproval(audienceSize, goal.auto_fire_max_audience)) {
+    await pool.query(`UPDATE agent_plays SET status = 'pending_approval', updated_at = now() WHERE id = $1`, [play.id]);
+    return { status: 'pending_approval', playId: play.id, audienceSize };
+  }
+  const fresh = await getPlay(pool, tenantId, play.id);
+  const { queued } = await startPlayExecution({ pool, encKey, baseUrl: args.baseUrl, play: fresh! });
+  return { status: 'executed', playId: play.id, audienceSize, queued };
 }

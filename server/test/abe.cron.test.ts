@@ -51,7 +51,7 @@ describe('POST /v1/cron/abe-shift', () => {
       headers: { 'x-cron-secret': 'c'.repeat(24) },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().proposed).toBe(1);
+    expect(res.json().pendingApproval).toBe(1);
     expect(await listPlays(pool, t.id)).toHaveLength(1);
   });
 });
