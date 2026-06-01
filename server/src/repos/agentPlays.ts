@@ -57,3 +57,8 @@ export async function listPlays(pool: pg.Pool, tenantId: string): Promise<PlayRo
   );
   return r.rows;
 }
+
+export async function listExecutingPlays(pool: pg.Pool): Promise<PlayRow[]> {
+  const r = await pool.query<PlayRow>(`SELECT * FROM agent_plays WHERE status = 'executing' ORDER BY executed_at ASC`);
+  return r.rows;
+}

@@ -3,9 +3,12 @@ import { timingSafeEqual } from 'node:crypto';
 import { sendError, AppError } from '../util/errors.js';
 import { claimDueForSend, requeueFailedAndStuck } from '../repos/emails.js';
 import { dispatchBatch } from '../send/dispatch.js';
-import { listEnabledGoals } from '../repos/agentGoals.js';
+import { listEnabledGoals, getGoal } from '../repos/agentGoals.js';
 import { runAbeShift } from '../agent/abe/shift.js';
 import { openAiFactory } from '../agent/runner.js';
+import { listExecutingPlays } from '../repos/agentPlays.js';
+import { getDefaultSender } from '../repos/senders.js';
+import { advancePlayTouches } from '../agent/abe/touches.js';
 
 function requireCronAuth(req: FastifyRequest, secret: string): void {
   const auth = req.headers.authorization ?? '';
@@ -70,6 +73,30 @@ export async function registerCronRoutes(app: FastifyInstance) {
         stuckSeconds: 120,
       });
       return reply.send({ ok: true, ...out });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // POST /v1/cron/abe-touches — advances each executing play through its next due touch
+  app.post('/v1/cron/abe-touches', async (req, reply) => {
+    try {
+      requireCronAuth(req, app.cfg.cronSecret);
+      const plays = await listExecutingPlays(app.pool);
+      let touchesQueued = 0, done = 0;
+      const skipped: Array<{ playId: string; reason: string }> = [];
+      for (const p of plays) {
+        try {
+          const goal = await getGoal(app.pool, p.tenant_id);
+          const sender = await getDefaultSender(app.pool, p.tenant_id);
+          if (!goal || !sender) { skipped.push({ playId: p.id, reason: !goal ? 'no_goal' : 'no_sender' }); continue; }
+          const r = await advancePlayTouches({
+            pool: app.pool, encKey: app.cfg.encKey, baseUrl: app.cfg.publicBaseUrl,
+            play: p, touchSpacingDays: goal.touch_spacing_days, sender,
+          });
+          touchesQueued += r.queued;
+          if (r.done) done += 1;
+        } catch (err) { skipped.push({ playId: p.id, reason: err instanceof Error ? err.message : String(err) }); }
+      }
+      return reply.send({ ok: true, plays: plays.length, touchesQueued, done, skipped });
     } catch (e) { sendError(reply, e); }
   });
 }
