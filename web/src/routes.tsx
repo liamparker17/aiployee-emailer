@@ -24,6 +24,7 @@ import Lists from './pages/Lists';
 import Segments from './pages/Segments';
 import Campaigns from './pages/Campaigns';
 import LaunchCampaign from './pages/LaunchCampaign';
+import Abe from './pages/Abe';
 
 function Authed({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -66,6 +67,7 @@ export const router = createBrowserRouter([
     path: '/t/:tenantId',
     element: <AuthProvider><Authed><TenantGate><AppShell /></TenantGate></Authed></AuthProvider>,
     children: [
+      { path: 'abe', element: <Abe /> },
       { index: true, element: <Dashboard /> },
       { path: 'senders', element: <Senders /> },
       { path: 'domains', element: <Domains /> },

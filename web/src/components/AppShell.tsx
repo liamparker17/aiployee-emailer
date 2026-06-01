@@ -35,6 +35,7 @@ export default function AppShell() {
         <TenantSwitcher />
         <nav className="flex flex-col gap-0.5 mt-2 overflow-y-auto">
           <NavLink to={base} end className={link}><LayoutDashboard size={16} />Dashboard</NavLink>
+          <NavLink to={`${base}/abe`} className={link}><Bot size={16} />Abe</NavLink>
 
           <SectionLabel>Sending</SectionLabel>
           <NavLink to={`${base}/senders`} className={link}><Send size={16} />Senders</NavLink>
