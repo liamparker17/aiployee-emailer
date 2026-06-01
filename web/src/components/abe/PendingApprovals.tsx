@@ -16,13 +16,25 @@ export default function PendingApprovals({ goal, onChange }: Props) {
   const isAdmin = user?.role !== 'tenant_user';
 
   const [plays, setPlays] = useState<AbePlay[] | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const load = () =>
     api<{ plays: AbePlay[] }>('/api/agent/plays')
       .then(r => setPlays(r.plays.filter(p => p.status === 'pending_approval')))
       .catch(() => { setPlays([]); toast.error("Could not load Abe's plays."); });
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    api<{ plays: AbePlay[] }>('/api/agent/plays', { signal: controller.signal })
+      .then(r => setPlays(r.plays.filter(p => p.status === 'pending_approval')))
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        setPlays([]);
+        toast.error("Could not load Abe's plays.");
+      });
+    return () => controller.abort();
+  }, []);
 
   async function approve(id: string) {
     try {
@@ -35,14 +47,15 @@ export default function PendingApprovals({ goal, onChange }: Props) {
     }
   }
 
-  async function reject(id: string) {
-    const reason = prompt('Why hold off? (optional)') ?? '';
+  async function confirmReject(id: string) {
     try {
       await api(`/api/agent/plays/${id}/reject`, {
         method: 'POST',
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason: rejectReason }),
       });
       toast.success('Rejected.');
+      setRejectingId(null);
+      setRejectReason('');
       load();
       onChange();
     } catch (err: unknown) {
@@ -117,22 +130,45 @@ export default function PendingApprovals({ goal, onChange }: Props) {
 
           {/* Approve / Reject (admin only) */}
           {isAdmin && (
-            <div className="flex gap-2 pt-1">
-              <Button
-                variant="primary"
-                onClick={() => approve(play.id)}
-              >
-                <CheckCircle2 size={15} />
-                Approve
-              </Button>
-              <Button
-                variant="danger"
-                onClick={() => reject(play.id)}
-              >
-                <XCircle size={15} />
-                Reject
-              </Button>
-            </div>
+            <>
+              {rejectingId === play.id ? (
+                <div className="space-y-2 pt-1">
+                  <textarea
+                    rows={2}
+                    value={rejectReason}
+                    onChange={e => setRejectReason(e.target.value)}
+                    placeholder="Reason for rejecting (optional)"
+                    className="w-full rounded-lg border border-line-strong bg-surface-raised text-ink placeholder:text-ink-dim px-3 py-2 text-sm transition focus:outline-none focus:border-accent focus:ring-2 focus:ring-magenta/40 resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <Button variant="danger" onClick={() => confirmReject(play.id)}>
+                      <XCircle size={15} />
+                      Confirm reject
+                    </Button>
+                    <Button variant="ghost" onClick={() => { setRejectingId(null); setRejectReason(''); }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    variant="primary"
+                    onClick={() => approve(play.id)}
+                  >
+                    <CheckCircle2 size={15} />
+                    Approve
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => setRejectingId(play.id)}
+                  >
+                    <XCircle size={15} />
+                    Reject
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </Card>
       ))}

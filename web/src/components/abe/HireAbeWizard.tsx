@@ -38,7 +38,7 @@ export default function HireAbeWizard({ goal, onHired }: Props) {
   const [form, setForm] = useState<FormState>(() => seedForm(goal));
   const [saving, setSaving] = useState(false);
 
-  const isAdmin = user?.role === 'tenant_admin' || user?.role === 'super_admin';
+  const isAdmin = user?.role !== 'tenant_user';
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm(f => ({ ...f, [key]: value }));

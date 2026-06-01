@@ -36,9 +36,14 @@ export default function AbeFeed() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api<{ feed: AbeFeedEntry[] }>('/api/agent/feed')
+    const controller = new AbortController();
+    api<{ feed: AbeFeedEntry[] }>('/api/agent/feed', { signal: controller.signal })
       .then(r => setFeed(r.feed))
-      .catch(() => setError('Could not load Abe\'s work log — try refreshing.'));
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        setError('Could not load Abe\'s work log — try refreshing.');
+      });
+    return () => controller.abort();
   }, []);
 
   if (error) {

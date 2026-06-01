@@ -59,7 +59,7 @@ export default function ManageAbe({ open, onClose, goal, onSaved }: Props) {
     setVerifying(true);
     try {
       await api('/api/agent/goals/verify-manager', { method: 'POST' });
-      toast.success('Verification email sent to ' + goal.line_manager_email);
+      toast.success('Verification email sent to ' + goal.line_manager_email + '.');
     } catch (err) {
       toast.error((err as Error).message ?? 'Could not send verification email.');
     } finally {
@@ -76,7 +76,7 @@ export default function ManageAbe({ open, onClose, goal, onSaved }: Props) {
 
         {/* ── Pause / resume ── */}
         <section>
-          <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-wide mb-3">Pause Abe</h4>
+          <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-wide mb-3">Abe's shift status</h4>
           <label className="flex items-center gap-3 cursor-pointer">
             <div className="relative">
               <input
@@ -176,14 +176,17 @@ export default function ManageAbe({ open, onClose, goal, onSaved }: Props) {
             </div>
           )}
           {managerUnverified && isAdmin && (
-            <div className="mt-3">
+            <div className="mt-3 space-y-1">
               <Button
                 variant="secondary"
                 onClick={handleVerifyManager}
-                disabled={verifying}
+                disabled={verifying || lineManagerEmail !== goal.line_manager_email}
               >
                 {verifying ? 'Sending…' : 'Send verification email'}
               </Button>
+              {lineManagerEmail !== goal.line_manager_email && (
+                <p className="text-xs text-ink-dim">Save changes first to verify the new address.</p>
+              )}
             </div>
           )}
           {managerUnverified && !isAdmin && (
