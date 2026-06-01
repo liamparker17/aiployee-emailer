@@ -60,3 +60,49 @@ export async function aggregatePlayEngagement(pool: pg.Pool, playId: string): Pr
     reactivations: row.reactivations,
   };
 }
+
+/**
+ * Roll up play-level engagement (via aggregatePlayEngagement) into the touch_index = 0
+ * agent_play_outcomes row for this play, and stamp window_closed_at once the attribution
+ * window has fully elapsed for the whole sequence:
+ *   now() >= executed_at + (lastTouchIndex * touch_spacing_days days) + ATTRIBUTION_DAYS
+ * No-op if the play has not executed or has no touch_index = 0 outcome row yet.
+ */
+export async function updatePlayOutcomes(pool: pg.Pool, playId: string): Promise<void> {
+  const meta = await pool.query<{
+    executed_at: Date | null; touch_spacing_days: number; touch_count: number;
+  }>(
+    `SELECT p.executed_at,
+            g.touch_spacing_days,
+            jsonb_array_length(p.touches)::int AS touch_count
+       FROM agent_plays p
+       JOIN agent_goals g ON g.id = p.goal_id
+      WHERE p.id = $1`,
+    [playId],
+  );
+  if (meta.rows.length === 0) return;
+  const { executed_at, touch_spacing_days, touch_count } = meta.rows[0];
+
+  const eng = await aggregatePlayEngagement(pool, playId);
+
+  // Window is closed only once the last touch's 14-day window has elapsed.
+  let closed = false;
+  if (executed_at) {
+    const lastTouchIndex = Math.max(0, touch_count - 1);
+    const windowEndMs =
+      executed_at.getTime() +
+      (lastTouchIndex * touch_spacing_days + ATTRIBUTION_DAYS) * 24 * 60 * 60 * 1000;
+    closed = Date.now() >= windowEndMs;
+  }
+
+  await pool.query(
+    `UPDATE agent_play_outcomes
+        SET opens = $2,
+            clicks = $3,
+            reactivations = $4,
+            window_closed_at = CASE WHEN $5::boolean THEN COALESCE(window_closed_at, now()) ELSE window_closed_at END,
+            updated_at = now()
+      WHERE play_id = $1 AND touch_index = 0`,
+    [playId, eng.opens, eng.clicks, eng.reactivations, closed],
+  );
+}
