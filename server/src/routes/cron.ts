@@ -5,6 +5,7 @@ import { claimDueForSend, requeueFailedAndStuck } from '../repos/emails.js';
 import { dispatchBatch } from '../send/dispatch.js';
 import { listEnabledGoals } from '../repos/agentGoals.js';
 import { runAbeShift } from '../agent/abe/shift.js';
+import { openAiFactory } from '../agent/runner.js';
 
 function requireCronAuth(req: FastifyRequest, secret: string): void {
   const auth = req.headers.authorization ?? '';
@@ -33,19 +34,21 @@ export async function registerCronRoutes(app: FastifyInstance) {
   app.post('/v1/cron/abe-shift', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       requireCronAuth(req, app.cfg.cronSecret);
+      const llmFactory = app.agentLlmFactory ?? openAiFactory;
       const goals = await listEnabledGoals(app.pool);
       let proposed = 0;
       const skipped: Array<{ tenantId: string; reason: string }> = [];
+      // Sequential: one LLM call per enabled tenant. Revisit (queue/concurrency) if tenant count grows large.
       for (const g of goals) {
         try {
           const r = await runAbeShift({
             pool: app.pool, encKey: app.cfg.encKey, tenantId: g.tenant_id,
-            llmFactory: app.agentLlmFactory!,
+            llmFactory,
           });
           if (r.status === 'proposed') proposed += 1;
           else skipped.push({ tenantId: g.tenant_id, reason: r.reason });
         } catch (err) {
-          skipped.push({ tenantId: g.tenant_id, reason: (err as Error).message });
+          skipped.push({ tenantId: g.tenant_id, reason: err instanceof Error ? err.message : String(err) });
         }
       }
       return reply.send({ ok: true, goals: goals.length, proposed, skipped });
