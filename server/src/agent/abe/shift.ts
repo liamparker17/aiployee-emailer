@@ -36,7 +36,8 @@ export async function runAbeShift(args: {
   const dormant = await findDormantContacts(pool, tenantId, goal.dormant_window_days);
   if (dormant.length === 0) return { status: 'skipped', reason: 'no_dormant_contacts' };
 
-  const priorOutcomeHint = await lastCompletedPlayOutcome(pool, tenantId);
+  // Best-effort enrichment — a transient failure here must not abort the shift.
+  const priorOutcomeHint = await lastCompletedPlayOutcome(pool, tenantId).catch(() => null);
 
   const touches = await draftReengagePlay({
     llm: args.llmFactory(apiKey),

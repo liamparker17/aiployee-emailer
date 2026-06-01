@@ -102,7 +102,7 @@ export async function updatePlayOutcomes(pool: pg.Pool, playId: string): Promise
             reactivations = $4,
             window_closed_at = CASE WHEN $5::boolean THEN COALESCE(window_closed_at, now()) ELSE window_closed_at END,
             updated_at = now()
-      WHERE play_id = $1 AND touch_index = 0`,
+      WHERE play_id = $1 AND touch_index = 0 AND window_closed_at IS NULL`,
     [playId, eng.opens, eng.clicks, eng.reactivations, closed],
   );
 }
