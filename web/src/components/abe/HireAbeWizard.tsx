@@ -7,6 +7,16 @@ import { api } from '../../api';
 import { useAuth } from '../../auth';
 import type { AbeGoal } from '../../lib/abe';
 
+function describeError(err: unknown): string {
+  const e = err as { message?: string; details?: Array<{ path?: (string | number)[]; message?: string }> };
+  if (Array.isArray(e?.details) && e.details.length) {
+    return e.details.map(i => `${(i.path ?? []).join('.') || 'field'}: ${i.message ?? 'invalid'}`).join('; ');
+  }
+  return e?.message || 'Something went wrong.';
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 interface Props { goal: AbeGoal | null; onHired: () => void }
 
 interface FormState {
@@ -45,6 +55,10 @@ export default function HireAbeWizard({ goal, onHired }: Props) {
   }
 
   async function hire() {
+    if (form.lineManagerEmail && !EMAIL_RE.test(form.lineManagerEmail)) {
+      toast.error('Enter a valid manager email, e.g. name@company.com');
+      return;
+    }
     setSaving(true);
     try {
       await api('/api/agent/goals', {
@@ -62,7 +76,7 @@ export default function HireAbeWizard({ goal, onHired }: Props) {
       toast.success('Abe is hired — he starts his first shift on the next cycle.');
       onHired();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong — Abe could not be hired.');
+      toast.error(describeError(err));
     } finally {
       setSaving(false);
     }
@@ -136,12 +150,14 @@ export default function HireAbeWizard({ goal, onHired }: Props) {
               Tell me how long a contact needs to be quiet before I flag them for a win-back play.
               Shorter windows mean I work harder; longer windows give contacts more breathing room.
             </p>
-            <Field label="Win back contacts quiet for…" hint="Days without any outbound touch. Default: 60 days.">
+            <Field label="Win back contacts quiet for…" hint="Days without any outbound touch. Default: 60 days. (1–3650)">
               <Input
                 type="number"
                 min={1}
+                max={3650}
+                step={1}
                 value={form.dormantWindowDays}
-                onChange={e => set('dormantWindowDays', Math.max(1, Number(e.target.value)))}
+                onChange={e => { const n = Math.round(Number(e.target.value)); set('dormantWindowDays', Math.min(3650, Math.max(1, Number.isFinite(n) ? n : 1))); }}
               />
             </Field>
             <div className="flex justify-between pt-2">
@@ -161,29 +177,35 @@ export default function HireAbeWizard({ goal, onHired }: Props) {
             </p>
             <Field
               label="Max audience per play"
-              hint="0 = Abe always asks before sending. Higher values let Abe auto-fire to that many contacts."
+              hint="0 = Abe always asks before sending. Higher values let Abe auto-fire to that many contacts. (0–100000)"
             >
               <Input
                 type="number"
                 min={0}
+                max={100000}
+                step={1}
                 value={form.autoFireMaxAudience}
-                onChange={e => set('autoFireMaxAudience', Math.max(0, Number(e.target.value)))}
+                onChange={e => { const n = Math.round(Number(e.target.value)); set('autoFireMaxAudience', Math.min(100000, Math.max(0, Number.isFinite(n) ? n : 0))); }}
               />
             </Field>
-            <Field label="Max touches per sequence" hint="How many emails in each win-back sequence. Default: 3.">
+            <Field label="Max touches per sequence" hint="How many emails in each win-back sequence. Default: 3. (1–5)">
               <Input
                 type="number"
                 min={1}
+                max={5}
+                step={1}
                 value={form.maxTouches}
-                onChange={e => set('maxTouches', Math.max(1, Number(e.target.value)))}
+                onChange={e => { const n = Math.round(Number(e.target.value)); set('maxTouches', Math.min(5, Math.max(1, Number.isFinite(n) ? n : 1))); }}
               />
             </Field>
-            <Field label="Days between touches" hint="Minimum gap between emails in a sequence. Default: 3 days.">
+            <Field label="Days between touches" hint="Minimum gap between emails in a sequence. Default: 3 days. (1–60)">
               <Input
                 type="number"
                 min={1}
+                max={60}
+                step={1}
                 value={form.touchSpacingDays}
-                onChange={e => set('touchSpacingDays', Math.max(1, Number(e.target.value)))}
+                onChange={e => { const n = Math.round(Number(e.target.value)); set('touchSpacingDays', Math.min(60, Math.max(1, Number.isFinite(n) ? n : 1))); }}
               />
             </Field>
             <Field label="Brand voice (optional)" hint="A short note on tone — e.g. 'friendly but professional, no jargon'.">

@@ -8,6 +8,21 @@ import { useAuth } from '../../auth';
 import { api } from '../../api';
 import type { AbeGoal } from '../../lib/abe';
 
+function describeError(err: unknown): string {
+  const e = err as { message?: string; details?: Array<{ path?: (string | number)[]; message?: string }> };
+  if (Array.isArray(e?.details) && e.details.length) {
+    return e.details.map(i => `${(i.path ?? []).join('.') || 'field'}: ${i.message ?? 'invalid'}`).join('; ');
+  }
+  return e?.message || 'Something went wrong.';
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function clamp(value: string, min: number, max: number, fallback: number): number {
+  const n = Math.round(Number(value));
+  return Math.min(max, Math.max(min, Number.isFinite(n) ? n : fallback));
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -21,26 +36,30 @@ export default function ManageAbe({ open, onClose, goal, onSaved }: Props) {
   const isAdmin = user?.role !== 'tenant_user';
 
   const [enabled, setEnabled] = useState(goal.enabled);
-  const [dormantWindowDays, setDormantWindowDays] = useState(String(goal.dormant_window_days));
-  const [autoFireMaxAudience, setAutoFireMaxAudience] = useState(String(goal.auto_fire_max_audience));
-  const [maxTouches, setMaxTouches] = useState(String(goal.max_touches));
-  const [touchSpacingDays, setTouchSpacingDays] = useState(String(goal.touch_spacing_days));
+  const [dormantWindowDays, setDormantWindowDays] = useState(goal.dormant_window_days);
+  const [autoFireMaxAudience, setAutoFireMaxAudience] = useState(goal.auto_fire_max_audience);
+  const [maxTouches, setMaxTouches] = useState(goal.max_touches);
+  const [touchSpacingDays, setTouchSpacingDays] = useState(goal.touch_spacing_days);
   const [lineManagerEmail, setLineManagerEmail] = useState(goal.line_manager_email ?? '');
   const [brandVoice, setBrandVoice] = useState(goal.brand_voice ?? '');
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
   async function handleSave() {
+    if (lineManagerEmail && !EMAIL_RE.test(lineManagerEmail)) {
+      toast.error('Enter a valid manager email, e.g. name@company.com');
+      return;
+    }
     setSaving(true);
     try {
       await api('/api/agent/goals', {
         method: 'PUT',
         body: JSON.stringify({
           enabled,
-          dormantWindowDays: Number(dormantWindowDays),
-          autoFireMaxAudience: Number(autoFireMaxAudience),
-          maxTouches: Number(maxTouches),
-          touchSpacingDays: Number(touchSpacingDays),
+          dormantWindowDays,
+          autoFireMaxAudience,
+          maxTouches,
+          touchSpacingDays,
           lineManagerEmail: lineManagerEmail || null,
           brandVoice: brandVoice || null,
         }),
@@ -49,7 +68,7 @@ export default function ManageAbe({ open, onClose, goal, onSaved }: Props) {
       onSaved();
       onClose();
     } catch (err) {
-      toast.error((err as Error).message ?? 'Could not save changes.');
+      toast.error(describeError(err));
     } finally {
       setSaving(false);
     }
@@ -99,40 +118,48 @@ export default function ManageAbe({ open, onClose, goal, onSaved }: Props) {
         <section>
           <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-wide mb-3">Abe's working limits</h4>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Dormant window (days)" hint="Contacts idle at least this long">
+            <Field label="Dormant window (days)" hint="Contacts idle at least this long (1–3650)">
               <Input
                 type="number"
                 min={1}
+                max={3650}
+                step={1}
                 value={dormantWindowDays}
                 disabled={!isAdmin}
-                onChange={e => setDormantWindowDays(e.target.value)}
+                onChange={e => setDormantWindowDays(clamp(e.target.value, 1, 3650, 1))}
               />
             </Field>
-            <Field label="Max audience per play" hint="Cap on contacts per re-engage run">
+            <Field label="Max audience per play" hint="Cap on contacts per re-engage run (0–100000)">
               <Input
                 type="number"
                 min={0}
+                max={100000}
+                step={1}
                 value={autoFireMaxAudience}
                 disabled={!isAdmin}
-                onChange={e => setAutoFireMaxAudience(e.target.value)}
+                onChange={e => setAutoFireMaxAudience(clamp(e.target.value, 0, 100000, 0))}
               />
             </Field>
-            <Field label="Max touches per contact">
+            <Field label="Max touches per contact" hint="1–5">
               <Input
                 type="number"
                 min={1}
+                max={5}
+                step={1}
                 value={maxTouches}
                 disabled={!isAdmin}
-                onChange={e => setMaxTouches(e.target.value)}
+                onChange={e => setMaxTouches(clamp(e.target.value, 1, 5, 1))}
               />
             </Field>
-            <Field label="Days between touches">
+            <Field label="Days between touches" hint="1–60">
               <Input
                 type="number"
                 min={1}
+                max={60}
+                step={1}
                 value={touchSpacingDays}
                 disabled={!isAdmin}
-                onChange={e => setTouchSpacingDays(e.target.value)}
+                onChange={e => setTouchSpacingDays(clamp(e.target.value, 1, 60, 1))}
               />
             </Field>
           </div>
