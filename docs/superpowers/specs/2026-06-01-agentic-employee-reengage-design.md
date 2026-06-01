@@ -89,6 +89,9 @@ signals for dormancy (email-engagement only); full natural-language inbound-emai
    *hiring and managing an employee*, not "configuring an AI tool." Onboarding is framed
    as an employee setup; Abe is a top-level, hero surface (not buried in a settings tab).
    See "Positioning & onboarding" below — this framing is a hard requirement, not polish.
+8. **Auto-fire is OFF by default.** `auto_fire_max_audience` defaults to 0, so *every*
+   play escalates to the line manager until the tenant explicitly raises the threshold.
+   Safest first-run posture; the tenant earns trust into autonomy deliberately.
 
 ---
 
@@ -239,8 +242,6 @@ already queue through the existing pipeline.
 
 - Reactivation attribution window length (e.g. 14 days after a touch)?
 - Default copy/voice guidance for Abe's drafts — tenant-provided brand voice, or a sane default?
-- Should auto-fire be **off by default** (every play escalates until the tenant opts into a
-  threshold > 0)? Leaning yes — safest first-run posture.
 
 ---
 
