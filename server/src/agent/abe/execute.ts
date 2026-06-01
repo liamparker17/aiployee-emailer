@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import type { PlayRow } from '../../repos/agentPlays.js';
 import type { Sender } from '../../repos/senders.js';
+import { getDefaultSender } from '../../repos/senders.js';
 import { insertEmail } from '../../repos/emails.js';
 import { findEligibleContacts } from '../../repos/agentEligible.js';
 import { signUnsubToken } from '../../marketing/unsubscribe.js';
@@ -38,4 +39,22 @@ export async function queuePlayTouch(args: {
     [play.id, play.tenant_id, touchIndex, queued],
   );
   return { queued, skipped: ids.length - queued };
+}
+
+export async function startPlayExecution(args: {
+  pool: pg.Pool; encKey: Buffer; baseUrl: string; play: PlayRow;
+}): Promise<{ queued: number; skipped: number }> {
+  const { pool, encKey, baseUrl, play } = args;
+  if (!['proposed', 'approved', 'pending_approval'].includes(play.status)) {
+    throw new Error(`startPlayExecution: play ${play.id} not startable (status ${play.status})`);
+  }
+  const sender = await getDefaultSender(pool, play.tenant_id);
+  if (!sender) throw new Error('no_sender');
+
+  const upd = await pool.query(
+    `UPDATE agent_plays SET status = 'executing', executed_at = now(), updated_at = now()
+       WHERE id = $1 RETURNING *`, [play.id]);
+  const executing = upd.rows[0] as PlayRow;
+
+  return queuePlayTouch({ pool, encKey, baseUrl, play: executing, touchIndex: 0, sender, reengagedSince: null });
 }
