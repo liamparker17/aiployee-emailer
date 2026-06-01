@@ -24,6 +24,7 @@ export interface PlayRow {
   audience_snapshot: AudienceSnapshot;
   touches: Touch[];
   rejection_reason: string | null;
+  executed_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
