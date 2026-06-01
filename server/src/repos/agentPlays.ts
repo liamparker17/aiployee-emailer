@@ -62,3 +62,20 @@ export async function listExecutingPlays(pool: pg.Pool): Promise<PlayRow[]> {
   const r = await pool.query<PlayRow>(`SELECT * FROM agent_plays WHERE status = 'executing' ORDER BY executed_at ASC`);
   return r.rows;
 }
+
+export async function setPlayStatus(
+  pool: pg.Pool,
+  tenantId: string,
+  id: string,
+  status: PlayStatus,
+  rejectionReason?: string | null,
+): Promise<PlayRow | null> {
+  const r = await pool.query<PlayRow>(
+    `UPDATE agent_plays
+        SET status = $3, rejection_reason = COALESCE($4, rejection_reason), updated_at = now()
+      WHERE tenant_id = $1 AND id = $2
+      RETURNING *`,
+    [tenantId, id, status, rejectionReason ?? null],
+  );
+  return r.rows[0] ?? null;
+}
