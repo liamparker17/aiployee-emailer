@@ -239,6 +239,10 @@ export default function HireAbeWizard({ goal, onHired }: Props) {
               {form.brandVoice && <Row label="Brand voice" value={form.brandVoice} />}
             </div>
 
+            <p className="text-sm text-ink-muted">
+              Heads up: Abe also needs an OpenAI key and a default sender to actually run — you'll see a checklist on his home after hiring.
+            </p>
+
             {!isAdmin && (
               <p className="text-sm text-ink-muted border border-line rounded-lg px-4 py-3 bg-surface-raised">
                 Only an admin can hire Abe. Ask an admin to complete this step.
