@@ -7,6 +7,7 @@ import { draftReengagePlay } from './draftPlay.js';
 import { scoreRisk, requiresApproval } from './risk.js';
 import { getAgentConfig, getAgentOpenAIKey } from '../../repos/agent.js';
 import { startPlayExecution } from './execute.js';
+import { escalatePlay } from './escalate.js';
 
 export type ShiftResult =
   | { status: 'executed'; playId: string; audienceSize: number; queued: number }
@@ -54,6 +55,12 @@ export async function runAbeShift(args: {
 
   if (requiresApproval(audienceSize, goal.auto_fire_max_audience)) {
     await pool.query(`UPDATE agent_plays SET status = 'pending_approval', updated_at = now() WHERE id = $1`, [play.id]);
+    // Best-effort escalation: never let a failure here break the shift.
+    try {
+      await escalatePlay({ pool, encKey, baseUrl: args.baseUrl, play, goal });
+    } catch {
+      // escalatePlay itself should not throw for expected no-ops, but guard defensively.
+    }
     return { status: 'pending_approval', playId: play.id, audienceSize };
   }
   const fresh = await getPlay(pool, tenantId, play.id);
