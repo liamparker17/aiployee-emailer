@@ -80,3 +80,12 @@ export async function upsertGoal(pool: pg.Pool, tenantId: string, patch: GoalPat
   );
   return r.rows[0];
 }
+
+export async function markManagerVerified(pool: pg.Pool, tenantId: string): Promise<boolean> {
+  const r = await pool.query(
+    `UPDATE agent_goals SET line_manager_verified_at = now(), updated_at = now()
+     WHERE tenant_id = $1 AND kind = 'reengage_dormant'`,
+    [tenantId],
+  );
+  return (r.rowCount ?? 0) > 0;
+}

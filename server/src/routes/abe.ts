@@ -2,7 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireTenantCtx } from '../auth/ctx.js';
 import { AppError, sendError } from '../util/errors.js';
-import { getGoal, upsertGoal } from '../repos/agentGoals.js';
+import { getGoal, upsertGoal, markManagerVerified } from '../repos/agentGoals.js';
+import { verifyApprovalToken } from '../agent/abe/approvalToken.js';
+import { sendManagerVerifyEmail } from '../agent/abe/approvalEmail.js';
 import { listPlays, getPlay } from '../repos/agentPlays.js';
 import { startPlayExecution } from '../agent/abe/execute.js';
 
@@ -84,5 +86,42 @@ export function registerAbeRoutes(app: FastifyInstance): void {
            WHERE tenant_id = $1 AND id = $2 RETURNING *`, [ctx.tenantId, id, reason ?? null]);
       return reply.send({ play: upd.rows[0] });
     } catch (e) { sendError(reply, e); }
+  });
+
+  app.post('/api/agent/goals/verify-manager', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      if (ctx.role !== 'tenant_admin' && ctx.role !== 'super_admin') {
+        throw new AppError('forbidden', 403, 'Admin role required');
+      }
+      const goal = await getGoal(app.pool, ctx.tenantId);
+      if (!goal?.line_manager_email) {
+        throw new AppError('no_manager_email', 400, 'No line manager email is set on the goal');
+      }
+      const res = await sendManagerVerifyEmail({
+        pool: app.pool, encKey: app.cfg.encKey, baseUrl: app.cfg.publicBaseUrl,
+        tenantId: ctx.tenantId, managerEmail: goal.line_manager_email,
+      });
+      if (!res.sent) {
+        throw new AppError('no_default_sender', 400, 'No default sender configured; cannot send verify email');
+      }
+      return reply.send({ sent: true });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // ── Public manager-verify (auth-exempt via /v1/agent/ exclusion; no session) ─────
+  app.get('/v1/agent/verify-manager/:token', async (req, reply) => {
+    const page = (msg: string) =>
+      `<!doctype html><html><body style="font-family:system-ui,sans-serif;text-align:center;padding:48px;color:#1a0f3d"><h2>${msg}</h2></body></html>`;
+    try {
+      const { token } = req.params as { token: string };
+      const parsed = verifyApprovalToken(token, app.cfg.encKey);
+      if (!parsed) return reply.code(400).type('text/html').send(page('This confirmation link is invalid or has expired.'));
+      const ok = await markManagerVerified(app.pool, parsed.id);
+      if (!ok) return reply.code(404).type('text/html').send(page('No matching approver to confirm.'));
+      return reply.type('text/html').send(page("Thanks — your email is confirmed. You can now approve or reject campaigns."));
+    } catch {
+      return reply.code(400).type('text/html').send(page('This confirmation link is invalid or has expired.'));
+    }
   });
 }
