@@ -8,6 +8,13 @@
       "maxDuration": 300
     }
   },
+  "crons": [
+    { "path": "/v1/cron/process-queue", "schedule": "* * * * *" },
+    { "path": "/v1/cron/retry-failed",  "schedule": "*/10 * * * *" },
+    { "path": "/v1/cron/abe-shift",     "schedule": "0 8 * * *" },
+    { "path": "/v1/cron/abe-touches",   "schedule": "30 8 * * *" },
+    { "path": "/v1/cron/abe-outcomes",  "schedule": "0 9 * * *" }
+  ],
   "rewrites": [
     { "source": "/healthz",        "destination": "/api/index" },
     { "source": "/auth/:path*",    "destination": "/api/index" },

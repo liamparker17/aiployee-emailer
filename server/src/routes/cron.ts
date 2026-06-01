@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply, RouteHandlerMethod } from 'fastify';
 import { timingSafeEqual } from 'node:crypto';
 import { sendError, AppError } from '../util/errors.js';
 import { claimDueForSend, requeueFailedAndStuck } from '../repos/emails.js';
@@ -22,8 +22,14 @@ function requireCronAuth(req: FastifyRequest, secret: string): void {
 }
 
 export async function registerCronRoutes(app: FastifyInstance) {
-  // POST /v1/cron/process-queue — invoked every ~1min by cron-job.org
-  app.post('/v1/cron/process-queue', async (req: FastifyRequest, reply: FastifyReply) => {
+  // Cron endpoints accept BOTH GET and POST: Vercel-native crons (vercel.json `crons`) invoke
+  // them with GET (auth via `Authorization: Bearer $CRON_SECRET`), while external schedulers /
+  // tests use POST with the same secret. requireCronAuth accepts Bearer or X-Cron-Secret.
+  const cron = (url: string, handler: RouteHandlerMethod) =>
+    app.route({ method: ['GET', 'POST'], url, handler });
+
+  // /v1/cron/process-queue — dispatch due/queued emails (incl. Abe's touch sends). ~every minute.
+  cron('/v1/cron/process-queue', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       requireCronAuth(req, app.cfg.cronSecret);
       const claimed = await claimDueForSend(app.pool, app.cfg.cronBatchSize);
@@ -34,8 +40,8 @@ export async function registerCronRoutes(app: FastifyInstance) {
     } catch (e) { sendError(reply, e); }
   });
 
-  // POST /v1/cron/abe-shift — invoked daily to run Abe's shift for all enabled goals
-  app.post('/v1/cron/abe-shift', async (req: FastifyRequest, reply: FastifyReply) => {
+  // /v1/cron/abe-shift — daily: run Abe's shift for all enabled goals.
+  cron('/v1/cron/abe-shift', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       requireCronAuth(req, app.cfg.cronSecret);
       const llmFactory = app.agentLlmFactory ?? openAiFactory;
@@ -62,10 +68,9 @@ export async function registerCronRoutes(app: FastifyInstance) {
     } catch (e) { sendError(reply, e); }
   });
 
-  // POST /v1/cron/retry-failed — invoked every ~1-2min by cron-job.org.
-  // Requeues failed rows (under retry cap, after cool-off) AND stuck-sending rows
-  // (function crashed before marking outcome). Default: 1 retry total = 2 attempts.
-  app.post('/v1/cron/retry-failed', async (req: FastifyRequest, reply: FastifyReply) => {
+  // /v1/cron/retry-failed — requeues failed rows (under retry cap, after cool-off) AND stuck-sending
+  // rows. Default: 1 retry total = 2 attempts. ~every few minutes.
+  cron('/v1/cron/retry-failed', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       requireCronAuth(req, app.cfg.cronSecret);
       const out = await requeueFailedAndStuck(app.pool, {
@@ -77,8 +82,8 @@ export async function registerCronRoutes(app: FastifyInstance) {
     } catch (e) { sendError(reply, e); }
   });
 
-  // POST /v1/cron/abe-touches — advances each executing play through its next due touch
-  app.post('/v1/cron/abe-touches', async (req, reply) => {
+  // /v1/cron/abe-touches — daily: advance each executing play through its next due touch.
+  cron('/v1/cron/abe-touches', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       requireCronAuth(req, app.cfg.cronSecret);
       const plays = await listExecutingPlays(app.pool);
@@ -101,9 +106,9 @@ export async function registerCronRoutes(app: FastifyInstance) {
     } catch (e) { sendError(reply, e); }
   });
 
-  // POST /v1/cron/abe-outcomes — periodically roll up engagement (opens/clicks/reactivations)
-  // for executing/done plays whose attribution window has not yet closed. Mirrors abe-shift.
-  app.post('/v1/cron/abe-outcomes', async (req: FastifyRequest, reply: FastifyReply) => {
+  // /v1/cron/abe-outcomes — daily: roll up engagement (opens/clicks/reactivations) for
+  // executing/done plays whose attribution window has not yet closed.
+  cron('/v1/cron/abe-outcomes', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       requireCronAuth(req, app.cfg.cronSecret);
       const plays = await listPlaysForOutcomeRollup(app.pool);
