@@ -71,6 +71,46 @@ export const openAiFactory: LlmFactory = (apiKey: string) => ({
   },
 });
 
+/** Generic tool-calling loop: drive `llm` over `messages` with `provider`'s tools until the model
+ *  stops calling tools or `maxIter` is hit. Returns the final assistant text. Mutates `messages`. */
+export async function runToolLoop(args: {
+  llm: LlmClient; model: string; messages: LlmMessage[]; provider: McpToolProvider; maxIter: number;
+  onToolCall?: (name: string, args: Record<string, unknown>, result: string) => void;
+}): Promise<string> {
+  const { llm, model, messages, provider, maxIter } = args;
+  const tools = await provider.listTools();
+  let finalText = '';
+  for (let i = 0; i < Math.max(1, maxIter); i++) {
+    const turn = await llm.chat({ model, messages, tools: tools.length ? tools : undefined });
+    if (!turn.toolCalls.length) { finalText = turn.content ?? ''; break; }
+    messages.push({ role: 'assistant', content: turn.content ?? '', tool_calls: turn.toolCalls });
+    for (const tc of turn.toolCalls) {
+      let parsed: Record<string, unknown> = {};
+      try { parsed = tc.arguments ? JSON.parse(tc.arguments) : {}; } catch { /* leave empty */ }
+      const result = await provider.callTool(tc.name, parsed);
+      args.onToolCall?.(tc.name, parsed, result);
+      messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
+    }
+    if (i === Math.max(1, maxIter) - 1) finalText = turn.content ?? finalText;
+  }
+  return finalText;
+}
+
+/** Assemble the tenant's non-Abe tool providers (MCP servers + RAG SQL + RAG vector). Empty when
+ *  nothing is configured. `apiKey` is needed only to enable the vector-RAG embedder. */
+export async function assembleTenantProviders(
+  pool: pg.Pool, encKey: Buffer, tenantId: string, apiKey: string,
+): Promise<McpToolProvider[]> {
+  const mcp = defaultMcpProviderFactory(await listEnabledMcpServersWithAuth(pool, encKey, tenantId));
+  const providers: McpToolProvider[] = [mcp];
+  const sqlSources = await listEnabledRagSqlSourcesWithConn(pool, encKey, tenantId);
+  if (sqlSources.length) providers.push(ragSqlProvider(sqlSources));
+  if (await countRagDocuments(pool, tenantId) > 0) {
+    providers.push(ragVectorProvider({ pool, tenantId, enabled: true, embed: makeEmbed(apiKey) }));
+  }
+  return providers;
+}
+
 /**
  * Run one agent turn for a thread: read history, run a tool-calling loop against any
  * enabled MCP servers, and store the final reply as an `agent` message. Approval
@@ -96,48 +136,21 @@ export async function runAgentTurn(args: {
     llm = (args.llmFactory ?? openAiFactory)(apiKey);
   }
 
-  // Assemble tool providers: MCP servers + RAG (SQL) + RAG (vector). Each is empty
-  // when nothing is configured, so with none the loop is a plain completion.
-  const mcp = args.mcpProvider
-    ?? (args.mcpProviderFactory ?? defaultMcpProviderFactory)(await listEnabledMcpServersWithAuth(pool, encKey, tenantId));
-  const providers: McpToolProvider[] = [mcp];
-
-  const sqlSources = await listEnabledRagSqlSourcesWithConn(pool, encKey, tenantId);
-  if (sqlSources.length) providers.push(ragSqlProvider(sqlSources));
-
-  if (await countRagDocuments(pool, tenantId) > 0) {
-    const embedKey = apiKey ?? await getAgentOpenAIKey(pool, encKey, tenantId);
-    if (embedKey) providers.push(ragVectorProvider({ pool, tenantId, enabled: true, embed: makeEmbed(embedKey) }));
-  }
-
-  const provider = compositeProvider(providers);
+  const baseProviders: McpToolProvider[] = args.mcpProvider
+    ? [args.mcpProvider]
+    : args.mcpProviderFactory
+      ? [args.mcpProviderFactory(await listEnabledMcpServersWithAuth(pool, encKey, tenantId))]
+      : await assembleTenantProviders(pool, encKey, tenantId, apiKey ?? (await getAgentOpenAIKey(pool, encKey, tenantId)) ?? '');
+  const provider = compositeProvider(baseProviders);
 
   try {
-    const tools = await provider.listTools();
     const history = await listThreadMessages(pool, threadId);
     const messages: LlmMessage[] = [
       { role: 'system', content: cfg.system_prompt?.trim() ? cfg.system_prompt : DEFAULT_SYSTEM },
       ...history.filter(m => m.role !== 'system').map(m => ({
-        role: (m.role === 'agent' ? 'assistant' : 'user') as 'assistant' | 'user',
-        content: m.content,
-      })),
+        role: (m.role === 'agent' ? 'assistant' : 'user') as 'assistant' | 'user', content: m.content })),
     ];
-
-    let finalText = '';
-    const maxIter = Math.max(1, cfg.max_tool_iterations);
-    for (let i = 0; i < maxIter; i++) {
-      const turn = await llm.chat({ model: cfg.model, messages, tools: tools.length ? tools : undefined });
-      if (!turn.toolCalls.length) { finalText = turn.content ?? ''; break; }
-      messages.push({ role: 'assistant', content: turn.content ?? '', tool_calls: turn.toolCalls });
-      for (const tc of turn.toolCalls) {
-        let parsed: Record<string, unknown> = {};
-        try { parsed = tc.arguments ? JSON.parse(tc.arguments) : {}; } catch { /* leave empty */ }
-        const result = await provider.callTool(tc.name, parsed);
-        messages.push({ role: 'tool', tool_call_id: tc.id, content: result });
-      }
-      if (i === maxIter - 1) finalText = turn.content ?? finalText; // ran out of iterations
-    }
-
+    const finalText = await runToolLoop({ llm, model: cfg.model, messages, provider, maxIter: cfg.max_tool_iterations });
     const status = triggerSource === 'jobix' && cfg.auto_approve_jobix ? 'approved' : 'pending_approval';
     const message = await insertMessage(pool, { threadId, tenantId, role: 'agent', source: triggerSource, content: finalText, status });
     return { message };
