@@ -28,9 +28,9 @@ interface Props {
 }
 
 export default function AbeChat({ onActed }: Props) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const toast = useToast();
-  const isAdmin = user?.role !== 'tenant_user';
+  const isAdmin = !loading && user?.role !== 'tenant_user';
 
   const [messages, setMessages] = useState<ChatMessage[] | null>(null);
   const [input, setInput] = useState('');
@@ -99,6 +99,7 @@ export default function AbeChat({ onActed }: Props) {
       setMessages(prev =>
         prev ? prev.filter(m => m.id !== optimisticUser.id && m.id !== thinkingId) : [],
       );
+      setInput(text);
       toast.error(describeError(err));
     } finally {
       setSending(false);
@@ -176,6 +177,7 @@ export default function AbeChat({ onActed }: Props) {
           onKeyDown={handleKeyDown}
           placeholder="Message Abe…"
           disabled={sending || messages === null}
+          aria-label="Message Abe"
         />
         <Button
           variant="primary"
