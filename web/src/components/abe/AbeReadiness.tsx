@@ -66,7 +66,7 @@ export default function AbeReadiness({ onReady }: Props) {
         <AlertTriangle size={18} className="text-error shrink-0 mt-0.5" />
         <div className="space-y-3 flex-1 min-w-0">
           <p className="font-heading font-semibold text-ink">
-            Abe is hired — but he can't start his shifts yet.
+            Abe can't send updates to ABSA yet — two things to finish setup.
           </p>
           <ul className="space-y-2">
             {!hasKey && (
