@@ -139,7 +139,7 @@ export default function AbeChat({ onActed }: Props) {
               <Bot size={14} />
             </div>
             <div className="rounded-2xl rounded-tl-sm bg-surface-raised border border-line px-4 py-2.5 text-sm text-ink max-w-sm">
-              Hi — ask me how the win-backs are going, or tell me to adjust how I work.
+              Hi — ask me what's coming in on the line (e.g. "top call reasons this week?"), or tell me to draft an update for ABSA.
             </div>
           </div>
         ) : (
