@@ -133,7 +133,17 @@ export async function composeDigest(args: {
     total += a.count;
   }
 
-  const metrics = { period: periodLabel, total, byCategory };
+  const hv = await pool.query<{ forwarded: string; avg_min: string | null }>(
+    `SELECT count(*) FILTER (WHERE status='forwarded')::text AS forwarded,
+            (avg(EXTRACT(EPOCH FROM (forwarded_at - created_at))/60.0) FILTER (WHERE status='forwarded'))::text AS avg_min
+       FROM call_handovers WHERE tenant_id = $1 AND created_at >= $2 AND created_at < $3`,
+    [tenantId, start, end]);
+  const handovers = {
+    forwarded: Number(hv.rows[0].forwarded),
+    avgMinutesToForward: hv.rows[0].avg_min ? Math.round(Number(hv.rows[0].avg_min)) : null,
+  };
+
+  const metrics = { period: periodLabel, total, byCategory, handovers };
   const dataBlock =
     `Period: ${periodLabel}\nTotal calls: ${total}\nBy category:\n` +
     agg.map(a => `- ${a.category}: ${a.count}`).join('\n');

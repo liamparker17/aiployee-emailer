@@ -6,6 +6,7 @@ import { upsertLineReportConfig } from '../src/repos/lineReportConfigs.js';
 import { insertCallTag } from '../src/repos/lineCallTags.js';
 import { listReports } from '../src/repos/lineReports.js';
 import { composeDigest, composeCase } from '../src/agent/abe/lineCompose.js';
+import { insertHandover, setHandoverStatus } from '../src/repos/callHandovers.js';
 
 const pool = makePool();
 beforeEach(async () => { await truncateAll(pool); });
@@ -52,4 +53,18 @@ it('composeCase escalates one call with advisory + source id', async () => {
   expect(report.status).toBe('pending_approval');
   expect(report.source_message_ids).toContain(m.id);
   expect(report.advisory.recommended_actions.length).toBeGreaterThan(0);
+});
+
+it('digest metrics include callback handover throughput', async () => {
+  const t = await createTenant(pool);
+  await upsertLineReportConfig(pool, t.id, { enabled: true });
+  const m = await seedInboundCall(pool, t.id, 'callback needed');
+  const h = await insertHandover(pool, {
+    tenantId: t.id, messageId: m.id, reasonCategory: 'Debit orders', summary: 's',
+    recommendedAction: '', urgency: 'high', vulnerable: false, missingFields: [],
+  });
+  await setHandoverStatus(pool, t.id, h.id, 'forwarded', {});
+  const start = new Date(Date.now() - 24 * 3600 * 1000), end = new Date(Date.now() + 1000);
+  const report = await composeDigest({ pool, tenantId: t.id, llm: stubLlm as any, model: 'gpt-4o', periodLabel: 'daily', start, end });
+  expect((report.metrics as any).handovers.forwarded).toBe(1);
 });
