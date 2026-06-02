@@ -7,6 +7,7 @@ import PendingApprovals from './PendingApprovals';
 import ManageAbe from './ManageAbe';
 import AbeReadiness from './AbeReadiness';
 import AbeChat from './AbeChat';
+import LineReportingPanel from './LineReportingPanel';
 import type { AbeGoal } from '../../lib/abe';
 
 interface Props { goal: AbeGoal; onChange: () => void }
@@ -61,6 +62,9 @@ export default function AbeHome({ goal, onChange }: Props) {
 
       {/* ── Talk to Abe ── */}
       <AbeChat onActed={refresh} />
+
+      {/* ── Line Reporting — Pending-for-ABSA queue ── */}
+      <LineReportingPanel />
 
       {/* ── Pending approvals (action items — shown above feed) ── */}
       <section>
