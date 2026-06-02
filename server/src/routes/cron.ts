@@ -5,7 +5,10 @@ import { claimDueForSend, requeueFailedAndStuck } from '../repos/emails.js';
 import { dispatchBatch } from '../send/dispatch.js';
 import { listEnabledGoals, getGoal } from '../repos/agentGoals.js';
 import { runAbeShift } from '../agent/abe/shift.js';
+import { runLineReportShift } from '../agent/abe/lineShift.js';
 import { openAiFactory } from '../agent/runner.js';
+import { listEnabledLineConfigs } from '../repos/lineReportConfigs.js';
+import { getAgentOpenAIKey, getAgentConfig } from '../repos/agent.js';
 import { listExecutingPlays, listPlaysForOutcomeRollup } from '../repos/agentPlays.js';
 import { getDefaultSender } from '../repos/senders.js';
 import { advancePlayTouches } from '../agent/abe/touches.js';
@@ -103,6 +106,39 @@ export async function registerCronRoutes(app: FastifyInstance) {
         } catch (err) { skipped.push({ playId: p.id, reason: err instanceof Error ? err.message : String(err) }); }
       }
       return reply.send({ ok: true, plays: plays.length, touchesQueued, done, skipped });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // /v1/cron/line-report — daily: run the line-report shift for every enabled tenant config.
+  cron('/v1/cron/line-report', async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      requireCronAuth(req, app.cfg.cronSecret);
+      const factory = app.agentLlmFactory ?? openAiFactory;
+      const configs = await listEnabledLineConfigs(app.pool);
+      let ran = 0;
+      const skipped: Array<{ tenantId: string; reason: string }> = [];
+      for (const c of configs) {
+        try {
+          const key = await getAgentOpenAIKey(app.pool, app.cfg.encKey, c.tenant_id);
+          if (!key && !app.agentLlmFactory) {
+            skipped.push({ tenantId: c.tenant_id, reason: 'no_openai_key' });
+            continue;
+          }
+          const agentCfg = await getAgentConfig(app.pool, c.tenant_id);
+          const model = agentCfg?.model ?? 'gpt-4o';
+          const r = await runLineReportShift({
+            pool: app.pool, tenantId: c.tenant_id,
+            llmFactory: factory,
+            model, now: new Date(),
+            openAiKey: key ?? undefined,
+          });
+          if (r.status === 'ran') ran++;
+          else skipped.push({ tenantId: c.tenant_id, reason: r.reason });
+        } catch (err) {
+          skipped.push({ tenantId: c.tenant_id, reason: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      return reply.send({ ok: true, configs: configs.length, ran, skipped });
     } catch (e) { sendError(reply, e); }
   });
 

@@ -47,6 +47,11 @@ const DEFAULT_TAXONOMY = JSON.stringify([
   'Accounts & balances', 'Loans & credit', 'Fees & charges', 'Complaints', 'Other / Emerging',
 ]);
 
+export async function listEnabledLineConfigs(pool: pg.Pool): Promise<LineReportConfigRow[]> {
+  const r = await pool.query<LineReportConfigRow>(`SELECT * FROM line_report_configs WHERE enabled = true`);
+  return r.rows;
+}
+
 export async function getLineReportConfig(
   pool: pg.Pool,
   tenantId: string,
