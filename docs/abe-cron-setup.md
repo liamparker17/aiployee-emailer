@@ -25,6 +25,7 @@ or `X-Cron-Secret: <secret>`.
 | `/v1/cron/abe-touches` | Advance executing plays to their next due touch (auto-skips re-engaged) | `30 8 * * *` |
 | `/v1/cron/abe-outcomes` | Roll up engagement; close attribution windows | `0 9 * * *` |
 | `/v1/cron/line-report` | Abe Client Line Reporting: every hour tag new calls + draft spike alerts & high-severity case escalations (fast escalation); digests are drafted only at each tenant's configured `send_hour_utc` | `0 * * * *` (hourly) |
+| `/v1/cron/abe-handovers` | Extract callback handovers for new inbound calls (keeps the queue fresh for SLA) | `*/5 * * * *` (every 5 min) |
 
 ## Plan / cost notes
 - **Sub-daily schedules (e.g. `process-queue` every minute) require a Vercel plan that allows it**

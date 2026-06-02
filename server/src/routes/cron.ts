@@ -6,6 +6,7 @@ import { dispatchBatch } from '../send/dispatch.js';
 import { listEnabledGoals, getGoal } from '../repos/agentGoals.js';
 import { runAbeShift } from '../agent/abe/shift.js';
 import { runLineReportShift } from '../agent/abe/lineShift.js';
+import { extractHandovers } from '../agent/abe/handoverExtract.js';
 import { openAiFactory } from '../agent/runner.js';
 import { listEnabledLineConfigs } from '../repos/lineReportConfigs.js';
 import { getAgentOpenAIKey, getAgentConfig } from '../repos/agent.js';
@@ -142,6 +143,28 @@ export async function registerCronRoutes(app: FastifyInstance) {
         }
       }
       return reply.send({ ok: true, configs: configs.length, ran, skipped });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // /v1/cron/abe-handovers — every 5 min: extract callback handovers for new inbound calls.
+  cron('/v1/cron/abe-handovers', async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      requireCronAuth(req, app.cfg.cronSecret);
+      // Same LlmClient->LlmLike bridge the /v1/cron/line-report block uses.
+      const factory = (app.agentLlmFactory ?? openAiFactory) as unknown as
+        (key?: string) => { chat(a: { model: string; messages: Array<{ role: string; content: string }> }): Promise<{ content: string }> };
+      const configs = await listEnabledLineConfigs(app.pool);
+      let ran = 0;
+      for (const c of configs) {
+        try {
+          const key = await getAgentOpenAIKey(app.pool, app.cfg.encKey, c.tenant_id);
+          if (!key && !app.agentLlmFactory) continue;
+          const agentCfg = await getAgentConfig(app.pool, c.tenant_id);
+          await extractHandovers({ pool: app.pool, tenantId: c.tenant_id, llm: factory(key ?? undefined), model: agentCfg?.model ?? 'gpt-4o', batch: 100 });
+          ran++;
+        } catch (err) { req.log?.error?.({ err }, 'handover extract failed'); }
+      }
+      return reply.send({ ok: true, configs: configs.length, ran });
     } catch (e) { sendError(reply, e); }
   });
 
