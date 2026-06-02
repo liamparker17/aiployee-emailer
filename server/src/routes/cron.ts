@@ -113,7 +113,10 @@ export async function registerCronRoutes(app: FastifyInstance) {
   cron('/v1/cron/line-report', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       requireCronAuth(req, app.cfg.cronSecret);
-      const factory = app.agentLlmFactory ?? openAiFactory;
+      // openAiFactory yields the full LlmClient; the line-report shift only needs the
+      // minimal LlmLike (chat -> { content }). The nominal mismatch is safe at runtime.
+      const factory = (app.agentLlmFactory ?? openAiFactory) as unknown as
+        Parameters<typeof runLineReportShift>[0]['llmFactory'];
       const configs = await listEnabledLineConfigs(app.pool);
       let ran = 0;
       const skipped: Array<{ tenantId: string; reason: string }> = [];
