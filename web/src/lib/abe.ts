@@ -90,3 +90,17 @@ export const putLineSettings = (
     brandVoice: string;
   }>,
 ) => api<{ config: LineReportConfig }>(`/api/agent/line-report-settings`, { method: 'PUT', body: JSON.stringify(b) });
+
+// ── Callback-handover types & API helpers ────────────────────────────────────
+
+export interface Handover {
+  id: string; status: 'pending'|'forwarded'|'dismissed';
+  caller_name: string | null; caller_phone: string | null; account_ref: string | null;
+  reason_category: string; summary: string; recommended_action: string;
+  urgency: 'low'|'med'|'high'; vulnerable: boolean; missing_fields: string[]; repeat_of: string | null;
+  forwarded_at: string | null; created_at: string;
+}
+export const getHandovers = (status?: string) => api<{ handovers: Handover[] }>(`/api/agent/handovers${status ? `?status=${status}` : ''}`);
+export const forwardHandover = (id: string) => api<{ handover: Handover }>(`/api/agent/handovers/${id}/forward`, { method: 'POST' });
+export const dismissHandover = (id: string, reason: string) => api(`/api/agent/handovers/${id}/dismiss`, { method: 'POST', body: JSON.stringify({ reason }) });
+export const patchHandover = (id: string, b: Partial<Pick<Handover,'caller_name'|'caller_phone'|'account_ref'|'recommended_action'|'urgency'>>) => api<{ handover: Handover }>(`/api/agent/handovers/${id}`, { method: 'PATCH', body: JSON.stringify(b) });
