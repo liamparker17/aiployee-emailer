@@ -200,8 +200,10 @@ The "Talk to Abe" panel already exists and gains the new tools. Admin-only; veri
 
 Auto-send / risk-tiering; free-text replies *from* ABSA (inbound parsing); charts/visualizations (text + simple tables first); multi-client per tenant; SLA / handle-time metrics unless the call summaries carry timing data (note the dependency — if they do, it's a fast-follow `metrics` addition).
 
-## Open questions for the build pass
+**Known v1 gap (fast-follow):** the advisory fields (`recommended_actions`, `draft_comms`, etc.) are editable via the `PATCH` endpoint and the client method, but the Pending-for-ABSA panel currently only exposes inline editing of `subject`/`body`. The advisory is woven into the emailed body (so it's still correctable there); a structured advisory editor in the UI is a fast-follow.
 
-- Confirm the inbound call-summary shape in `agent_messages.content` (free text vs structured) — affects how much the tagger must parse vs read from `context`.
-- Whether daily + weekly should share one digest composer (param = period length) — default: yes, one composer parameterized by period.
-- Tenant-local time handling for `send_time` (the cron is UTC) — resolve when wiring the shift cadence.
+## Resolved during the build pass
+
+- **Inbound call-summary shape:** the tagger reads `agent_messages.content` as free text (fenced as untrusted data); no structured-`context` dependency.
+- **One digest composer, parameterized by period:** `composeDigest(periodLabel, start, end)` serves both daily and weekly.
+- **Tenant-local send time:** the `/v1/cron/line-report` job runs **hourly** — tagging, spike alerts, and high-severity case escalations fire every hour (fast escalation), while digests are emitted only when `now.getUTCHours() === send_hour_utc` (and, for weekly, the configured weekday). `send_hour_utc` is the tenant's chosen UTC hour; per-tenant local-timezone offsets remain a future enhancement.
