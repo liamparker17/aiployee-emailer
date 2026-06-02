@@ -1,4 +1,4 @@
-# Abe — Client Line Reporting (report-to-ABSA) — Design (v1)
+# Abe — Client Line Intelligence & Advisory (report-to-ABSA) — Design (v1)
 
 **Date:** 2026-06-02
 **Status:** Approved design — ready for implementation planning.
@@ -13,7 +13,13 @@
 
 Abe today is a one-job **outbound** employee: he finds dormant email contacts and runs approval-gated win-back plays. But the live use case is the near-opposite shape. First Assist runs a phone line; **people call in**, those calls become summaries that land in the email system, and a human operator must turn "what people phoned about" into **clear, timely, trustworthy updates to ABSA (the client)**.
 
-That is inbound-intelligence reporting, not outbound campaigning. This spec gives Abe a **second job — "Client Line Reporting"** — built on the loop he already runs, pointed inbound. The recipient changes from "your line manager" to "the client (ABSA)"; everything else (perceive → decide → approval-gate → report) reuses what already works.
+That is inbound-intelligence reporting, not outbound campaigning. This spec gives Abe a **second job — "Client Line Intelligence & Advisory"** — built on the loop he already runs, pointed inbound. The recipient changes from "your line manager" to "the client (ABSA)"; everything else (perceive → decide → approval-gate → report) reuses what already works.
+
+**Abe is a business analyst and a PR advisor in one.** He does not stop at *what is wrong* — every notable finding and every escalated case carries *what to do about it and how to say it*. Two halves, always paired:
+- **DIAGNOSE (analyst):** what's happening, how big, and a clearly-labelled **root-cause hypothesis** (correlating timing/themes/events — stated as a hypothesis, never as fact).
+- **PRESCRIBE (advisor + PR):** **recommended actions** case by case (what to do, who owns it, how urgent), plus **draft communications** — customer-facing holding/response copy, an internal/ABSA escalation note, and talking points for anything reputational.
+
+So a "case" is not *"here's a bad call, forwarded"* — it is *"here's the case, here's exactly what I'd do, and here's drafted wording you can approve and send."* The approval gate is unchanged: Abe proposes the diagnosis **and** the fix **and** the wording; the operator approves or edits before anything leaves.
 
 ### The operator problems this must solve
 1. **Aggregation grind** — raw calls are scattered; turning them into "here's what people phoned about" is manual.
@@ -23,6 +29,7 @@ That is inbound-intelligence reporting, not outbound campaigning. This spec give
 5. **Client-appropriate voice** — it goes to the *client*; tone, format and accuracy matter.
 6. **Urgent escalation** — a fraud surge or outage flood must reach ABSA *now*, not in the next digest.
 7. **Traceability** — provable record of "we flagged X on date Y."
+8. **Knowing what to *do* (and how to phrase it)** — spotting the problem is only half the job; the operator must also recommend a fix and write the client/customer-facing wording. This is the analyst-plus-PR work Abe takes on.
 
 ---
 
@@ -36,6 +43,7 @@ That is inbound-intelligence reporting, not outbound campaigning. This spec give
 6. **Fixed, editable taxonomy** (ABSA-banking starter set) — stable categories give trustworthy week-over-week trends; genuinely new themes surface via the `Other / Emerging` bucket and the `is_emerging` flag.
 7. **Spike rule: balanced** — flag a category when it is up **≥50%** vs its trailing baseline **and** has **≥5 calls** in the window. Tunable per tenant.
 8. **One tenant = one client (ABSA) in v1.** Multi-client per tenant is deferred; the schema is per-tenant so a second client is a future tenant or a future `client_id` column.
+9. **Diagnose + prescribe, always paired.** Every `digest`, `alert`, and `case` carries an `advisory` payload: `diagnosis`, `root_cause_hypothesis`, `recommended_actions[]` (action + owner + urgency), and `draft_comms` (`customer_message`, `internal_note`, `talking_points`). This is the analyst+PR core, not an optional extra — the compose step always produces it. Hypotheses are labelled as hypotheses; draft comms are *drafts* that gate before sending.
 
 ---
 
@@ -56,14 +64,23 @@ Write one `line_call_tags` row per message (unique on `message_id`, so re-runs a
 - **Spike detection:** for each category compare its window count to the trailing-baseline average (`baseline_periods`, default 4 same-length periods). Flag when `count ≥ spike_min_count` (default 5) **and** `count ≥ baseline_avg × (1 + spike_pct/100)` (default 50%).
 - **Movement:** per-category delta vs the immediately prior period (for digest trend lines).
 
-### COMPOSE — draft the deliverable (in brand voice)
-Produce a `line_reports` row (`status='pending_approval'`) for each:
-- **digest** (on cadence) — total calls, top reasons by category, movement vs last period, emerging themes, notable cases.
-- **alert** (when a spike is detected) — short heads-up naming the category, the magnitude, and example call refs.
-- **case** (per new `severity='high'` call) — an individual escalation with the call context.
-- **answer** (ad-hoc, via chat) — composed on demand when the operator asks Abe to draft one.
+### COMPOSE — draft the deliverable, diagnosis **and** advisory (in brand voice)
+Produce a `line_reports` row (`status='pending_approval'`) for each. Every row carries both the **diagnosis** (subject/body + metrics) and the **`advisory`** payload (the analyst+PR "how to fix it"):
+- **digest** (on cadence) — total calls, top reasons by category, movement vs last period, emerging themes, notable cases; advisory = the top 1–3 things ABSA should act on this period + how to communicate them.
+- **alert** (when a spike is detected) — heads-up naming the category + magnitude; advisory = root-cause hypothesis, recommended actions, and a draft customer/internal holding message.
+- **case** (per new `severity='high'` call) — the call context; advisory = recommended handling (owner + urgency) and a drafted customer-facing response + internal escalation note.
+- **answer** (ad-hoc, via chat) — composed on demand; advisory included when the question implies "what should we do?"
 
-Each report records `metrics` (jsonb) and `source_message_ids` for traceability.
+**The `advisory` payload (jsonb on every report):**
+```
+{ "diagnosis": "...",                          // plain-language what & how big
+  "root_cause_hypothesis": "... (hypothesis)", // labelled as a hypothesis, may be null
+  "recommended_actions": [ { "action": "...", "owner": "...", "urgency": "low|med|high" } ],
+  "draft_comms": { "customer_message": "...", "internal_note": "...", "talking_points": ["..."] } }
+```
+The compose prompt fences all call content as untrusted **data**, and instructs Abe to (a) never assert a cause as fact, (b) keep recommended actions concrete and owned, and (c) write `draft_comms` in client-appropriate, brand-voiced language.
+
+Each report also records `metrics` (jsonb) and `source_message_ids` for traceability.
 
 ### GATE — operator approves
 Drafts surface in the **"Pending for ABSA"** queue (admin-only). Operator can **Edit / Approve / Reject**. Approve → send. Reject → `archived` with a reason.
@@ -99,8 +116,9 @@ Approve → send via the existing send pipeline to `recipients`; stamp `sent_at`
 - `report_type` text check in (`digest`,`alert`,`answer`,`case`)
 - `period_start`, `period_end` timestamptz
 - `status` text check in (`pending_approval`,`approved`,`sent`,`rejected`,`archived`), default `pending_approval`
-- `subject` text, `body` text
+- `subject` text, `body` text — the diagnosis written for ABSA; the composer weaves the advisory's recommended actions + talking points into the body so the approved email is self-contained.
 - `metrics` jsonb — per-category counts + deltas + totals (and spike detail for alerts)
+- `advisory` jsonb — the analyst+PR payload (`diagnosis`, `root_cause_hypothesis`, `recommended_actions[]`, `draft_comms`) rendered as editable fields in the UI. Default `{}`.
 - `source_message_ids` jsonb — the `agent_messages` ids behind this report (traceability)
 - `approved_by` uuid FK `users(id)` ON DELETE SET NULL, `approved_at` timestamptz
 - `sent_at` timestamptz, `email_id` uuid (link to the sent `emails` row), `reject_reason` text
@@ -144,7 +162,7 @@ Composed into the existing Abe tool provider (so they ride the existing `runner.
 A second job card alongside re-engage:
 - **Readiness:** recipients set? sending domain verified? calls flowing (any inbound in last N days)?
 - **"What's coming in" snapshot:** today's call volume, top reasons, any active spike.
-- **Pending for ABSA queue:** each card shows subject + body + metrics + **the source calls** (traceability) with **Edit / Approve / Reject**.
+- **Pending for ABSA queue:** each card shows the **diagnosis** (subject + body + metrics) *and* the **advisory** — recommended actions (with owner/urgency), root-cause hypothesis, and the draft comms (customer message / internal note / talking points) — all editable, plus **the source calls** (traceability), with **Edit / Approve / Reject**. Approving sends the composed body (diagnosis + woven-in actions/talking points) to ABSA.
 - **Sent log:** recent sent reports with timestamps (the audit trail ABSA can be pointed to).
 - **Settings panel:** cadence (daily/weekly + day/time), recipients, taxonomy editor, spike thresholds, brand voice.
 
