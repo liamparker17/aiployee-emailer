@@ -77,7 +77,45 @@ function ReportCard({ report, onReload }: ReportCardProps) {
   const [editing, setEditing] = useState(false);
   const [editSubject, setEditSubject] = useState(report.subject);
   const [editBody, setEditBody] = useState(report.body);
+  const [editAdvisory, setEditAdvisory] = useState<Advisory>(report.advisory);
+  // talking points edited as newline-separated text, split on save
+  const [editTalkingPoints, setEditTalkingPoints] = useState(
+    report.advisory.draft_comms.talking_points.join('\n'),
+  );
   const [saving, setSaving] = useState(false);
+
+  const inputCls =
+    'w-full rounded-lg border border-line-strong bg-surface-raised text-ink placeholder:text-ink-dim px-3 py-2 text-sm transition focus:outline-none focus:border-accent focus:ring-2 focus:ring-magenta/40';
+
+  function resetEdit() {
+    setEditing(false);
+    setEditSubject(report.subject);
+    setEditBody(report.body);
+    setEditAdvisory(report.advisory);
+    setEditTalkingPoints(report.advisory.draft_comms.talking_points.join('\n'));
+  }
+
+  function updateAction(i: number, patch: Partial<Advisory['recommended_actions'][number]>) {
+    setEditAdvisory(a => ({
+      ...a,
+      recommended_actions: a.recommended_actions.map((row, idx) => (idx === i ? { ...row, ...patch } : row)),
+    }));
+  }
+  function addAction() {
+    setEditAdvisory(a => ({
+      ...a,
+      recommended_actions: [...a.recommended_actions, { action: '', owner: '', urgency: 'med' }],
+    }));
+  }
+  function removeAction(i: number) {
+    setEditAdvisory(a => ({
+      ...a,
+      recommended_actions: a.recommended_actions.filter((_, idx) => idx !== i),
+    }));
+  }
+  function updateComms(patch: Partial<Advisory['draft_comms']>) {
+    setEditAdvisory(a => ({ ...a, draft_comms: { ...a.draft_comms, ...patch } }));
+  }
 
   async function handleApprove() {
     try {
@@ -104,7 +142,18 @@ function ReportCard({ report, onReload }: ReportCardProps) {
   async function handleSaveEdit() {
     setSaving(true);
     try {
-      await patchLineReport(report.id, { subject: editSubject, body: editBody });
+      const advisory: Advisory = {
+        ...editAdvisory,
+        root_cause_hypothesis: editAdvisory.root_cause_hypothesis?.trim() || null,
+        recommended_actions: editAdvisory.recommended_actions
+          .filter(a => a.action.trim())
+          .map(a => ({ action: a.action.trim(), owner: a.owner.trim() || 'Unassigned', urgency: a.urgency })),
+        draft_comms: {
+          ...editAdvisory.draft_comms,
+          talking_points: editTalkingPoints.split('\n').map(s => s.trim()).filter(Boolean),
+        },
+      };
+      await patchLineReport(report.id, { subject: editSubject, body: editBody, advisory });
       toast.success('Report updated.');
       setEditing(false);
       onReload();
@@ -129,23 +178,106 @@ function ReportCard({ report, onReload }: ReportCardProps) {
         </div>
 
         {editing ? (
-          <div className="space-y-2">
-            <input
-              value={editSubject}
-              onChange={e => setEditSubject(e.target.value)}
-              className="w-full rounded-lg border border-line-strong bg-surface-raised text-ink px-3 py-2 text-sm font-semibold transition focus:outline-none focus:border-accent focus:ring-2 focus:ring-magenta/40"
-            />
-            <textarea
-              rows={4}
-              value={editBody}
-              onChange={e => setEditBody(e.target.value)}
-              className="w-full rounded-lg border border-line-strong bg-surface-raised text-ink placeholder:text-ink-dim px-3 py-2 text-sm transition focus:outline-none focus:border-accent focus:ring-2 focus:ring-magenta/40 resize-none"
-            />
+          <div className="space-y-3">
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-ink-muted">Subject</span>
+              <input
+                value={editSubject}
+                onChange={e => setEditSubject(e.target.value)}
+                className={`${inputCls} font-semibold`}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-ink-muted">Body (what's sent to ABSA)</span>
+              <textarea
+                rows={5}
+                value={editBody}
+                onChange={e => setEditBody(e.target.value)}
+                className={`${inputCls} resize-y`}
+              />
+            </label>
+
+            {/* ── Advisory editor ── */}
+            <div className="pt-1 space-y-3 border-t border-line">
+              <span className="text-xs font-medium uppercase tracking-wide text-ink-dim">Advisory</span>
+
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-ink-muted">Root-cause hypothesis</span>
+                <input
+                  value={editAdvisory.root_cause_hypothesis ?? ''}
+                  onChange={e => setEditAdvisory(a => ({ ...a, root_cause_hypothesis: e.target.value }))}
+                  placeholder="Likely cause (stated as a hypothesis)"
+                  className={inputCls}
+                />
+              </label>
+
+              <div className="space-y-2">
+                <span className="text-xs font-medium text-ink-muted">Recommended actions</span>
+                {editAdvisory.recommended_actions.map((a, i) => (
+                  <div key={i} className="flex flex-wrap gap-2 items-start">
+                    <input
+                      value={a.action}
+                      onChange={e => updateAction(i, { action: e.target.value })}
+                      placeholder="Action"
+                      className={`${inputCls} flex-1 min-w-[8rem]`}
+                    />
+                    <input
+                      value={a.owner}
+                      onChange={e => updateAction(i, { owner: e.target.value })}
+                      placeholder="Owner"
+                      className={`${inputCls} w-28`}
+                    />
+                    <select
+                      value={a.urgency}
+                      onChange={e => updateAction(i, { urgency: e.target.value as Advisory['recommended_actions'][number]['urgency'] })}
+                      className={`${inputCls} w-24`}
+                    >
+                      <option value="low">low</option>
+                      <option value="med">med</option>
+                      <option value="high">high</option>
+                    </select>
+                    <Button variant="ghost" onClick={() => removeAction(i)} aria-label="Remove action">
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+                <Button variant="ghost" onClick={addAction}>+ Add action</Button>
+              </div>
+
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-ink-muted">Draft customer message</span>
+                <textarea
+                  rows={3}
+                  value={editAdvisory.draft_comms.customer_message}
+                  onChange={e => updateComms({ customer_message: e.target.value })}
+                  className={`${inputCls} resize-y`}
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-ink-muted">Internal / ABSA note</span>
+                <textarea
+                  rows={3}
+                  value={editAdvisory.draft_comms.internal_note}
+                  onChange={e => updateComms({ internal_note: e.target.value })}
+                  className={`${inputCls} resize-y`}
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-ink-muted">Talking points (one per line)</span>
+                <textarea
+                  rows={3}
+                  value={editTalkingPoints}
+                  onChange={e => setEditTalkingPoints(e.target.value)}
+                  className={`${inputCls} resize-y`}
+                />
+              </label>
+            </div>
+
             <div className="flex gap-2">
               <Button variant="primary" onClick={handleSaveEdit} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
               </Button>
-              <Button variant="ghost" onClick={() => { setEditing(false); setEditSubject(report.subject); setEditBody(report.body); }}>
+              <Button variant="ghost" onClick={resetEdit}>
                 Cancel
               </Button>
             </div>
@@ -165,7 +297,8 @@ function ReportCard({ report, onReload }: ReportCardProps) {
         )}
       </div>
 
-      {/* ── Advisory half ── */}
+      {/* ── Advisory + actions (hidden while editing; the editor lives in the diagnosis half) ── */}
+      {!editing && (
       <div className="px-5 py-4 space-y-3 bg-surface-raised/50">
         <span className="text-xs font-medium uppercase tracking-wide text-ink-dim">Advisory</span>
 
@@ -258,6 +391,7 @@ function ReportCard({ report, onReload }: ReportCardProps) {
           )}
         </div>
       </div>
+      )}
     </Card>
   );
 }
