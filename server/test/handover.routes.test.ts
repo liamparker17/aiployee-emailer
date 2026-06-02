@@ -192,6 +192,20 @@ describe('POST /api/agent/handovers/:id/dismiss', () => {
     expect(res.json().handover.dismiss_reason).toBe('Caller resolved on call');
   });
 
+  it('returns 409 and stays forwarded when the handover is not pending', async () => {
+    const { tenantId, headers, csrf } = await adminSession();
+    await seedSender(tenantId);
+    await upsertLineReportConfig(pool, tenantId, { enabled: true, recipients: ['callbacks@absa.co.za'] });
+    const handover = await seedPendingHandover(tenantId);
+    const h = { ...headers, 'x-csrf-token': csrf.csrfToken };
+    const fwd = await app.inject({ method: 'POST', url: `/api/agent/handovers/${handover.id}/forward`, headers: h });
+    expect(fwd.statusCode).toBe(200);
+    const res = await app.inject({ method: 'POST', url: `/api/agent/handovers/${handover.id}/dismiss`, headers: h, payload: { reason: 'x' } });
+    expect(res.statusCode).toBe(409);
+    const check = await app.inject({ method: 'GET', url: `/api/agent/handovers/${handover.id}`, headers });
+    expect(check.json().handover.status).toBe('forwarded');
+  });
+
   it('returns 403 for non-admin', async () => {
     const { tenantId } = await adminSession();
     const handover = await seedPendingHandover(tenantId);

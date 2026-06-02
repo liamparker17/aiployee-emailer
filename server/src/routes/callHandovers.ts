@@ -83,9 +83,13 @@ export function registerCallHandoverRoutes(app: FastifyInstance): void {
     try {
       const ctx = requireTenantCtx(req);
       requireAdmin(ctx);
+      const id = (req.params as any).id;
       const reason = (req.body as any)?.reason ?? null;
-      const h = await setHandoverStatus(app.pool, ctx.tenantId, (req.params as any).id, 'dismissed', { dismissReason: reason });
-      if (!h) throw new AppError('not_found', 404, 'Handover not found');
+      const existing = await getHandover(app.pool, ctx.tenantId, id);
+      if (!existing) throw new AppError('not_found', 404, 'Handover not found');
+      // Only a pending handover can be dismissed — never flip a forwarded one back.
+      if (existing.status !== 'pending') throw new AppError('conflict', 409, 'Only pending handovers can be dismissed');
+      const h = await setHandoverStatus(app.pool, ctx.tenantId, id, 'dismissed', { dismissReason: reason });
       reply.send({ handover: h });
     } catch (e) { sendError(reply, e); }
   });
