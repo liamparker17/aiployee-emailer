@@ -6,6 +6,7 @@ import AbeReadiness from './AbeReadiness';
 import AbeChat from './AbeChat';
 import LineReportingPanel from './LineReportingPanel';
 import LineReportingSettings from './LineReportingSettings';
+import CallbackHandoverPanel from './CallbackHandoverPanel';
 import { getLineSettings, type LineReportConfig } from '../../lib/abe';
 
 function statusLine(config: LineReportConfig | null, ready: boolean | null): string {
@@ -37,6 +38,9 @@ export default function AbeHome() {
     <div className="space-y-6">
       {/* ── Readiness banner (renders nothing when prereqs are met) ── */}
       <AbeReadiness key={readinessKey} onReady={handleReady} />
+
+      {/* ── Callback queue (centrepiece: ABSA callbacks to forward) ── */}
+      <CallbackHandoverPanel />
 
       {/* ── Who Abe is (identity + the no-cold-contact guarantee) ── */}
       <Card className="space-y-3">
