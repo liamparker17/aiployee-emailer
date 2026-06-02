@@ -6,6 +6,7 @@ import { getGoal } from '../../repos/agentGoals.js';
 import { insertChatMessage, listChatMessages } from '../../repos/agentChat.js';
 import { buildAbeSystemPrompt } from './prompt.js';
 import { makeAbeChatProvider } from './chatTools.js';
+import { makeLineChatProvider } from './lineChatTools.js';
 
 export async function runAbeChat(args: {
   pool: pg.Pool; encKey: Buffer; tenantId: string; baseUrl: string; userMessage: string; llmFactory?: LlmFactory;
@@ -33,6 +34,7 @@ export async function runAbeChat(args: {
 
   const provider = compositeProvider([
     makeAbeChatProvider({ pool, encKey, tenantId, baseUrl, llmFactory }),
+    makeLineChatProvider({ pool, tenantId, llm: llm as any, model }),
     ...(await assembleTenantProviders(pool, encKey, tenantId, apiKey)),
   ]);
   try {
