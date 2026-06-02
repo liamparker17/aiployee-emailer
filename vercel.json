@@ -14,7 +14,7 @@
     { "path": "/v1/cron/abe-shift",     "schedule": "0 8 * * *" },
     { "path": "/v1/cron/abe-touches",   "schedule": "30 8 * * *" },
     { "path": "/v1/cron/abe-outcomes",  "schedule": "0 9 * * *" },
-    { "path": "/v1/cron/line-report",   "schedule": "0 6 * * *" }
+    { "path": "/v1/cron/line-report",   "schedule": "0 * * * *" }
   ],
   "rewrites": [
     { "source": "/healthz",        "destination": "/api/index" },

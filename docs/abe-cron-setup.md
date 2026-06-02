@@ -24,7 +24,7 @@ or `X-Cron-Secret: <secret>`.
 | `/v1/cron/abe-shift` | Abe's heartbeat: propose/auto-fire a play per enabled tenant | `0 8 * * *` (daily 08:00) |
 | `/v1/cron/abe-touches` | Advance executing plays to their next due touch (auto-skips re-engaged) | `30 8 * * *` |
 | `/v1/cron/abe-outcomes` | Roll up engagement; close attribution windows | `0 9 * * *` |
-| `/v1/cron/line-report` | Abe Client Line Reporting: tag new calls, detect spikes, draft daily digests & cases for every enabled tenant | `0 6 * * *` (daily 06:00) |
+| `/v1/cron/line-report` | Abe Client Line Reporting: every hour tag new calls + draft spike alerts & high-severity case escalations (fast escalation); digests are drafted only at each tenant's configured `send_hour_utc` | `0 * * * *` (hourly) |
 
 ## Plan / cost notes
 - **Sub-daily schedules (e.g. `process-queue` every minute) require a Vercel plan that allows it**

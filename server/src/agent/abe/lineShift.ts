@@ -39,9 +39,14 @@ export async function runLineReportShift(args: {
     await composeCase({ pool, tenantId, llm, model, messageId: hc.message_id, content: hc.content }); cases++;
   }
 
+  // Tagging/alerts/cases run on every (hourly) invocation for fast escalation;
+  // digests are emitted only at the tenant's configured UTC send hour.
   let digests = 0;
-  if (cfg.daily_digest) { await composeDigest({ pool, tenantId, llm, model, periodLabel: 'daily', start, end }); digests++; }
-  if (cfg.weekly_rollup && now.getUTCDay() === cfg.weekly_send_day) {
+  const onSendHour = now.getUTCHours() === cfg.send_hour_utc;
+  if (cfg.daily_digest && onSendHour) {
+    await composeDigest({ pool, tenantId, llm, model, periodLabel: 'daily', start, end }); digests++;
+  }
+  if (cfg.weekly_rollup && onSendHour && now.getUTCDay() === cfg.weekly_send_day) {
     const wStart = new Date(now.getTime() - 7 * DAY);
     await composeDigest({ pool, tenantId, llm, model, periodLabel: 'weekly', start: wStart, end }); digests++;
   }

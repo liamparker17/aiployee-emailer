@@ -94,6 +94,19 @@ describe('GET /api/agent/line-reports/:id', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().report.id).toBe(report.id);
   });
+
+  it('does not leak another tenant\'s report (404)', async () => {
+    const a = await adminSession();
+    const tB = await createTenant(pool);
+    const reportB = await insertReport(pool, {
+      tenantId: tB.id, reportType: 'digest', subject: 'B-only', body: 'x',
+      metrics: {}, sourceMessageIds: [],
+    });
+    const res = await app.inject({
+      method: 'GET', url: `/api/agent/line-reports/${reportB.id}`, headers: a.headers,
+    });
+    expect(res.statusCode).toBe(404);
+  });
 });
 
 describe('PATCH /api/agent/line-reports/:id', () => {
@@ -197,6 +210,41 @@ describe('POST /api/agent/line-reports/:id/approve', () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe('cannot_send');
+  });
+
+  it('a second approve does not re-send (atomic claim guards double-send)', async () => {
+    const { tenantId, headers, csrf } = await adminSession();
+    await seedSender(tenantId);
+    await upsertLineReportConfig(pool, tenantId, { enabled: true, recipients: ['ops@absa.co.za'] });
+    const report = await insertReport(pool, {
+      tenantId, reportType: 'digest', subject: 'Once', body: 'Body',
+      metrics: {}, sourceMessageIds: [],
+    });
+    const h = { ...headers, 'x-csrf-token': csrf.csrfToken };
+
+    const first = await app.inject({ method: 'POST', url: `/api/agent/line-reports/${report.id}/approve`, headers: h });
+    expect(first.statusCode).toBe(200);
+    const after1 = await pool.query(`SELECT count(*)::int AS n FROM emails WHERE tenant_id=$1`, [tenantId]);
+
+    const second = await app.inject({ method: 'POST', url: `/api/agent/line-reports/${report.id}/approve`, headers: h });
+    expect(second.statusCode).toBe(400);
+    expect(second.json().error.code).toBe('cannot_send');
+    const after2 = await pool.query(`SELECT count(*)::int AS n FROM emails WHERE tenant_id=$1`, [tenantId]);
+    expect(after2.rows[0].n).toBe(after1.rows[0].n); // no second send
+  });
+
+  it('returns 403 for non-admin', async () => {
+    const { tenantId } = await adminSession();
+    const report = await insertReport(pool, {
+      tenantId, reportType: 'digest', subject: 'S', body: 'B',
+      metrics: {}, sourceMessageIds: [],
+    });
+    const { headers, csrf } = await nonAdminSession(tenantId);
+    const res = await app.inject({
+      method: 'POST', url: `/api/agent/line-reports/${report.id}/approve`,
+      headers: { ...headers, 'x-csrf-token': csrf.csrfToken },
+    });
+    expect(res.statusCode).toBe(403);
   });
 });
 

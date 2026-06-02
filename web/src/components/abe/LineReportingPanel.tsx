@@ -27,9 +27,13 @@ function metricsSummary(metrics: unknown): string {
   const m = metrics as Record<string, unknown>;
   const parts: string[] = [];
   if (typeof m.total === 'number') parts.push(`${m.total} total`);
-  if (Array.isArray(m.top_categories) && m.top_categories.length) {
-    const cats = (m.top_categories as string[]).slice(0, 3).join(', ');
-    parts.push(`top: ${cats}`);
+  // Digest metrics carry { byCategory: { [name]: count } }; show the top few.
+  if (m.byCategory && typeof m.byCategory === 'object') {
+    const cats = Object.entries(m.byCategory as Record<string, number>)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, count]) => `${name} (${count})`);
+    if (cats.length) parts.push(`top: ${cats.join(', ')}`);
   }
   return parts.join(' · ');
 }
