@@ -25,5 +25,8 @@ it('exposes NO send/execute tool (structural gate)', async () => {
   const names = (await p.listTools()).map(t => t.name);
   expect(names).not.toContain('send');
   expect(names).not.toContain('execute_play');
-  expect(names.some(n => /send|dispatch|email/i.test(n))).toBe(false);
+  // No send/dispatch tool, and no *write* email tool. The read-only
+  // `search_emails` is exempt — it reads sent emails, it cannot send.
+  const writeLike = names.filter(n => n !== 'search_emails');
+  expect(writeLike.some(n => /send|dispatch|email/i.test(n))).toBe(false);
 });
