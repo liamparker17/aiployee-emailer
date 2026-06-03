@@ -127,6 +127,27 @@ export function registerCallAnalyticsRoutes(app: FastifyInstance): void {
     } catch (e) { sendError(reply, e); }
   });
 
+  // ── Call-line settings (MUST be before /:id) ─────────────────────────────
+
+  app.get('/api/calls/settings', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      requireAdmin(ctx);
+      const cfg = await getLineReportConfig(app.pool, ctx.tenantId);
+      reply.send({ ingestSendsAsCalls: cfg?.ingest_sends_as_calls ?? false });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  app.put('/api/calls/settings', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      requireAdmin(ctx);
+      const body = z.object({ ingestSendsAsCalls: z.boolean() }).parse(req.body);
+      const cfg = await upsertLineReportConfig(app.pool, ctx.tenantId, { ingestSendsAsCalls: body.ingestSendsAsCalls });
+      reply.send({ ingestSendsAsCalls: cfg.ingest_sends_as_calls });
+    } catch (e) { sendError(reply, e); }
+  });
+
   // ── Get single call (parameterised — after literal paths) ─────────────────
 
   app.get('/api/calls/:id', async (req, reply) => {

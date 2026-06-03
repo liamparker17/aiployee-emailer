@@ -51,3 +51,15 @@ export const suggestCategories = () =>
 
 export const retagCalls = () =>
   api<{ retagged: number; remaining: number }>(`/api/calls/retag`, { method: 'POST' });
+
+export const getCallSettings = () =>
+  api<{ ingestSendsAsCalls: boolean }>(`/api/calls/settings`);
+
+export const putCallSettings = (ingestSendsAsCalls: boolean) =>
+  api<{ ingestSendsAsCalls: boolean }>(`/api/calls/settings`, {
+    method: 'PUT',
+    body: JSON.stringify({ ingestSendsAsCalls }),
+  });
+
+export const importPastCalls = () =>
+  api<{ imported: number; tagged: number }>(`/api/calls/import-past`, { method: 'POST' });

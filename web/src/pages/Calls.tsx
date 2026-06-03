@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Phone, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Bot } from 'lucide-react';
+import { Phone, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Bot, Download } from 'lucide-react';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import {
@@ -9,6 +9,9 @@ import {
   putCategories,
   suggestCategories,
   retagCalls,
+  getCallSettings,
+  putCallSettings,
+  importPastCalls,
 } from '../lib/calls';
 import type { Call, Breakdown } from '../lib/calls';
 import { Table, Th, Td } from '../components/Table';
@@ -184,7 +187,7 @@ function CategoryEditor({
 // ═══════════════════════════════════════════════════════════════════════════════
 // Panel 2: Breakdown
 // ═══════════════════════════════════════════════════════════════════════════════
-function BreakdownPanel() {
+function BreakdownPanel({ ingestOn, reloadKey }: { ingestOn: boolean; reloadKey: number }) {
   const toast = useToast();
   const [win, setWin] = useState('7d');
   const [data, setData] = useState<Breakdown | null>(null);
@@ -206,7 +209,7 @@ function BreakdownPanel() {
     }
   }
 
-  useEffect(() => { load(win); }, [win]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(win); }, [win, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Card className="space-y-4">
@@ -243,7 +246,11 @@ function BreakdownPanel() {
         <EmptyState
           icon={Phone}
           title="No calls yet"
-          description="They'll show up here automatically as they come in."
+          description={
+            ingestOn
+              ? "They'll show up here as you send call summaries — or use Import past calls to bring in earlier ones."
+              : "Turn on 'This is a call line' so Abe analyses the summaries you send."
+          }
         />
       ) : (
         <div className="space-y-4">
@@ -733,6 +740,93 @@ function AskAbePanel() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Panel 0: Call-line settings (toggle + import past calls)
+// ═══════════════════════════════════════════════════════════════════════════════
+function CallLineSettingsPanel({
+  ingestOn,
+  onIngestChange,
+  onImported,
+}: {
+  ingestOn: boolean;
+  onIngestChange: (v: boolean) => void;
+  onImported: () => void;
+}) {
+  const toast = useToast();
+  const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  async function handleToggle(next: boolean) {
+    if (saving) return;
+    const prev = ingestOn;
+    onIngestChange(next); // optimistic
+    setSaving(true);
+    try {
+      const r = await putCallSettings(next);
+      onIngestChange(r.ingestSendsAsCalls);
+      toast.success(r.ingestSendsAsCalls ? 'Call line turned on.' : 'Call line turned off.');
+    } catch (err) {
+      onIngestChange(prev); // restore prior state on failure
+      toast.error(friendlyError(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleImport() {
+    if (importing) return;
+    setImporting(true);
+    try {
+      const r = await importPastCalls();
+      toast.success(`Imported ${r.imported} past calls`);
+      onImported();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  return (
+    <Card className="space-y-4">
+      <h2 className="text-base font-semibold text-ink">Call line</h2>
+
+      <label className="flex items-start gap-3 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={ingestOn}
+          disabled={saving}
+          onChange={e => handleToggle(e.target.checked)}
+          className="h-4 w-4 mt-0.5 rounded border-line-strong accent-magenta disabled:opacity-50"
+          aria-label="This is a call line"
+        />
+        <span className="space-y-1">
+          <span className="flex items-center gap-2 text-sm font-medium text-ink">
+            This is a call line
+            {saving && <Spinner />}
+          </span>
+          <span className="block text-sm text-ink-muted">
+            Abe treats the call summaries you send as calls and analyses them here.
+          </span>
+        </span>
+      </label>
+
+      {ingestOn && (
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <Button variant="secondary" onClick={handleImport} disabled={importing}>
+            {importing
+              ? <><Spinner /> &nbsp;Importing…</>
+              : <><Download size={14} /> Import past calls</>}
+          </Button>
+          <span className="text-xs text-ink-muted">
+            Brings your earlier sent summaries into the breakdown.
+          </span>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Main page
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Calls() {
@@ -742,6 +836,9 @@ export default function Calls() {
   const [catLoading, setCatLoading] = useState(true);
   const [categories, setCategories] = useState<string[] | null>(null);
   const [catError, setCatError] = useState<string | null>(null);
+
+  const [ingestOn, setIngestOn] = useState(false);
+  const [breakdownKey, setBreakdownKey] = useState(0);
 
   const isAdmin = !authLoading && (user?.role === 'tenant_admin' || user?.role === 'super_admin');
 
@@ -761,8 +858,18 @@ export default function Calls() {
     }
   }
 
+  async function loadSettings() {
+    try {
+      const r = await getCallSettings();
+      setIngestOn(r.ingestSendsAsCalls);
+    } catch (err) {
+      // Non-fatal: keep the page usable, surface as a toast.
+      toast.error(friendlyError(err));
+    }
+  }
+
   useEffect(() => {
-    if (!authLoading) loadCategories();
+    if (!authLoading) { loadCategories(); loadSettings(); }
   }, [authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (authLoading || catLoading) {
@@ -816,7 +923,12 @@ export default function Calls() {
   return (
     <div className="space-y-6">
       <PageHeader title="Calls" subtitle="See what your callers are calling about." />
-      <BreakdownPanel />
+      <CallLineSettingsPanel
+        ingestOn={ingestOn}
+        onIngestChange={setIngestOn}
+        onImported={() => setBreakdownKey(k => k + 1)}
+      />
+      <BreakdownPanel ingestOn={ingestOn} reloadKey={breakdownKey} />
       <CategoriesPanel
         categories={categories ?? []}
         onUpdated={cats => setCategories(cats)}

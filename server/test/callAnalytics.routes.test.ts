@@ -223,6 +223,50 @@ describe('POST /api/calls/import-past', () => {
   });
 });
 
+// ── GET/PUT /api/calls/settings ───────────────────────────────────────────
+
+describe('GET/PUT /api/calls/settings', () => {
+  it('GET returns ingestSendsAsCalls=false by default for admin', async () => {
+    const { headers } = await adminSession();
+    const res = await app.inject({ method: 'GET', url: '/api/calls/settings', headers });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ingestSendsAsCalls: false });
+  });
+
+  it('PUT sets ingestSendsAsCalls=true and GET reflects it', async () => {
+    const { headers, csrf } = await adminSession();
+    const put = await app.inject({
+      method: 'PUT', url: '/api/calls/settings',
+      headers: { ...headers, 'x-csrf-token': csrf.csrfToken },
+      payload: { ingestSendsAsCalls: true },
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.json()).toEqual({ ingestSendsAsCalls: true });
+
+    const get = await app.inject({ method: 'GET', url: '/api/calls/settings', headers });
+    expect(get.statusCode).toBe(200);
+    expect(get.json()).toEqual({ ingestSendsAsCalls: true });
+  });
+
+  it('GET returns 403 for non-admin', async () => {
+    const { tenantId } = await adminSession();
+    const { headers } = await nonAdminSession(tenantId);
+    const res = await app.inject({ method: 'GET', url: '/api/calls/settings', headers });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('PUT returns 403 for non-admin', async () => {
+    const { tenantId } = await adminSession();
+    const { headers, csrf } = await nonAdminSession(tenantId);
+    const res = await app.inject({
+      method: 'PUT', url: '/api/calls/settings',
+      headers: { ...headers, 'x-csrf-token': csrf.csrfToken },
+      payload: { ingestSendsAsCalls: true },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
 // ── GET /api/calls/:id ────────────────────────────────────────────────────
 
 describe('GET /api/calls/:id', () => {
