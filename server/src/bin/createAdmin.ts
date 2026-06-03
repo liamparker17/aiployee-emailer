@@ -15,6 +15,6 @@ await pool.query(
   `INSERT INTO users(tenant_id,email,password_hash,role)
    VALUES (NULL, $1, $2, 'super_admin')
    ON CONFLICT (tenant_id, email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
-  [email, hash]);
+  [email.trim().toLowerCase(), hash]);
 console.log('super_admin ready:', email);
 await closePool();

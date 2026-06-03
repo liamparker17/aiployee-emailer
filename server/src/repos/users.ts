@@ -11,11 +11,12 @@ export async function createInvitedUser(pool: pg.Pool, input: {
   const token = randomBytes(24).toString('base64url');
   const placeholderHash = await hashPassword(randomBytes(16).toString('hex'));
   const ttl = input.ttlMinutes ?? 60 * 24 * 7;
+  const email = input.email.trim().toLowerCase(); // canonical: store + look up lowercase
   const r = await pool.query<User>(
     `INSERT INTO users(tenant_id,email,password_hash,role,invite_token,invite_expires_at)
      VALUES ($1,$2,$3,$4,$5, now() + ($6 || ' minutes')::interval)
      RETURNING id, tenant_id, email, role`,
-    [input.tenantId, input.email, placeholderHash, input.role, token, String(ttl)],
+    [input.tenantId, email, placeholderHash, input.role, token, String(ttl)],
   );
   return { user: r.rows[0], inviteToken: token };
 }

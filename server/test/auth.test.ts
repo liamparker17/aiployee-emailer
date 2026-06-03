@@ -38,6 +38,22 @@ describe('auth', () => {
     expect(r.json()).toMatchObject({ user: { email: 'root@x.com', role: 'super_admin' } });
   });
 
+  it('login is case-insensitive on email (stored lowercase, typed any case)', async () => {
+    await createUser(pool, { tenantId: null, email: 'simon@aiployee.co.za', password: 'pw12345!', role: 'super_admin' });
+    const headers = await csrfHeaders();
+    const r = await app.inject({
+      method: 'POST', url: '/auth/login', headers,
+      payload: { email: 'Simon@Aiployee.co.za', password: 'pw12345!' },
+    });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ user: { role: 'super_admin' } });
+  });
+
+  it('invited emails are stored lowercase', async () => {
+    const { user } = await createInvitedUser(pool, { tenantId: null, email: 'MixedCase@Example.com', role: 'super_admin' });
+    expect(user.email).toBe('mixedcase@example.com');
+  });
+
   it('rejects bad password', async () => {
     await createUser(pool, { tenantId: null, email: 'root@x.com', password: 'pw12345!', role: 'super_admin' });
     const headers = await csrfHeaders();

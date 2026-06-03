@@ -11,7 +11,8 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     try {
       const body = LoginBody.parse(req.body);
       const r = await app.pool.query<{ id: string; tenant_id: string | null; password_hash: string; role: string }>(
-        `SELECT id, tenant_id, password_hash, role FROM users WHERE email = $1 LIMIT 1`,
+        // Case-insensitive: emails are stored lowercase, but users may type any case.
+        `SELECT id, tenant_id, password_hash, role FROM users WHERE lower(email) = lower($1) LIMIT 1`,
         [body.email],
       );
       const u = r.rows[0];
