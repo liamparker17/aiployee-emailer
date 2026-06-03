@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useEffect } from 'react';
-import { LayoutDashboard, Send, FileText, Server, ShieldCheck, KeyRound, Wand2, Bot, Webhook, ScrollText, ShieldBan, Users, UsersRound, ListChecks, Filter, Megaphone, Rocket, Building2, LogOut } from 'lucide-react';
+import { LayoutDashboard, Send, FileText, Server, ShieldCheck, KeyRound, Wand2, Bot, Webhook, ScrollText, ShieldBan, Users, UsersRound, ListChecks, Filter, Megaphone, Rocket, Building2, LogOut, Phone } from 'lucide-react';
 import { useAuth } from '../auth';
 import TenantSwitcher from './TenantSwitcher';
 import { Logo } from './Logo';
@@ -46,6 +46,9 @@ export default function AppShell() {
           <SectionLabel>Activity</SectionLabel>
           <NavLink to={`${base}/log`} className={link}><ScrollText size={16} />Email log</NavLink>
           <NavLink to={`${base}/suppressions`} className={link}><ShieldBan size={16} />Suppressions</NavLink>
+          {user?.role !== 'tenant_user' && (
+            <NavLink to={`${base}/calls`} className={link}><Phone size={16} />Calls</NavLink>
+          )}
 
           <SectionLabel>Integrations</SectionLabel>
           <NavLink to={`${base}/api-keys`} className={link}><KeyRound size={16} />API keys</NavLink>
