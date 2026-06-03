@@ -558,12 +558,20 @@ export const retagCalls = () => api<{ retagged: number; remaining: number }>(`/a
 
 **Files:** Create `web/src/pages/Calls.tsx`; Modify `web/src/routes.tsx` (add `{ path: 'calls', element: <Calls /> }` under the `/t/:tenantId` children) and `web/src/components/AppShell.tsx` (nav link, admin-only).
 
-- [ ] **Step 1: Build the page** with four panels (mirror existing tenant pages — `PageHeader`, `Table`, `Modal`, `Button`, `useToast`, admin gate via `useAuth`):
-  - **Breakdown:** window selector (Today/7d/30d) → `getBreakdown` → a counts/% table (count, and `count/total` as %) + a simple per-day list/bars. States: loading skeleton, empty ("No calls yet — they'll appear as Jobix sends them"), populated, error toast.
-  - **Categories:** `getCategories` → editable list (add/remove rows); **Suggest with Abe** (`suggestCategories` → show proposed, let user replace/merge); **Save** (`putCategories`); **Re-tag all calls** (confirm → `retagCalls` → toast `retagged/remaining`). Disable buttons while in flight.
-  - **Explorer:** search input + category `<select>` (from categories) + (optional) date inputs → `listCalls` (paginated; Prev/Next via offset) → table (date · category chip · severity · excerpt) → row click opens a `Modal` with the full `content` (via `getCall` or the already-loaded row). All 6 states.
-  - **Ask Abe:** an input → posts the question to the existing chat endpoint (`POST /api/agent/chat` { message }) and shows the reply. (Reuse the chat path per the spec; no new agent route.)
-  - Admin-only: `const { user, loading } = useAuth(); if (!loading && user?.role === 'tenant_user') show read-only or hide` — match how other admin pages gate. Nav link in `AppShell.tsx` shown for non-`tenant_user` (mirror the Users link).
+- [ ] **Step 1: Build the page — to the customer-friendly bar (spec §7).** End user = a **non-technical ops/call-centre manager**; target "I get it in 5 seconds." Mirror existing tenant pages and reuse `PageHeader`, `Card`, `Table`, `Modal`, `Button`, `Skeleton`, `EmptyState`, `useToast`. Plain language throughout (say **"categories" / "calls" / "Re-sort all calls"**, never taxonomy/tags/messages). 8px spacing grid; mobile = cards, desktop = table; labels visible; keyboard-navigable.
+
+  **Page header:** title "Calls" + one friendly line: *"See what your callers are calling about."*
+
+  **Guided first-run (do this first):** if `getCategories()` returns `[]`, the page leads with ONE setup `Card`: *"Let's see what your callers are calling about — Abe can suggest categories from your calls."* + a **"Let Abe suggest categories"** button. Clicking runs `suggestCategories()` (button shows an inline spinner), then shows the proposed list to edit, then **Save** (`putCategories`) → automatically calls `retagCalls()` with a progress toast (*"Sorting your calls…"* → *"Sorted N calls"*) → the breakdown appears. No bare empty page, ever.
+
+  Each of the four panels MUST implement all 6 states (empty/loading/populated/error/disabled/confirm); empty states teach the next action; errors are plain-language **with the fix** (map backend `no_openai_key` → *"Abe needs an OpenAI key to suggest categories — add one in Settings"* with a link; never show raw codes); never clear user input on error; disable buttons + inline spinner while requests are in flight.
+
+  - **Breakdown:** window selector (Today / 7 days / 30 days) → `getBreakdown(window)` → a counts table with **count AND %** (`count/total`) + a simple per-day bar/list. Loading = `Skeleton`; empty = *"No calls yet — they'll show up here automatically as they come in."*; error = retry + toast.
+  - **Categories:** `getCategories` → editable list (add/remove rows, labels visible); **"Let Abe suggest"** (`suggestCategories` → review/replace/merge); **Save** (`putCategories`); **"Re-sort all calls"** → **confirm dialog** ("Re-sort every call into your current categories?") → `retagCalls` → toast with `retagged`/`remaining` (if `remaining>0`, say *"Sorted N; the rest finish automatically shortly"*).
+  - **Explorer:** search input (placeholder *"Search what callers said…"*) + category `<select>` + optional date range → `listCalls` (paginated; Prev/Next via `offset`, show "X–Y of total") → table on desktop / cards on mobile (date · category chip · severity · excerpt) → row click opens a `Modal` with the full call summary. All 6 states (empty = *"No calls match — try a different search or window."*).
+  - **Ask Abe:** an input with example-prompt placeholder (*"Try: how many claims last week?"*) → posts to the existing chat endpoint (`POST /api/agent/chat` { message }) and shows Abe's reply in his voice. Loading = "Abe is looking…"; error = friendly retry.
+
+  Admin-gate the page + nav: `const { user, loading } = useAuth();` and gate exactly like the other admin pages (hide/redirect for `tenant_user`). Nav link in `AppShell.tsx` shown for non-`tenant_user` (mirror the Users link).
 - [ ] **Step 2:** `cd web && npm run build` + `npx tsc --noEmit` (no NEW errors) → success.
 - [ ] **Step 3: Commit**
 

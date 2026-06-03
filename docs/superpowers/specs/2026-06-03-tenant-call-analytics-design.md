@@ -69,6 +69,18 @@ This is generic: every tenant gets it, against their own taxonomy. (ABSA reporti
 
 ---
 
+### 7. Customer-friendly UX — non-negotiable
+
+**End user:** a non-technical ops / call-centre manager. Bar = *"I understand this in 5 seconds."* Plain language, guided, generous explanations, big obvious actions.
+
+- **Guided first-run (the make-or-break):** with no categories set, the page leads with a single warm setup card — *"See what your callers are calling about. Abe can suggest categories from your calls."* → **Let Abe suggest** → review/tweak → **Save** → auto re-sort → the breakdown appears. ~20 seconds, no jargon. Never a bare empty page.
+- **All 6 states on every panel** (empty / loading / populated / error / disabled / confirm). Empty states teach the next action; loading uses skeletons; errors are plain-language **with the fix** (e.g. *"Abe needs an OpenAI key to suggest categories — add one in Settings"* + link), never raw codes.
+- **Plain language, zero internal jargon:** "categories" (not taxonomy/tags), "calls" (not messages), **"Re-sort all calls"** (not re-tag). Every panel has a one-line friendly explainer.
+- **Friendly Abe presence:** *"Abe read your recent calls and suggests these categories…"*; the Ask box shows example prompts (*"Try: how many claims last week?"*).
+- **Clear feedback:** success toasts (*"Sorted 240 calls into your categories"*), live progress/result on re-sort (`retagged`/`remaining`), buttons disabled + inline spinner while working; **never clear the user's input on error**.
+- **At-a-glance breakdown:** counts **and %** with simple bars; top reasons obvious immediately.
+- **Mobile-first + accessible:** cards on mobile / table on desktop; keyboard-navigable; ≥4.5:1 contrast; labels always visible; 8px spacing grid; reuse existing components (`PageHeader`, `Table`, `Modal`, `Button`, `Card`, `Skeleton`, `EmptyState`, `useToast`).
+
 ## Data flow
 
 ```
