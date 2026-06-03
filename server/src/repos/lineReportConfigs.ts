@@ -14,6 +14,7 @@ export interface LineReportConfigRow {
   spike_min_count: number;
   baseline_periods: number;
   brand_voice: string | null;
+  ingest_sends_as_calls: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -35,6 +36,7 @@ export interface LineReportConfigPatch {
   spikeMinCount?: number;
   baselinePeriods?: number;
   brandVoice?: string;
+  ingestSendsAsCalls?: boolean;
 }
 
 const clamp = (n: number, lo: number, hi: number) =>
@@ -78,12 +80,14 @@ export async function upsertLineReportConfig(
   const r = await pool.query<LineReportConfigRow>(
     `INSERT INTO line_report_configs
        (tenant_id, enabled, daily_digest, weekly_rollup, weekly_send_day, send_hour_utc,
-        recipients, taxonomy, spike_pct, spike_min_count, baseline_periods, brand_voice)
+        recipients, taxonomy, spike_pct, spike_min_count, baseline_periods, brand_voice,
+        ingest_sends_as_calls)
      VALUES ($1,
         COALESCE($2, false), COALESCE($3, true), COALESCE($4, true),
         COALESCE($5, 1), COALESCE($6, 6),
         COALESCE($7, '[]'::jsonb), COALESCE($8, $9::jsonb),
-        COALESCE($10, 50), COALESCE($11, 5), COALESCE($12, 4), $13)
+        COALESCE($10, 50), COALESCE($11, 5), COALESCE($12, 4), $13,
+        COALESCE($14, false))
      ON CONFLICT (tenant_id) DO UPDATE SET
         enabled          = COALESCE($2,  line_report_configs.enabled),
         daily_digest     = COALESCE($3,  line_report_configs.daily_digest),
@@ -96,6 +100,7 @@ export async function upsertLineReportConfig(
         spike_min_count  = COALESCE($11, line_report_configs.spike_min_count),
         baseline_periods = COALESCE($12, line_report_configs.baseline_periods),
         brand_voice      = COALESCE($13, line_report_configs.brand_voice),
+        ingest_sends_as_calls = COALESCE($14, line_report_configs.ingest_sends_as_calls),
         updated_at       = now()
      RETURNING *`,
     [
@@ -112,6 +117,7 @@ export async function upsertLineReportConfig(
       patch.spikeMinCount   != null ? clamp(patch.spikeMinCount, 1, 1000) : null,
       patch.baselinePeriods != null ? clamp(patch.baselinePeriods, 1, 12) : null,
       patch.brandVoice ?? null,
+      patch.ingestSendsAsCalls ?? null,
     ],
   );
   return r.rows[0];
