@@ -54,6 +54,19 @@ describe('auth', () => {
     expect(user.email).toBe('mixedcase@example.com');
   });
 
+  it('an email with both a super_admin and a tenant_admin row logs in by which password matches (super_admin preferred)', async () => {
+    const t = await createTenant(pool);
+    await createUser(pool, { tenantId: t.id, email: 'dup@x.com', password: 'tenantpw1', role: 'tenant_admin' });
+    await createUser(pool, { tenantId: null, email: 'dup@x.com', password: 'superpw1', role: 'super_admin' });
+    const headers = await csrfHeaders();
+    const asSuper = await app.inject({ method: 'POST', url: '/auth/login', headers, payload: { email: 'dup@x.com', password: 'superpw1' } });
+    expect(asSuper.statusCode).toBe(200);
+    expect(asSuper.json().user.role).toBe('super_admin');
+    const asTenant = await app.inject({ method: 'POST', url: '/auth/login', headers, payload: { email: 'dup@x.com', password: 'tenantpw1' } });
+    expect(asTenant.statusCode).toBe(200);
+    expect(asTenant.json().user.role).toBe('tenant_admin');
+  });
+
   it('rejects bad password', async () => {
     await createUser(pool, { tenantId: null, email: 'root@x.com', password: 'pw12345!', role: 'super_admin' });
     const headers = await csrfHeaders();

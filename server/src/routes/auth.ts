@@ -10,13 +10,19 @@ export async function registerAuthRoutes(app: FastifyInstance) {
   app.post('/auth/login', async (req, reply) => {
     try {
       const body = LoginBody.parse(req.body);
+      // The same email can have several rows (a global super_admin + tenant memberships).
+      // Match case-insensitively, prefer the highest-privilege row, and log in as the
+      // first row whose password verifies — so a super_admin always lands as super_admin.
       const r = await app.pool.query<{ id: string; tenant_id: string | null; password_hash: string; role: string }>(
-        // Case-insensitive: emails are stored lowercase, but users may type any case.
-        `SELECT id, tenant_id, password_hash, role FROM users WHERE lower(email) = lower($1) LIMIT 1`,
+        `SELECT id, tenant_id, password_hash, role FROM users WHERE lower(email) = lower($1)
+         ORDER BY CASE role WHEN 'super_admin' THEN 0 WHEN 'tenant_admin' THEN 1 ELSE 2 END, created_at ASC`,
         [body.email],
       );
-      const u = r.rows[0];
-      if (!u || !(await verifyPassword(body.password, u.password_hash))) {
+      let u: { id: string; tenant_id: string | null; password_hash: string; role: string } | undefined;
+      for (const row of r.rows) {
+        if (await verifyPassword(body.password, row.password_hash)) { u = row; break; }
+      }
+      if (!u) {
         throw new AppError('invalid_credentials', 401, 'Invalid email or password');
       }
       req.session.userId = u.id;
