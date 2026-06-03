@@ -69,7 +69,8 @@ export const router = createBrowserRouter([
     element: <AuthProvider><Authed><TenantGate><AppShell /></TenantGate></Authed></AuthProvider>,
     children: [
       { path: 'abe', element: <Abe /> },
-      { index: true, element: <Dashboard /> },
+      { index: true, element: <Navigate to="abe" replace /> }, // land on Abe, not the email dashboard
+      { path: 'dashboard', element: <Dashboard /> },
       { path: 'senders', element: <Senders /> },
       { path: 'domains', element: <Domains /> },
       { path: 'event-webhooks', element: <EventWebhooks /> },
