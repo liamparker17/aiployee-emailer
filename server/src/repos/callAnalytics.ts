@@ -85,7 +85,7 @@ export async function searchEmails(
   pool: pg.Pool,
   tenantId: string,
   opts: { text?: string; start: Date; end: Date; limit?: number },
-): Promise<{ count: number; examples: Array<{ to: string; subject: string; excerpt: string; sent_at: Date | null }> }> {
+): Promise<{ count: number; examples: Array<{ subject: string; excerpt: string; sent_at: Date | null }> }> {
   const where = [`tenant_id = $1`, `status = 'sent'`, `created_at >= $2`, `created_at < $3`];
   const params: unknown[] = [tenantId, opts.start, opts.end];
   if (opts.text) {
@@ -95,11 +95,11 @@ export async function searchEmails(
   const w = where.join(' AND ');
   const c = await pool.query<{ n: string }>(`SELECT count(*)::text n FROM emails WHERE ${w}`, params);
   params.push(Math.min(Math.max(opts.limit ?? 5, 1), 20));
-  const r = await pool.query<{ to_addr: string; subject: string; body: string | null; sent_at: Date | null }>(
-    `SELECT to_addr, subject, COALESCE(body_text, regexp_replace(body_html, '<[^>]+>', ' ', 'g')) AS body, sent_at
+  const r = await pool.query<{ subject: string; body: string | null; sent_at: Date | null }>(
+    `SELECT subject, COALESCE(body_text, regexp_replace(body_html, '<[^>]+>', ' ', 'g')) AS body, sent_at
        FROM emails WHERE ${w} ORDER BY created_at DESC LIMIT $${params.length}`, params);
   return {
     count: Number(c.rows[0].n),
-    examples: r.rows.map(x => ({ to: x.to_addr, subject: x.subject, excerpt: (x.body ?? '').replace(/\s+/g, ' ').slice(0, 180), sent_at: x.sent_at })),
+    examples: r.rows.map(x => ({ subject: x.subject, excerpt: (x.body ?? '').replace(/\s+/g, ' ').slice(0, 180), sent_at: x.sent_at })),
   };
 }
