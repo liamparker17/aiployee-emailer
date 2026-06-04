@@ -9,26 +9,26 @@ export interface EmailRow {
   template_id: string | null; attachments: unknown[];
   status: EmailStatus; scheduled_for: Date | null; sent_at: Date | null;
   error: string | null; message_id: string | null; api_key_id: string | null;
-  list_unsubscribe: string | null; created_at: Date;
+  list_unsubscribe: string | null; from_display_name: string | null; created_at: Date;
 }
 
 const SELECT = `
   id, tenant_id, sender_id, to_addr, cc, bcc, reply_to,
   subject, body_html, body_text, template_id, attachments, status,
-  scheduled_for, sent_at, error, message_id, api_key_id, list_unsubscribe, created_at`;
+  scheduled_for, sent_at, error, message_id, api_key_id, list_unsubscribe, from_display_name, created_at`;
 
 export async function insertEmail(pool: pg.Pool, input: {
   tenantId: string; senderId: string; toAddr: string; cc?: string[]; bcc?: string[];
   replyTo?: string | null; subject: string; bodyHtml: string; bodyText?: string | null;
   templateId?: string | null; attachments?: unknown[]; scheduledFor?: Date | null;
   apiKeyId?: string | null; status?: EmailStatus; campaignId?: string | null; listUnsubscribe?: string | null;
-  playId?: string | null;
+  playId?: string | null; fromDisplayName?: string | null;
 }): Promise<EmailRow> {
   const r = await pool.query<EmailRow>(
     `INSERT INTO emails(tenant_id, sender_id, to_addr, cc, bcc, reply_to,
                          subject, body_html, body_text, template_id, attachments,
-                         status, scheduled_for, api_key_id, campaign_id, list_unsubscribe, play_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17)
+                         status, scheduled_for, api_key_id, campaign_id, list_unsubscribe, play_id, from_display_name)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18)
      RETURNING ${SELECT}`,
     [
       input.tenantId, input.senderId, input.toAddr,
@@ -37,6 +37,7 @@ export async function insertEmail(pool: pg.Pool, input: {
       input.templateId ?? null, JSON.stringify(input.attachments ?? []),
       input.status ?? 'queued', input.scheduledFor ?? null, input.apiKeyId ?? null,
       input.campaignId ?? null, input.listUnsubscribe ?? null, input.playId ?? null,
+      input.fromDisplayName ?? null,
     ],
   );
   return r.rows[0];
