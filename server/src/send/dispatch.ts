@@ -44,7 +44,7 @@ async function sendOne(
 ): Promise<DispatchOutcome> {
   try {
     const info = await tx.sendMail({
-      from: { name: sender.display_name, address: sender.email },
+      from: { name: email.from_display_name ?? sender.display_name, address: sender.email },
       to: email.to_addr,
       cc: email.cc.length ? email.cc : undefined,
       bcc: email.bcc.length ? email.bcc : undefined,

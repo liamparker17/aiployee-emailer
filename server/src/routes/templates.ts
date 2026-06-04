@@ -12,6 +12,7 @@ const CreateBody = z.object({
   subject: z.string().min(1),
   bodyHtml: z.string().min(1),
   bodyText: z.string().optional().nullable(),
+  displayName: z.string().max(120).trim().nullable().optional(),
 });
 
 const UpdateBody = z.object({
@@ -19,6 +20,7 @@ const UpdateBody = z.object({
   subject: z.string().min(1).optional(),
   bodyHtml: z.string().min(1).optional(),
   bodyText: z.string().nullable().optional(),
+  displayName: z.string().max(120).trim().nullable().optional(),
 });
 
 const PreviewBody = z.object({ variables: z.record(z.string(), z.string()) });
