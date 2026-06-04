@@ -4,6 +4,7 @@ import { aggregateByCategory } from '../../repos/lineCallTags.js';
 import { listReports, getReport } from '../../repos/lineReports.js';
 import { getLineReportConfig, upsertLineReportConfig } from '../../repos/lineReportConfigs.js';
 import { countCallsMatching, listCalls, searchEmails } from '../../repos/callAnalytics.js';
+import { setupCategories } from './setupCategories.js';
 
 const ok = (data: unknown): string => JSON.stringify(data);
 const DAY = 86_400_000;
@@ -63,6 +64,11 @@ const TOOLS: AgentTool[] = [
     name: 'search_calls',
     description: 'Count + sample inbound calls whose summary text matches a phrase over the last N days.',
     parameters: { type: 'object', properties: { text: { type: 'string' }, windowDays: { type: 'number' } } },
+  },
+  {
+    name: 'setup_categories',
+    description: 'Analyse the calls and set up the call categories (taxonomy) yourself, then sort existing calls into them. Optionally pass a specific list, or set replace:true to overwrite the current set.',
+    parameters: { type: 'object', properties: { categories: { type: 'array', items: { type: 'string' } }, replace: { type: 'boolean' } } },
   },
   {
     name: 'search_emails',
@@ -151,6 +157,12 @@ export function makeLineChatProvider(ctx: {
           const count = await countCallsMatching(pool, tenantId, text, start, endDate);
           const { calls } = await listCalls(pool, tenantId, { search: text, from: start, to: endDate, limit: 5 });
           return ok({ count, examples: calls.map(c => ({ id: c.id, category: c.category, excerpt: c.content.slice(0, 160) })) });
+        }
+
+        case 'setup_categories': {
+          if (!ctx.llm || !ctx.model) return ok({ error: 'Connect an OpenAI key first.' });
+          const a = args as { categories?: string[]; replace?: boolean };
+          return ok(await setupCategories({ pool, tenantId, llm: ctx.llm, model: ctx.model, categories: a.categories, replace: a.replace }));
         }
 
         case 'search_emails': {
