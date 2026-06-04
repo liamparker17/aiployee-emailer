@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import { mirrorEmailAsCall } from './mirrorCall.js';
 import { tagNewCalls } from './lineTagger.js';
+import { ensureCategories } from './setupCategories.js';
 
 interface LlmLike {
   chat(a: { model: string; messages: Array<{ role: string; content: string }> }): Promise<{ content: string }>;
@@ -36,6 +37,8 @@ export async function backfillCallsFromEmails(args: {
       imported++;
     }
   }
+
+  await ensureCategories({ pool: args.pool, tenantId: args.tenantId, llm: args.llm, model: args.model });
 
   let tagged = 0;
   while (tagged < cap) {

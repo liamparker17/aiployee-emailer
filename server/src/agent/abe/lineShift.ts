@@ -2,6 +2,7 @@ import type pg from 'pg';
 import { getLineReportConfig } from '../../repos/lineReportConfigs.js';
 import { aggregateByCategory, listHighSeverityUnreported } from '../../repos/lineCallTags.js';
 import { tagNewCalls } from './lineTagger.js';
+import { ensureCategories } from './setupCategories.js';
 import { detectSpikes } from './lineSpike.js';
 import { composeDigest, composeAlert, composeCase } from './lineCompose.js';
 
@@ -20,6 +21,7 @@ export async function runLineReportShift(args: {
   if (!cfg || !cfg.enabled) return { status: 'skipped', reason: 'disabled' };
   const llm = args.llmFactory(args.openAiKey);
 
+  await ensureCategories({ pool, tenantId, llm, model });
   const tagged = await tagNewCalls({ pool, tenantId, llm, model, batch: 100 });
 
   const end = now, start = new Date(now.getTime() - DAY);
