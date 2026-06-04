@@ -9,7 +9,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 
-interface Tpl { id: string; name: string; subject: string; body_html: string; body_text: string | null; variables: string[] }
+interface Tpl { id: string; name: string; subject: string; display_name: string | null; body_html: string; body_text: string | null; variables: string[] }
 
 const VAR_RE = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
 function vars(s: string): string[] { return [...new Set([...s.matchAll(VAR_RE)].map(m => m[1]))]; }
@@ -67,6 +67,9 @@ export default function Templates() {
           {sel && (
             <div className="space-y-4">
               <Field label="Subject"><Input value={sel.subject} onChange={e => setSel({ ...sel, subject: e.target.value })} /></Field>
+              <Field label="From display name" hint="Overrides the sender's name when this template is used. Leave blank to use the sender's name.">
+                <Input value={sel.display_name ?? ''} onChange={e => setSel({ ...sel, display_name: e.target.value })} />
+              </Field>
               <Field label="HTML body">
                 <textarea className="w-full h-40 rounded-md border border-line bg-surface p-3 text-sm font-mono text-ink"
                           value={sel.body_html} onChange={e => setSel({ ...sel, body_html: e.target.value })} />
@@ -105,7 +108,7 @@ export default function Templates() {
                 <Button onClick={async () => {
                   try {
                     await api(`/api/templates/${sel.id}`, { method: 'PATCH', body: JSON.stringify({
-                      subject: sel.subject, bodyHtml: sel.body_html, bodyText: sel.body_text ?? null,
+                      subject: sel.subject, displayName: (sel.display_name ?? '').trim() || null, bodyHtml: sel.body_html, bodyText: sel.body_text ?? null,
                     }) });
                     toast.success('Saved');
                     refresh();
