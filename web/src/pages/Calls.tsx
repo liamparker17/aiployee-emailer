@@ -12,6 +12,7 @@ import {
   getCallSettings,
   putCallSettings,
   importPastCalls,
+  autoSetupCategories,
 } from '../lib/calls';
 import type { Call, Breakdown } from '../lib/calls';
 import { Table, Th, Td } from '../components/Table';
@@ -53,11 +54,29 @@ function FirstRunCard({
   onSaved: (cats: string[]) => void;
 }) {
   const toast = useToast();
+  const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggested, setSuggested] = useState<string[] | null>(null);
   const [editing, setEditing] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [retagging, setRetagging] = useState(false);
+
+  async function handleAutoSetup() {
+    setBusy(true);
+    try {
+      const res = await autoSetupCategories();
+      if (res.applied) {
+        toast.success(`Abe set up ${res.categories.length} categories and sorted ${res.tagged} calls.`);
+        onSaved(res.categories);
+      } else {
+        toast.error('Abe needs some calls first — import past calls, then try again.');
+      }
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleSuggest() {
     setSuggesting(true);
@@ -107,11 +126,16 @@ function FirstRunCard({
           Let's see what your callers are calling about
         </p>
         <p className="text-ink-muted text-sm max-w-sm mx-auto">
-          Abe can look at your recent calls and suggest categories automatically.
+          Abe can read your recent calls, set up categories, and sort your calls — all in one click.
         </p>
-        <Button onClick={handleSuggest} disabled={suggesting}>
-          {suggesting ? <><Spinner /> &nbsp;Abe is thinking…</> : 'Let Abe suggest categories'}
-        </Button>
+        <div className="flex flex-col items-center gap-3">
+          <Button onClick={handleAutoSetup} disabled={busy || suggesting}>
+            {busy ? <><Spinner /> &nbsp;Abe is reading your calls…</> : 'Let Abe set them up for me'}
+          </Button>
+          <Button variant="ghost" onClick={handleSuggest} disabled={busy || suggesting}>
+            {suggesting ? <><Spinner /> &nbsp;Abe is thinking…</> : "I'll set them up myself"}
+          </Button>
+        </div>
       </Card>
     );
   }
