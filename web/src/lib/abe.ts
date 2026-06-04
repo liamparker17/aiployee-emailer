@@ -51,6 +51,8 @@ export interface LineReportConfig {
   spike_min_count: number;
   baseline_periods: number;
   brand_voice: string | null;
+  client_name: string | null;
+  client_context: string | null;
 }
 
 // ── Line-report API helpers ──────────────────────────────────────────────────
@@ -88,6 +90,8 @@ export const putLineSettings = (
     spikeMinCount: number;
     baselinePeriods: number;
     brandVoice: string;
+    clientName: string | null;
+    clientContext: string | null;
   }>,
 ) => api<{ config: LineReportConfig }>(`/api/agent/line-report-settings`, { method: 'PUT', body: JSON.stringify(b) });
 

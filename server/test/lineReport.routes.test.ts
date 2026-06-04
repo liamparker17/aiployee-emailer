@@ -292,4 +292,20 @@ describe('PUT /api/agent/line-report-settings', () => {
     const get = await app.inject({ method: 'GET', url: '/api/agent/line-report-settings', headers });
     expect(get.json().config.enabled).toBe(true);
   });
+
+  it('round-trips client_name and client_context', async () => {
+    const { headers, csrf } = await adminSession();
+    const res = await app.inject({
+      method: 'PUT', url: '/api/agent/line-report-settings',
+      headers: { ...headers, 'x-csrf-token': csrf.csrfToken },
+      payload: { clientName: 'ABSA', clientContext: 'iDirect overflow' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().config.client_name).toBe('ABSA');
+    expect(res.json().config.client_context).toBe('iDirect overflow');
+
+    const get = await app.inject({ method: 'GET', url: '/api/agent/line-report-settings', headers });
+    expect(get.json().config.client_name).toBe('ABSA');
+    expect(get.json().config.client_context).toBe('iDirect overflow');
+  });
 });
