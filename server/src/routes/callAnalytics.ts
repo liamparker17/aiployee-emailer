@@ -7,6 +7,7 @@ import { getLineReportConfig, upsertLineReportConfig } from '../repos/lineReport
 import { suggestCategories } from '../agent/abe/categorySuggest.js';
 import { retagCalls } from '../agent/abe/retag.js';
 import { backfillCallsFromEmails } from '../agent/abe/backfillCalls.js';
+import { setupCategories } from '../agent/abe/setupCategories.js';
 import { getAgentOpenAIKey, getAgentConfig } from '../repos/agent.js';
 import { openAiFactory } from '../agent/runner.js';
 
@@ -102,6 +103,21 @@ export function registerCallAnalyticsRoutes(app: FastifyInstance): void {
       requireAdmin(ctx);
       const { llm, model } = await tenantLlm(app, ctx.tenantId);
       reply.send({ suggested: await suggestCategories({ pool: app.pool, tenantId: ctx.tenantId, llm, model }) });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // ── Setup categories (MUST be before /:id) ────────────────────────────────
+
+  app.post('/api/calls/setup-categories', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      requireAdmin(ctx);
+      const body = z.object({
+        categories: z.array(z.string().min(1)).max(30).optional(),
+        replace: z.boolean().optional(),
+      }).parse(req.body ?? {});
+      const { llm, model } = await tenantLlm(app, ctx.tenantId);
+      reply.send(await setupCategories({ pool: app.pool, tenantId: ctx.tenantId, llm, model, categories: body.categories, replace: body.replace }));
     } catch (e) { sendError(reply, e); }
   });
 

@@ -223,6 +223,37 @@ describe('POST /api/calls/import-past', () => {
   });
 });
 
+// ── POST /api/calls/setup-categories ──────────────────────────────────────
+
+describe('POST /api/calls/setup-categories', () => {
+  it('returns 403 for non-admin', async () => {
+    const { tenantId } = await adminSession();
+    const { headers, csrf } = await nonAdminSession(tenantId);
+    const res = await app.inject({
+      method: 'POST', url: '/api/calls/setup-categories',
+      headers: { ...headers, 'x-csrf-token': csrf.csrfToken },
+      payload: { categories: ['Claims', 'Policy'] },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('returns 200 with { applied, categories, tagged } for admin', async () => {
+    const { tenantId, headers, csrf } = await adminSession();
+    // Seed a call so tagging has something to operate on.
+    await seedInboundCall(pool, tenantId, 'Insurance claim for car accident');
+    const res = await app.inject({
+      method: 'POST', url: '/api/calls/setup-categories',
+      headers: { ...headers, 'x-csrf-token': csrf.csrfToken },
+      payload: { categories: ['Claims', 'Policy'] },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.applied).toBe(true);
+    expect(body.categories).toEqual(['Claims', 'Policy']);
+    expect(typeof body.tagged).toBe('number');
+  });
+});
+
 // ── GET/PUT /api/calls/settings ───────────────────────────────────────────
 
 describe('GET/PUT /api/calls/settings', () => {

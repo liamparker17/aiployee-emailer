@@ -63,3 +63,9 @@ export const putCallSettings = (ingestSendsAsCalls: boolean) =>
 
 export const importPastCalls = () =>
   api<{ imported: number; tagged: number }>(`/api/calls/import-past`, { method: 'POST' });
+
+export const autoSetupCategories = (opts?: { categories?: string[]; replace?: boolean }) =>
+  api<{ categories: string[]; tagged: number; applied: boolean }>(`/api/calls/setup-categories`, {
+    method: 'POST',
+    body: JSON.stringify(opts ?? {}),
+  });
