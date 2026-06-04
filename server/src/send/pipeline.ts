@@ -50,11 +50,13 @@ export async function queueEmail(args: {
   let bodyHtml = input.html ?? '';
   let bodyText = input.text ?? null;
   let templateId: string | null = null;
+  let fromDisplayName: string | null = null;
 
   if (input.template) {
     const tpl = await getTemplateByName(args.pool, input.tenantId, input.template);
     if (!tpl) throw new AppError('template_not_found', 404, `Template not found: ${input.template}`);
     templateId = tpl.id;
+    fromDisplayName = tpl.display_name?.trim() || null;
     const vars = input.variables ?? {};
     try {
       subject = render(tpl.subject, vars, { escape: false });
@@ -70,7 +72,7 @@ export async function queueEmail(args: {
       tenantId: input.tenantId, senderId: sender.id, toAddr: input.to,
       cc: input.cc, bcc: input.bcc, replyTo: input.reply_to ?? null,
       subject, bodyHtml, bodyText, templateId, attachments: input.attachments,
-      status: 'suppressed', apiKeyId: input.apiKeyId ?? null,
+      status: 'suppressed', apiKeyId: input.apiKeyId ?? null, fromDisplayName,
     });
   }
 
@@ -79,7 +81,7 @@ export async function queueEmail(args: {
     cc: input.cc, bcc: input.bcc, replyTo: input.reply_to ?? null,
     subject, bodyHtml, bodyText, templateId, attachments: input.attachments,
     scheduledFor: input.scheduled_for ?? null,
-    status: 'queued', apiKeyId: input.apiKeyId ?? null,
+    status: 'queued', apiKeyId: input.apiKeyId ?? null, fromDisplayName,
   });
 
   if (!input.scheduled_for || input.scheduled_for.getTime() <= Date.now()) {
