@@ -48,11 +48,6 @@ const clamp = (n: number, lo: number, hi: number) =>
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const DEFAULT_TAXONOMY = JSON.stringify([
-  'Card disputes / fraud', 'Online & app banking', 'Debit orders',
-  'Accounts & balances', 'Loans & credit', 'Fees & charges', 'Complaints', 'Other / Emerging',
-]);
-
 export async function listEnabledLineConfigs(pool: pg.Pool): Promise<LineReportConfigRow[]> {
   const r = await pool.query<LineReportConfigRow>(`SELECT * FROM line_report_configs WHERE enabled = true`);
   return r.rows;
@@ -119,7 +114,7 @@ export async function upsertLineReportConfig(
       patch.sendHourUtc   != null ? clamp(patch.sendHourUtc, 0, 23)  : null,
       recipients != null ? JSON.stringify(recipients) : null,
       taxonomy   != null ? JSON.stringify(taxonomy)   : null,
-      DEFAULT_TAXONOMY,                                                   // $9 — default for taxonomy INSERT
+      '[]',                                                              // $9 — empty default for taxonomy INSERT (Abe derives categories per-tenant)
       patch.spikePct        != null ? clamp(patch.spikePct, 0, 500)   : null,
       patch.spikeMinCount   != null ? clamp(patch.spikeMinCount, 1, 1000) : null,
       patch.baselinePeriods != null ? clamp(patch.baselinePeriods, 1, 12) : null,

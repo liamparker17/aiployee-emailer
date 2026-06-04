@@ -12,7 +12,7 @@ afterAll(async () => { await pool.end(); });
 
 it('tags untagged inbound calls into the taxonomy, once', async () => {
   const t = await createTenant(pool);
-  await upsertLineReportConfig(pool, t.id, { enabled: true });
+  await upsertLineReportConfig(pool, t.id, { enabled: true, taxonomy: ['Card disputes / fraud', 'Online & app banking', 'Other / Emerging'] });
   const m1 = await seedInboundCall(pool, t.id, 'fraud on my card');
   await seedInboundCall(pool, t.id, 'app keeps crashing');
 
