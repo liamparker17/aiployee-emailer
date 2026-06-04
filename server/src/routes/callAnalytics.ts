@@ -6,6 +6,7 @@ import { listCalls, getCall, breakdownByCategory, callsPerDay } from '../repos/c
 import { getLineReportConfig, upsertLineReportConfig } from '../repos/lineReportConfigs.js';
 import { suggestCategories } from '../agent/abe/categorySuggest.js';
 import { retagCalls } from '../agent/abe/retag.js';
+import { backfillCallsFromEmails } from '../agent/abe/backfillCalls.js';
 import { getAgentOpenAIKey, getAgentConfig } from '../repos/agent.js';
 import { openAiFactory } from '../agent/runner.js';
 
@@ -112,6 +113,38 @@ export function registerCallAnalyticsRoutes(app: FastifyInstance): void {
       requireAdmin(ctx);
       const { llm, model } = await tenantLlm(app, ctx.tenantId);
       reply.send(await retagCalls({ pool: app.pool, tenantId: ctx.tenantId, llm, model }));
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // ── Import past sent emails as calls (MUST be before /:id) ────────────────
+
+  app.post('/api/calls/import-past', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      requireAdmin(ctx);
+      const { llm, model } = await tenantLlm(app, ctx.tenantId);
+      reply.send(await backfillCallsFromEmails({ pool: app.pool, tenantId: ctx.tenantId, llm, model }));
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // ── Call-line settings (MUST be before /:id) ─────────────────────────────
+
+  app.get('/api/calls/settings', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      requireAdmin(ctx);
+      const cfg = await getLineReportConfig(app.pool, ctx.tenantId);
+      reply.send({ ingestSendsAsCalls: cfg?.ingest_sends_as_calls ?? false });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  app.put('/api/calls/settings', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      requireAdmin(ctx);
+      const body = z.object({ ingestSendsAsCalls: z.boolean() }).parse(req.body);
+      const cfg = await upsertLineReportConfig(app.pool, ctx.tenantId, { ingestSendsAsCalls: body.ingestSendsAsCalls });
+      reply.send({ ingestSendsAsCalls: cfg.ingest_sends_as_calls });
     } catch (e) { sendError(reply, e); }
   });
 

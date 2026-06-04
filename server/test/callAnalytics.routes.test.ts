@@ -7,6 +7,8 @@ import { csrfFor, login } from './helpers/auth.js';
 import { seedInboundCall } from './helpers/lineReport.js';
 import { insertCallTag } from '../src/repos/lineCallTags.js';
 import { upsertLineReportConfig } from '../src/repos/lineReportConfigs.js';
+import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
+import { createSender } from '../src/repos/senders.js';
 
 const KEY = Buffer.alloc(32, 1);
 const cfg = loadConfig({
@@ -177,6 +179,91 @@ describe('POST /api/calls/retag', () => {
     const body = res.json();
     expect(typeof body.retagged).toBe('number');
     expect(typeof body.remaining).toBe('number');
+  });
+});
+
+// ── POST /api/calls/import-past ───────────────────────────────────────────
+
+describe('POST /api/calls/import-past', () => {
+  async function seedSentEmail(tenantId: string, subject: string, bodyText: string) {
+    const sc = await createSmtpConfig(pool, KEY, {
+      tenantId, name: 'local', host: '127.0.0.1', port: 2599, secure: false,
+      username: 'u', password: 'p', fromDomain: 'x.com', isDefault: true,
+    });
+    const s = await createSender(pool, { tenantId, email: 'a@x.com', displayName: 'A', smtpConfigId: sc.id });
+    await pool.query(
+      `INSERT INTO emails(tenant_id, sender_id, to_addr, subject, body_html, body_text, status)
+       VALUES ($1,$2,'r@x.com',$3,'<p>x</p>',$4,'sent')`,
+      [tenantId, s.id, subject, bodyText]);
+  }
+
+  it('returns 403 for non-admin', async () => {
+    const { tenantId } = await adminSession();
+    const { headers, csrf } = await nonAdminSession(tenantId);
+    const res = await app.inject({
+      method: 'POST', url: '/api/calls/import-past',
+      headers: { ...headers, 'x-csrf-token': csrf.csrfToken }, payload: {},
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('returns 200 with { imported, tagged } for admin', async () => {
+    const { tenantId, headers, csrf } = await adminSession();
+    await seedSentEmail(tenantId, 'Call', 'caller asking about their claim');
+    await upsertLineReportConfig(pool, tenantId, { taxonomy: ['Claims'] });
+    const res = await app.inject({
+      method: 'POST', url: '/api/calls/import-past',
+      headers: { ...headers, 'x-csrf-token': csrf.csrfToken }, payload: {},
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(typeof body.imported).toBe('number');
+    expect(typeof body.tagged).toBe('number');
+    expect(body.imported).toBe(1);
+  });
+});
+
+// ── GET/PUT /api/calls/settings ───────────────────────────────────────────
+
+describe('GET/PUT /api/calls/settings', () => {
+  it('GET returns ingestSendsAsCalls=false by default for admin', async () => {
+    const { headers } = await adminSession();
+    const res = await app.inject({ method: 'GET', url: '/api/calls/settings', headers });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ingestSendsAsCalls: false });
+  });
+
+  it('PUT sets ingestSendsAsCalls=true and GET reflects it', async () => {
+    const { headers, csrf } = await adminSession();
+    const put = await app.inject({
+      method: 'PUT', url: '/api/calls/settings',
+      headers: { ...headers, 'x-csrf-token': csrf.csrfToken },
+      payload: { ingestSendsAsCalls: true },
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.json()).toEqual({ ingestSendsAsCalls: true });
+
+    const get = await app.inject({ method: 'GET', url: '/api/calls/settings', headers });
+    expect(get.statusCode).toBe(200);
+    expect(get.json()).toEqual({ ingestSendsAsCalls: true });
+  });
+
+  it('GET returns 403 for non-admin', async () => {
+    const { tenantId } = await adminSession();
+    const { headers } = await nonAdminSession(tenantId);
+    const res = await app.inject({ method: 'GET', url: '/api/calls/settings', headers });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('PUT returns 403 for non-admin', async () => {
+    const { tenantId } = await adminSession();
+    const { headers, csrf } = await nonAdminSession(tenantId);
+    const res = await app.inject({
+      method: 'PUT', url: '/api/calls/settings',
+      headers: { ...headers, 'x-csrf-token': csrf.csrfToken },
+      payload: { ingestSendsAsCalls: true },
+    });
+    expect(res.statusCode).toBe(403);
   });
 });
 

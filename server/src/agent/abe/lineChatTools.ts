@@ -3,7 +3,7 @@ import type { McpToolProvider, AgentTool } from '../mcp.js';
 import { aggregateByCategory } from '../../repos/lineCallTags.js';
 import { listReports, getReport } from '../../repos/lineReports.js';
 import { getLineReportConfig, upsertLineReportConfig } from '../../repos/lineReportConfigs.js';
-import { countCallsMatching, listCalls } from '../../repos/callAnalytics.js';
+import { countCallsMatching, listCalls, searchEmails } from '../../repos/callAnalytics.js';
 
 const ok = (data: unknown): string => JSON.stringify(data);
 const DAY = 86_400_000;
@@ -62,6 +62,11 @@ const TOOLS: AgentTool[] = [
   {
     name: 'search_calls',
     description: 'Count + sample inbound calls whose summary text matches a phrase over the last N days.',
+    parameters: { type: 'object', properties: { text: { type: 'string' }, windowDays: { type: 'number' } } },
+  },
+  {
+    name: 'search_emails',
+    description: 'Read/search the sent emails (where Jobix call summaries arrive). Returns a count and sample excerpts over the last N days.',
     parameters: { type: 'object', properties: { text: { type: 'string' }, windowDays: { type: 'number' } } },
   },
 ];
@@ -146,6 +151,12 @@ export function makeLineChatProvider(ctx: {
           const count = await countCallsMatching(pool, tenantId, text, start, endDate);
           const { calls } = await listCalls(pool, tenantId, { search: text, from: start, to: endDate, limit: 5 });
           return ok({ count, examples: calls.map(c => ({ id: c.id, category: c.category, excerpt: c.content.slice(0, 160) })) });
+        }
+
+        case 'search_emails': {
+          const start = win(args.windowDays ?? 30);
+          const text = args.text != null ? String(args.text) : undefined;
+          return ok(await searchEmails(pool, tenantId, { text, start, end: end(), limit: 5 }));
         }
 
         default:

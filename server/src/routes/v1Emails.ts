@@ -5,6 +5,7 @@ import { queueEmail, SendInputShape } from '../send/pipeline.js';
 import { getEmail, listEmails, claimForSend, type EmailStatus } from '../repos/emails.js';
 import { dispatchEmail } from '../send/dispatch.js';
 import { requireCtx } from '../auth/ctx.js';
+import { captureCallFromSend } from '../agent/abe/mirrorCall.js';
 
 const ApiSendBody = SendInputShape.omit({ tenantId: true, apiKeyId: true }).refine(
   (v) => (v.subject && v.html) || v.template,
@@ -24,6 +25,16 @@ export async function registerV1EmailRoutes(app: FastifyInstance) {
         enqueueSend: async () => {},
         input: { ...body, tenantId: ctx.tenantId, apiKeyId: ctx.apiKeyId },
       });
+
+      // Mirror Jobix call summaries into Abe's call pipeline (opt-in per tenant). Best-effort:
+      // a mirror failure must NEVER fail the real send. Runs exactly once per created email.
+      try {
+        const b = body as { variables?: Record<string, unknown>; text?: string; html?: string; subject?: string };
+        await captureCallFromSend({
+          pool: app.pool, tenantId: ctx.tenantId, emailId: email.id,
+          summaryVar: b.variables?.summary, text: b.text ?? null, html: b.html ?? null, subject: b.subject ?? null,
+        });
+      } catch (err) { req.log?.error?.({ err }, 'mirror call from send failed'); }
 
       // For immediate (no scheduled_for) sends, dispatch inline so the API caller gets a real status.
       // Scheduled sends + suppressed get returned as-is; the cron picks scheduled ones up later.
