@@ -4,6 +4,7 @@ import { compositeProvider } from '../mcp.js';
 import { getAgentConfig, getAgentOpenAIKey } from '../../repos/agent.js';
 import { getGoal } from '../../repos/agentGoals.js';
 import { insertChatMessage, listChatMessages } from '../../repos/agentChat.js';
+import { getLineReportConfig } from '../../repos/lineReportConfigs.js';
 import { buildAbeSystemPrompt } from './prompt.js';
 import { makeAbeChatProvider } from './chatTools.js';
 import { makeLineChatProvider } from './lineChatTools.js';
@@ -25,10 +26,11 @@ export async function runAbeChat(args: {
   const cfg = await getAgentConfig(pool, tenantId);
   const model = cfg?.model ?? 'gpt-4.1';
   const goal = await getGoal(pool, tenantId);
+  const lineCfg = await getLineReportConfig(pool, tenantId);
 
   const history = await listChatMessages(pool, tenantId); // includes the user msg we just inserted
   const messages: LlmMessage[] = [
-    { role: 'system', content: buildAbeSystemPrompt(goal?.brand_voice ?? null) },
+    { role: 'system', content: buildAbeSystemPrompt(goal?.brand_voice ?? null, lineCfg?.client_name, lineCfg?.client_context) },
     ...history.map(m => ({ role: (m.role === 'abe' ? 'assistant' : 'user') as 'assistant' | 'user', content: m.content })),
   ];
 

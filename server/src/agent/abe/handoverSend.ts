@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import { getDefaultSender } from '../../repos/senders.js';
 import { getLineReportConfig } from '../../repos/lineReportConfigs.js';
+import { clientLabel } from './clientContext.js';
 import { getHandover, setHandoverStatus, type HandoverRow } from '../../repos/callHandovers.js';
 import { queueEmail } from '../../send/pipeline.js';
 import { claimForSend } from '../../repos/emails.js';
@@ -15,8 +16,8 @@ function esc(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function handoverHtml(h: HandoverRow): { subject: string; html: string } {
-  const subject = `Callback for ABSA — ${h.caller_name ?? 'caller'} · ${h.reason_category}${h.urgency === 'high' ? ' · URGENT' : ''}`;
+function handoverHtml(h: HandoverRow, clientName: string): { subject: string; html: string } {
+  const subject = `Callback for ${clientName} — ${h.caller_name ?? 'caller'} · ${h.reason_category}${h.urgency === 'high' ? ' · URGENT' : ''}`;
   const row = (k: string, v: string | null) =>
     `<tr><td style="padding:2px 12px 2px 0;color:#555">${esc(k)}</td><td>${v ? esc(v) : '<em>— not captured —</em>'}</td></tr>`;
   const html = `<!doctype html><html><body style="font-family:system-ui,sans-serif;color:#1a0f3d;max-width:640px;margin:0 auto;padding:24px">
@@ -62,7 +63,7 @@ export async function forwardHandover(args: {
   );
   if (claim.rowCount === 0) return { ok: false, reason: 'not_forwardable' };
 
-  const { subject, html } = handoverHtml(h0);
+  const { subject, html } = handoverHtml(h0, clientLabel(cfg));
   const emailIds: string[] = [];
   for (const to of recipients) {
     try {

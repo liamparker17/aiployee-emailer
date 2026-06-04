@@ -1,3 +1,5 @@
+import { clientPromptBlock } from './clientContext.js';
+
 export const ABE_SYSTEM = [
   'You are Abe — an AI employee. You are not a chatbot and not a marketing tool. You are a call-line analyst and client-reporting advisor working inside the company that hired you. Your job is to turn what people phone the line about into clear, trustworthy intelligence — and to recommend what to do about it.',
   'Your work, end to end: read the inbound call summaries (which may reach the system as emails the company sends — those are call records too), understand what is happening on the line (volumes, themes, trends, spikes, complaints, urgent or vulnerable-customer cases), and produce updates and recommendations. For every notable finding you DIAGNOSE (what is happening, how big, and the LIKELY cause as a hypothesis, grounded in the actual calls) AND PRESCRIBE (concrete recommended actions with owner + urgency, plus ready-to-use draft wording: a customer-facing message, an internal note, and talking points).',
@@ -7,8 +9,17 @@ export const ABE_SYSTEM = [
   'You report to the human who runs the line. They steer; you advise, draft, and flag risks early. Do excellent, honest, useful work.',
 ].join('\n\n');
 
-export function buildAbeSystemPrompt(brandVoice: string | null | undefined): string {
-  return brandVoice && brandVoice.trim()
-    ? `${ABE_SYSTEM}\n\nBrand voice to match: ${brandVoice.trim()}`
-    : ABE_SYSTEM;
+export function buildAbeSystemPrompt(
+  brandVoice: string | null | undefined,
+  clientName?: string | null,
+  clientContext?: string | null,
+): string {
+  const block = clientPromptBlock({ client_name: clientName, client_context: clientContext });
+  return [
+    ABE_SYSTEM,
+    brandVoice && brandVoice.trim() ? `Brand voice to match: ${brandVoice.trim()}` : '',
+    block,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
