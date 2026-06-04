@@ -9,9 +9,10 @@ interface Sender { id: string; is_default: boolean }
 
 interface Props {
   onReady?: (ready: boolean) => void;
+  clientName: string;
 }
 
-export default function AbeReadiness({ onReady }: Props) {
+export default function AbeReadiness({ onReady, clientName }: Props) {
   const { tenantId } = useParams<{ tenantId: string }>();
   const base = `/t/${tenantId}`;
   const { user } = useAuth();
@@ -66,7 +67,7 @@ export default function AbeReadiness({ onReady }: Props) {
         <AlertTriangle size={18} className="text-error shrink-0 mt-0.5" />
         <div className="space-y-3 flex-1 min-w-0">
           <p className="font-heading font-semibold text-ink">
-            Abe can't send updates to ABSA yet — two things to finish setup.
+            Abe can't send updates to {clientName} yet — two things to finish setup.
           </p>
           <ul className="space-y-2">
             {!hasKey && (

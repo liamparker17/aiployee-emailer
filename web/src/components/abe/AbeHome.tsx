@@ -39,10 +39,10 @@ export default function AbeHome() {
   return (
     <div className="space-y-6">
       {/* ── Readiness banner (renders nothing when prereqs are met) ── */}
-      <AbeReadiness key={readinessKey} onReady={handleReady} />
+      <AbeReadiness key={readinessKey} onReady={handleReady} clientName={clientName} />
 
       {/* ── Callback queue (centrepiece: client callbacks to forward) ── */}
-      <CallbackHandoverPanel />
+      <CallbackHandoverPanel clientName={clientName} />
 
       {/* ── Who Abe is (identity + the no-cold-contact guarantee) ── */}
       <Card className="space-y-3">
@@ -73,7 +73,7 @@ export default function AbeHome() {
       </Card>
 
       {/* ── The job: line reporting (what's coming in + the Pending-for-client queue) ── */}
-      <LineReportingPanel />
+      <LineReportingPanel clientName={clientName} />
 
       {/* ── Talk to Abe ── */}
       <AbeChat onActed={refresh} clientName={clientName} />
