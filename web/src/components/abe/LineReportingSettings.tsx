@@ -37,6 +37,8 @@ interface FormState {
   spikeMinCount: number;
   baselinePeriods: number;
   brandVoice: string;
+  clientName: string;
+  clientContext: string;
 }
 
 function configToForm(c: LineReportConfig): FormState {
@@ -52,6 +54,8 @@ function configToForm(c: LineReportConfig): FormState {
     spikeMinCount: c.spike_min_count,
     baselinePeriods: c.baseline_periods,
     brandVoice: c.brand_voice ?? '',
+    clientName: c.client_name ?? '',
+    clientContext: c.client_context ?? '',
   };
 }
 
@@ -68,6 +72,8 @@ function defaultForm(): FormState {
     spikeMinCount: 5,
     baselinePeriods: 4,
     brandVoice: '',
+    clientName: '',
+    clientContext: '',
   };
 }
 
@@ -148,6 +154,8 @@ export default function LineReportingSettings() {
         spikeMinCount: form.spikeMinCount,
         baselinePeriods: form.baselinePeriods,
         brandVoice: form.brandVoice,
+        clientName: form.clientName.trim() || null,
+        clientContext: form.clientContext.trim() || null,
       });
       setSavedAt(new Date());
       toast.success('Line reporting settings saved.');
@@ -199,6 +207,32 @@ export default function LineReportingSettings() {
           {/* Form */}
           {form && (
             <div className="space-y-5">
+              {/* ── Client profile ── */}
+              <div className="space-y-2">
+                <FieldRow label="Client name">
+                  <input
+                    type="text"
+                    value={form.clientName}
+                    onChange={e => set('clientName', e.target.value)}
+                    placeholder="e.g. ABSA"
+                    className={inputCls}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Client / line context">
+                  <textarea
+                    rows={3}
+                    value={form.clientContext}
+                    onChange={e => set('clientContext', e.target.value)}
+                    placeholder="A short note on who you report to and what this line is."
+                    className={`${inputCls} resize-none`}
+                  />
+                  <p className="text-xs text-ink-dim">
+                    A short note on who you report to and what this line is — Abe uses it to tailor his analysis and drafts.
+                  </p>
+                </FieldRow>
+              </div>
+
               {/* ── Enable toggle ── */}
               <label className="flex items-center gap-3 cursor-pointer select-none">
                 <input
@@ -261,7 +295,7 @@ export default function LineReportingSettings() {
               </div>
 
               {/* ── Recipients ── */}
-              <FieldRow label="Recipients (comma-separated ABSA emails)">
+              <FieldRow label="Recipients (comma-separated emails)">
                 <textarea
                   rows={3}
                   value={form.recipientsRaw}

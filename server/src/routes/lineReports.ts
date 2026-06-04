@@ -39,6 +39,8 @@ const SettingsBody = z.object({
   spikeMinCount: z.number().int().optional(),
   baselinePeriods: z.number().int().optional(),
   brandVoice: z.string().max(2000).optional(),
+  clientName: z.string().max(200).trim().nullable().optional(),
+  clientContext: z.string().max(2000).trim().nullable().optional(),
 });
 
 export function registerLineReportRoutes(app: FastifyInstance): void {

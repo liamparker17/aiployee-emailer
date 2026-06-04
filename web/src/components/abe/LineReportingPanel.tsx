@@ -66,9 +66,10 @@ function Collapsible({ label, children }: { label: string; children: React.React
 interface ReportCardProps {
   report: LineReport;
   onReload: () => void;
+  clientName: string;
 }
 
-function ReportCard({ report, onReload }: ReportCardProps) {
+function ReportCard({ report, onReload, clientName }: ReportCardProps) {
   const toast = useToast();
   const { advisory } = report;
 
@@ -188,7 +189,7 @@ function ReportCard({ report, onReload }: ReportCardProps) {
               />
             </label>
             <label className="block space-y-1">
-              <span className="text-xs font-medium text-ink-muted">Body (what's sent to ABSA)</span>
+              <span className="text-xs font-medium text-ink-muted">Body (what's sent to {clientName})</span>
               <textarea
                 rows={5}
                 value={editBody}
@@ -254,7 +255,7 @@ function ReportCard({ report, onReload }: ReportCardProps) {
                 />
               </label>
               <label className="block space-y-1">
-                <span className="text-xs font-medium text-ink-muted">Internal / ABSA note</span>
+                <span className="text-xs font-medium text-ink-muted">Internal note</span>
                 <textarea
                   rows={3}
                   value={editAdvisory.draft_comms.internal_note}
@@ -398,7 +399,7 @@ function ReportCard({ report, onReload }: ReportCardProps) {
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-export default function LineReportingPanel() {
+export default function LineReportingPanel({ clientName }: { clientName: string }) {
   const { user, loading } = useAuth();
   const toast = useToast();
   const isAdmin = !loading && user?.role !== 'tenant_user';
@@ -438,7 +439,7 @@ export default function LineReportingPanel() {
   return (
     <section>
       <h2 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-3">
-        Line Reports — Pending for ABSA
+        Line Reports — Pending for {clientName}
       </h2>
 
       {reports === null ? (
@@ -453,7 +454,7 @@ export default function LineReportingPanel() {
       ) : (
         <div className="space-y-4">
           {pending.map(r => (
-            <ReportCard key={r.id} report={r} onReload={handleReload} />
+            <ReportCard key={r.id} report={r} onReload={handleReload} clientName={clientName} />
           ))}
         </div>
       )}

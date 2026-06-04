@@ -22,7 +22,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: 'list_reports',
-    description: 'Recent ABSA reports with type/status.',
+    description: 'Recent client reports with type/status.',
     parameters: { type: 'object', properties: { status: { type: 'string' } } },
   },
   {
@@ -37,7 +37,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: 'draft_report',
-    description: 'Draft an ABSA report (digest/answer). Creates a pending_approval draft; never sends.',
+    description: 'Draft a client report (digest/answer). Creates a pending_approval draft; never sends.',
     parameters: {
       type: 'object',
       properties: {

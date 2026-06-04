@@ -44,9 +44,10 @@ function timeWaiting(createdAt: string): string {
 interface HandoverCardProps {
   handover: Handover;
   onReload: () => void;
+  clientName: string;
 }
 
-function HandoverCard({ handover, onReload }: HandoverCardProps) {
+function HandoverCard({ handover, onReload, clientName }: HandoverCardProps) {
   const toast = useToast();
 
   const [dismissing, setDismissing] = useState(false);
@@ -74,12 +75,12 @@ function HandoverCard({ handover, onReload }: HandoverCardProps) {
     setForwarding(true);
     try {
       await forwardHandover(handover.id);
-      toast.success('Forwarded to ABSA.');
+      toast.success(`Forwarded to ${clientName}.`);
       onReload();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Could not forward.';
       if (msg.includes('no_recipients')) {
-        toast.error('Add an ABSA recipient in Line Reporting settings first.');
+        toast.error('Add a recipient in Line Reporting settings first.');
       } else {
         toast.error(msg);
       }
@@ -263,7 +264,7 @@ function HandoverCard({ handover, onReload }: HandoverCardProps) {
           <div className="flex gap-2 flex-wrap">
             <Button variant="primary" onClick={handleForward} disabled={forwarding}>
               <PhoneForwarded size={15} />
-              {forwarding ? 'Forwarding…' : 'Forward to ABSA'}
+              {forwarding ? 'Forwarding…' : `Forward to ${clientName}`}
             </Button>
             {!editing && (
               <Button variant="ghost" onClick={() => setEditing(true)}>
@@ -294,7 +295,7 @@ function HandoverCard({ handover, onReload }: HandoverCardProps) {
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-export default function CallbackHandoverPanel() {
+export default function CallbackHandoverPanel({ clientName }: { clientName: string }) {
   const { user, loading } = useAuth();
   const toast = useToast();
   const isAdmin = !loading && user?.role !== 'tenant_user';
@@ -334,7 +335,7 @@ export default function CallbackHandoverPanel() {
   return (
     <section>
       <h2 className="text-sm font-medium text-ink-muted uppercase tracking-wide mb-3">
-        Callbacks to forward to ABSA
+        Callbacks to forward to {clientName}
       </h2>
 
       {/* SLA banner */}
@@ -359,7 +360,7 @@ export default function CallbackHandoverPanel() {
       ) : (
         <div className="space-y-4">
           {handovers.map(h => (
-            <HandoverCard key={h.id} handover={h} onReload={handleReload} />
+            <HandoverCard key={h.id} handover={h} onReload={handleReload} clientName={clientName} />
           ))}
         </div>
       )}

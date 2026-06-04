@@ -18,7 +18,7 @@ export async function tagNewCalls(args: {
   if (calls.length === 0) return 0;
 
   const system = [
-    'You are Abe, classifying inbound CALL SUMMARIES for a bank client report.',
+    "You are Abe, classifying inbound CALL SUMMARIES for the client's call-line report.",
     'Classify each call into EXACTLY ONE category from this fixed list:',
     taxonomy.map((c, i) => `${i + 1}. ${c}`).join('\n'),
     'If a call fits none well, use the last category and set is_emerging=true.',

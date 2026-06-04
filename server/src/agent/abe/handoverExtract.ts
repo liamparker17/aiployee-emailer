@@ -1,5 +1,6 @@
 import type pg from 'pg';
 import { getLineReportConfig } from '../../repos/lineReportConfigs.js';
+import { clientLabel } from './clientContext.js';
 import { listUnextractedInbound, insertHandover, findRecentByCaller, type Urgency } from '../../repos/callHandovers.js';
 
 interface LlmLike { chat(a: { model: string; messages: Array<{ role: string; content: string }> }): Promise<{ content: string }>; }
@@ -18,7 +19,7 @@ export async function extractHandovers(args: {
   if (calls.length === 0) return 0;
 
   const system = [
-    'You are Abe, preparing CALLBACK HANDOVERS to a bank client (ABSA) from overflow call summaries.',
+    `You are Abe, preparing CALLBACK HANDOVERS for ${clientLabel(cfg)} from overflow call summaries.`,
     'For each call, extract the fields below FROM THE SUMMARY ONLY.',
     'NEVER invent a name, phone number, or account: if it is not in the summary, return null for that field.',
     `Pick reason_category from: ${taxonomy.join('; ')} (use the last one if none fits).`,
@@ -72,7 +73,7 @@ export async function extractHandovers(args: {
       missingFields,
       repeatOf: repeat?.id ?? null,
       status: needsFollowup ? 'pending' : 'dismissed',
-      dismissReason: needsFollowup ? null : 'Resolved on call (no ABSA follow-up needed).',
+      dismissReason: needsFollowup ? null : 'Resolved on call (no follow-up needed).',
     });
     n++;
   }

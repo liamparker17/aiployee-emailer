@@ -23,7 +23,7 @@ it('tags calls and drafts a daily digest + case, all pending_approval', async ()
   const t = await createTenant(pool);
   const now = new Date(); // align with DB-stamped seed row
   // digests are gated to the configured UTC hour — set it to "now" so the daily digest fires
-  await upsertLineReportConfig(pool, t.id, { enabled: true, dailyDigest: true, sendHourUtc: now.getUTCHours() });
+  await upsertLineReportConfig(pool, t.id, { enabled: true, dailyDigest: true, sendHourUtc: now.getUTCHours(), taxonomy: ['Card disputes / fraud', 'Other / Emerging'] });
   await seedInboundCall(pool, t.id, 'card fraud reported');
   let call = 0;
   const stub = () => ({ chat: async () => {
