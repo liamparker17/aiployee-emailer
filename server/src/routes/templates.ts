@@ -6,6 +6,15 @@ import {
   createTemplate, updateTemplate, listTemplates, getTemplateById, deleteTemplate,
 } from '../repos/templates.js';
 import { render } from '../send/render.js';
+import { getDefaultSender } from '../repos/senders.js';
+import { insertEmail } from '../repos/emails.js';
+import { dispatchEmail } from '../send/dispatch.js';
+
+function requireAdmin(ctx: ReturnType<typeof requireTenantCtx>): void {
+  if (ctx.role !== 'tenant_admin' && ctx.role !== 'super_admin') {
+    throw new AppError('forbidden', 403, 'Admin role required');
+  }
+}
 
 const CreateBody = z.object({
   name: z.string().min(1).regex(/^[a-z0-9_-]+$/),
@@ -77,5 +86,35 @@ export async function registerTemplateRoutes(app: FastifyInstance) {
         text: t.body_text ? render(t.body_text, body.variables, { escape: false }) : null,
       });
     } catch (e) { sendError(reply, new AppError('render_failed', 400, (e as Error).message)); }
+  });
+
+  app.post('/api/templates/:id/test-send', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req); requireAdmin(ctx);
+      const { id } = req.params as { id: string };
+      const body = z.object({
+        to: z.string().email(),
+        variables: z.record(z.string(), z.string()).optional(),
+      }).parse(req.body);
+      const tpl = await getTemplateById(app.pool, ctx.tenantId, id);
+      if (!tpl) throw new AppError('not_found', 404, 'Template not found');
+      const sender = await getDefaultSender(app.pool, ctx.tenantId);
+      if (!sender) throw new AppError('no_sender', 400, 'No default sender configured — add a sender first.');
+      const vars: Record<string, string> = {};
+      for (const name of tpl.variables ?? []) vars[name] = body.variables?.[name] ?? name;
+      if (body.variables) for (const [k, v] of Object.entries(body.variables)) vars[k] = v;
+      const email = await insertEmail(app.pool, {
+        tenantId: ctx.tenantId, senderId: sender.id, toAddr: body.to,
+        subject: render(tpl.subject, vars, { escape: false }),
+        bodyHtml: render(tpl.body_html, vars),
+        bodyText: tpl.body_text ? render(tpl.body_text, vars, { escape: false }) : null,
+        templateId: tpl.id, fromDisplayName: tpl.display_name?.trim() || null, status: 'queued',
+      });
+      const outcome = await dispatchEmail({
+        pool: app.pool, encKey: app.cfg.encKey, email, baseUrl: app.cfg.publicBaseUrl,
+      });
+      if (outcome.ok) reply.send({ ok: true, messageId: outcome.messageId });
+      else reply.send({ ok: false, error: outcome.error });
+    } catch (e) { sendError(reply, e); }
   });
 }
