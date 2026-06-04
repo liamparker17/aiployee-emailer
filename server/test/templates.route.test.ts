@@ -50,4 +50,28 @@ describe('templates routes', () => {
     const listB = await app.inject({ method: 'GET', url: '/api/templates', headers: headersB });
     expect(listB.json().templates).toHaveLength(0);
   });
+
+  it('accepts displayName on create and clears it on patch', async () => {
+    const a = await createTenant(pool);
+    const headersA = await loginTenantAdmin(a.id);
+    const create = await app.inject({
+      method: 'POST', url: '/api/templates', headers: headersA,
+      payload: { name: 'absa_line', subject: 'S', bodyHtml: '<p>x</p>', displayName: '  First Assist Absa Line  ' },
+    });
+    expect(create.statusCode).toBe(201);
+    expect(create.json().template.display_name).toBe('First Assist Absa Line'); // zod-trimmed
+    const tplId = create.json().template.id;
+
+    const patchOmit = await app.inject({
+      method: 'PATCH', url: `/api/templates/${tplId}`, headers: headersA,
+      payload: { subject: 'S2' },
+    });
+    expect(patchOmit.json().template.display_name).toBe('First Assist Absa Line'); // omit preserves
+
+    const patchClear = await app.inject({
+      method: 'PATCH', url: `/api/templates/${tplId}`, headers: headersA,
+      payload: { displayName: null },
+    });
+    expect(patchClear.json().template.display_name).toBeNull(); // null clears
+  });
 });
