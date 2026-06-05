@@ -1,4 +1,4 @@
-﻿import type pg from 'pg';
+import type pg from 'pg';
 
 export interface LineReportConfigRow {
   id: string;

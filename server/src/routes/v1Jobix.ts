@@ -4,6 +4,7 @@ import { sendError, AppError } from '../util/errors.js';
 import { requireCtx } from '../auth/ctx.js';
 import { ingestJobixCall } from '../agent/abe/ingestCall.js';
 import { getLineReportConfig } from '../repos/lineReportConfigs.js';
+import type { AttributionMap } from '../agent/abe/jobixPayload.js';
 
 // Lenient: Jobix shapes vary per tenant. We accept any object and let normalizeCall sort it out.
 const Body = z.record(z.unknown());
@@ -20,7 +21,7 @@ function callRef(b: Record<string, unknown>): string {
 }
 
 export async function registerV1JobixRoutes(app: FastifyInstance) {
-  app.post('/v1/jobix/calls', async (req, reply) => {
+  app.post('/v1/jobix/calls', { bodyLimit: 262144 }, async (req, reply) => {
     try {
       const ctx = requireCtx(req);
       if (ctx.role !== 'api_key') throw new AppError('unauthorized', 401, 'API key required');
@@ -29,7 +30,7 @@ export async function registerV1JobixRoutes(app: FastifyInstance) {
       if (!ref || ref === ':') throw new AppError('bad_request', 400, 'Cannot derive a call reference (need suid or call id)');
 
       const cfg = await getLineReportConfig(app.pool, ctx.tenantId);
-      const attribution = (cfg?.attribution_map ?? {}) as { source?: 'agent'|'values_key'; values_key?: string };
+      const attribution = (cfg?.attribution_map ?? {}) as AttributionMap;
 
       const out = await ingestJobixCall({
         pool: app.pool, tenantId: ctx.tenantId, callRef: ref, body: b, attribution,
