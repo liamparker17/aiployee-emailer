@@ -3,37 +3,72 @@ import type pg from 'pg';
 export interface CallRow {
   id: string; created_at: Date; content: string;
   category: string | null; severity: string | null;
+  caller_name: string | null; caller_phone: string | null;
+  attribution_label: string | null; call_type: string | null;
+  call_outcome: string | null; sentiment: string | null;
+  call_duration_seconds: number | null;
+  callback_requested: boolean | null; escalation_requested: boolean | null;
+  resolution_state: string | null;
 }
 
-export async function listCalls(pool: pg.Pool, tenantId: string, opts: {
+// Allow-lists: map API field names to SQL columns. User input never reaches SQL directly.
+const SORT_COLUMNS: Record<string, string> = {
+  created_at: 'm.created_at', attribution_label: 'f.attribution_label', category: 't.category',
+  call_outcome: 'f.call_outcome', sentiment: 'f.sentiment',
+  call_duration_seconds: 'f.call_duration_seconds', resolution_state: 'f.resolution_state',
+};
+export const BREAKDOWN_COLUMNS: Record<string, string> = {
+  attribution_label: 'f.attribution_label', category: 't.category',
+  call_outcome: 'f.call_outcome', sentiment: 'f.sentiment', resolution_state: 'f.resolution_state',
+};
+
+const CALL_FROM = `agent_messages m
+       LEFT JOIN call_facts f     ON f.message_id = m.id
+       LEFT JOIN line_call_tags t ON t.message_id = m.id`;
+const CALL_COLS = `m.id, m.created_at, m.content, t.category, t.severity,
+       f.caller_name, f.caller_phone, f.attribution_label, f.call_type,
+       f.call_outcome, f.sentiment, f.call_duration_seconds,
+       f.callback_requested, f.escalation_requested, f.resolution_state`;
+
+export interface ListCallsOpts {
   category?: string; search?: string; from?: Date; to?: Date; limit?: number; offset?: number;
-}): Promise<{ calls: CallRow[]; total: number }> {
+  attribution?: string; outcome?: string; sentiment?: string; resolution?: string;
+  callbackRequested?: boolean; escalationRequested?: boolean;
+  sort?: string; sortDir?: 'asc' | 'desc';
+}
+
+export async function listCalls(pool: pg.Pool, tenantId: string, opts: ListCallsOpts): Promise<{ calls: CallRow[]; total: number }> {
   const where = [`m.tenant_id = $1`, `m.role = 'inbound'`];
   const params: unknown[] = [tenantId];
-  if (opts.category) { params.push(opts.category); where.push(`t.category = $${params.length}`); }
-  if (opts.search)   { params.push('%' + opts.search + '%'); where.push(`m.content ILIKE $${params.length}`); }
-  if (opts.from)     { params.push(opts.from); where.push(`m.created_at >= $${params.length}`); }
-  if (opts.to)       { params.push(opts.to);   where.push(`m.created_at < $${params.length}`); }
+  const eq = (val: unknown, col: string) => { params.push(val); where.push(`${col} = $${params.length}`); };
+  if (opts.category) eq(opts.category, 't.category');
+  if (opts.search) { params.push('%' + opts.search + '%'); where.push(`m.content ILIKE $${params.length}`); }
+  if (opts.from) { params.push(opts.from); where.push(`m.created_at >= $${params.length}`); }
+  if (opts.to) { params.push(opts.to); where.push(`m.created_at < $${params.length}`); }
+  if (opts.attribution) eq(opts.attribution, 'f.attribution_label');
+  if (opts.outcome) eq(opts.outcome, 'f.call_outcome');
+  if (opts.sentiment) eq(opts.sentiment, 'f.sentiment');
+  if (opts.resolution) eq(opts.resolution, 'f.resolution_state');
+  if (opts.callbackRequested !== undefined) eq(opts.callbackRequested, 'f.callback_requested');
+  if (opts.escalationRequested !== undefined) eq(opts.escalationRequested, 'f.escalation_requested');
   const whereSql = where.join(' AND ');
-  const totalR = await pool.query<{ n: string }>(
-    `SELECT count(*)::text n FROM agent_messages m
-       LEFT JOIN line_call_tags t ON t.message_id = m.id WHERE ${whereSql}`, params);
+  const totalR = await pool.query<{ n: string }>(`SELECT count(*)::text n FROM ${CALL_FROM} WHERE ${whereSql}`, params);
+  const sortCol = SORT_COLUMNS[opts.sort ?? 'created_at'] ?? 'm.created_at';
+  const dir = opts.sortDir === 'asc' ? 'ASC' : 'DESC';
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
   const offset = Math.max(opts.offset ?? 0, 0);
   params.push(limit); const limIdx = params.length;
   params.push(offset); const offIdx = params.length;
   const r = await pool.query<CallRow>(
-    `SELECT m.id, m.created_at, m.content, t.category, t.severity
-       FROM agent_messages m LEFT JOIN line_call_tags t ON t.message_id = m.id
-      WHERE ${whereSql} ORDER BY m.created_at DESC LIMIT $${limIdx} OFFSET $${offIdx}`, params);
+    `SELECT ${CALL_COLS} FROM ${CALL_FROM} WHERE ${whereSql}
+      ORDER BY ${sortCol} ${dir} NULLS LAST, m.created_at DESC
+      LIMIT $${limIdx} OFFSET $${offIdx}`, params);
   return { calls: r.rows, total: Number(totalR.rows[0].n) };
 }
 
 export async function getCall(pool: pg.Pool, tenantId: string, id: string): Promise<CallRow | null> {
   const r = await pool.query<CallRow>(
-    `SELECT m.id, m.created_at, m.content, t.category, t.severity
-       FROM agent_messages m LEFT JOIN line_call_tags t ON t.message_id = m.id
-      WHERE m.tenant_id = $1 AND m.id = $2 AND m.role = 'inbound'`, [tenantId, id]);
+    `SELECT ${CALL_COLS} FROM ${CALL_FROM} WHERE m.tenant_id = $1 AND m.id = $2 AND m.role = 'inbound'`, [tenantId, id]);
   return r.rows[0] ?? null;
 }
 

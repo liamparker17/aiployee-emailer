@@ -7,6 +7,7 @@ import {
   listCalls, getCall, sampleInboundContents, deleteTagsForTenant,
   breakdownByCategory, callsPerDay, countCallsMatching,
 } from '../src/repos/callAnalytics.js';
+import type pg from 'pg';
 
 const pool = makePool();
 beforeEach(async () => { await truncateAll(pool); });
@@ -53,5 +54,47 @@ describe('callAnalytics repo', () => {
     expect(await countCallsMatching(pool, t.id, 'cancel', start, end)).toBe(1);
     expect(await deleteTagsForTenant(pool, t.id)).toBe(1);
     expect((await listCalls(pool, t.id, {})).calls[0].category).toBeNull();
+  });
+});
+
+async function seedCall(pool: pg.Pool, tenantId: string, opts: {
+  content: string; attribution?: string; outcome?: string; sentiment?: string; resolution?: string;
+}): Promise<string> {
+  const th = await pool.query<{ id: string }>(
+    `INSERT INTO agent_threads (tenant_id, jobix_thread_ref) VALUES ($1, 'jobix:'||gen_random_uuid()) RETURNING id`, [tenantId]);
+  const m = await pool.query<{ id: string }>(
+    `INSERT INTO agent_messages (thread_id, tenant_id, role, source, content, status)
+     VALUES ($1,$2,'inbound','jobix',$3,'sent') RETURNING id`, [th.rows[0].id, tenantId, opts.content]);
+  await pool.query(
+    `INSERT INTO call_facts (tenant_id, message_id, attribution_label, call_outcome, sentiment, resolution_state)
+     VALUES ($1,$2,$3,$4,$5,COALESCE($6,'open'))`,
+    [tenantId, m.rows[0].id, opts.attribution ?? null, opts.outcome ?? null, opts.sentiment ?? null, opts.resolution ?? null]);
+  return m.rows[0].id;
+}
+
+describe('listCalls structured filters + sort', () => {
+  it('returns structured columns and filters by attribution/outcome/sentiment/resolution', async () => {
+    const t = await createTenant(pool);
+    await seedCall(pool, t.id, { content: 'arrears query', attribution: 'Accounts', outcome: 'completed', sentiment: 'neutral', resolution: 'open' });
+    await seedCall(pool, t.id, { content: 'leak in unit', attribution: 'Maintenance', outcome: 'escalated', sentiment: 'negative', resolution: 'in_progress' });
+    const all = await listCalls(pool, t.id, {});
+    expect(all.total).toBe(2);
+    expect(all.calls[0]).toHaveProperty('attribution_label');
+    expect(all.calls[0]).toHaveProperty('resolution_state');
+    const acct = await listCalls(pool, t.id, { attribution: 'Accounts' });
+    expect(acct.total).toBe(1);
+    expect(acct.calls[0].attribution_label).toBe('Accounts');
+    expect((await listCalls(pool, t.id, { outcome: 'escalated' })).total).toBe(1);
+    expect((await listCalls(pool, t.id, { sentiment: 'negative' })).total).toBe(1);
+    expect((await listCalls(pool, t.id, { resolution: 'in_progress' })).total).toBe(1);
+  });
+  it('sorts by an allow-listed field asc/desc and falls back to created_at on unknown sort', async () => {
+    const t = await createTenant(pool);
+    await seedCall(pool, t.id, { content: 'a', attribution: 'Zeta' });
+    await seedCall(pool, t.id, { content: 'b', attribution: 'Alpha' });
+    const asc = await listCalls(pool, t.id, { sort: 'attribution_label', sortDir: 'asc' });
+    expect(asc.calls.map(c => c.attribution_label)).toEqual(['Alpha', 'Zeta']);
+    const bogus = await listCalls(pool, t.id, { sort: 'DROP TABLE' as never });
+    expect(bogus.total).toBe(2);
   });
 });
