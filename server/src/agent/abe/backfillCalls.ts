@@ -39,6 +39,7 @@ export async function backfillCallsFromEmails(args: {
   }
 
   await ensureCategories({ pool: args.pool, tenantId: args.tenantId, llm: args.llm, model: args.model });
+  await backfillCallFactsForTenant(args.pool, args.tenantId);
 
   let tagged = 0;
   while (tagged < cap) {
@@ -50,4 +51,18 @@ export async function backfillCallsFromEmails(args: {
   }
 
   return { imported, tagged };
+}
+
+// Give every inbound jobix message a call_facts row (summary = content, structured fields null).
+// For legacy/mirror calls that predate the webhook. Idempotent via the unique(message_id).
+export async function backfillCallFactsForTenant(pool: pg.Pool, tenantId: string): Promise<number> {
+  const r = await pool.query(
+    `INSERT INTO call_facts (tenant_id, message_id, summary)
+       SELECT m.tenant_id, m.id, m.content
+         FROM agent_messages m
+         LEFT JOIN call_facts f ON f.message_id = m.id
+        WHERE m.tenant_id = $1 AND m.role = 'inbound' AND m.source = 'jobix' AND f.id IS NULL
+     ON CONFLICT (message_id) DO NOTHING`,
+    [tenantId]);
+  return r.rowCount ?? 0;
 }
