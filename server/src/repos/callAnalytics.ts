@@ -138,3 +138,33 @@ export async function searchEmails(
     examples: r.rows.map(x => ({ subject: x.subject, excerpt: (x.body ?? '').replace(/\s+/g, ' ').slice(0, 180), sent_at: x.sent_at })),
   };
 }
+
+export interface CallSummary {
+  total: number; resolved: number; resolutionRatePct: number;
+  fcrCount: number; callbackCount: number; escalationCount: number; avgDurationSeconds: number;
+  sentimentMix: { positive: number; neutral: number; negative: number; unknown: number };
+}
+export async function callAnalyticsSummary(pool: pg.Pool, tenantId: string, start: Date, end: Date): Promise<CallSummary> {
+  const r = await pool.query<Record<string, string>>(
+    `SELECT count(*)::text total,
+            count(*) FILTER (WHERE f.resolution_state = 'resolved')::text resolved,
+            count(*) FILTER (WHERE f.fcr IS TRUE)::text fcr,
+            count(*) FILTER (WHERE f.callback_requested IS TRUE)::text callback,
+            count(*) FILTER (WHERE f.escalation_requested IS TRUE)::text escalation,
+            COALESCE(round(avg(f.call_duration_seconds))::int, 0)::text avg_duration,
+            count(*) FILTER (WHERE f.sentiment = 'positive')::text s_pos,
+            count(*) FILTER (WHERE f.sentiment = 'neutral')::text s_neu,
+            count(*) FILTER (WHERE f.sentiment = 'negative')::text s_neg,
+            count(*) FILTER (WHERE f.sentiment IS NULL)::text s_unk
+       FROM agent_messages m LEFT JOIN call_facts f ON f.message_id = m.id
+      WHERE m.tenant_id = $1 AND m.role = 'inbound' AND m.created_at >= $2 AND m.created_at < $3`,
+    [tenantId, start, end]);
+  const x = r.rows[0]; const total = Number(x.total); const resolved = Number(x.resolved);
+  return {
+    total, resolved,
+    resolutionRatePct: total ? Math.round((resolved / total) * 100) : 0,
+    fcrCount: Number(x.fcr), callbackCount: Number(x.callback), escalationCount: Number(x.escalation),
+    avgDurationSeconds: Number(x.avg_duration),
+    sentimentMix: { positive: Number(x.s_pos), neutral: Number(x.s_neu), negative: Number(x.s_neg), unknown: Number(x.s_unk) },
+  };
+}
