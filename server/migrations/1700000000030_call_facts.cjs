@@ -26,7 +26,7 @@ exports.up = (pgm) => {
     resolved_at:             { type: 'timestamptz' },
     resolved_by:             { type: 'uuid', references: 'users(id)', onDelete: 'SET NULL' },
     fcr:                     { type: 'boolean' },
-    values:                  { type: 'jsonb', notNull: true, default: '{}' },
+    call_values:             { type: 'jsonb', notNull: true, default: '{}' },
     raw_payload:             { type: 'jsonb', notNull: true, default: '{}' },
     created_at:              { type: 'timestamptz', notNull: true, default: pgm.func('now()') },
     updated_at:              { type: 'timestamptz', notNull: true, default: pgm.func('now()') },
@@ -47,7 +47,7 @@ exports.up = (pgm) => {
            f.caller_suid, f.caller_name, f.caller_phone,
            f.line_ref, f.attribution_label, f.call_type, f.call_outcome, f.sentiment,
            f.call_duration_seconds, f.callback_requested, f.escalation_requested,
-           f.resolution_state, f.fcr, f.values,
+           f.resolution_state, f.fcr, f.call_values,
            t.category, t.severity
       FROM agent_messages m
       LEFT JOIN call_facts f     ON f.message_id = m.id
