@@ -54,7 +54,7 @@ exports.up = (pgm) => {
     resolved_at:             { type: 'timestamptz' },
     resolved_by:             { type: 'uuid', references: 'users(id)', onDelete: 'SET NULL' },
     fcr:                     { type: 'boolean' },
-    values:                  { type: 'jsonb', notNull: true, default: '{}' },
+    call_values:             { type: 'jsonb', notNull: true, default: '{}' }, // tenant-specific values bag (NOT "values" — reserved word)
     raw_payload:             { type: 'jsonb', notNull: true, default: '{}' },
     created_at:              { type: 'timestamptz', notNull: true, default: pgm.func('now()') },
     updated_at:              { type: 'timestamptz', notNull: true, default: pgm.func('now()') },
@@ -75,7 +75,7 @@ exports.up = (pgm) => {
            f.caller_suid, f.caller_name, f.caller_phone,
            f.line_ref, f.attribution_label, f.call_type, f.call_outcome, f.sentiment,
            f.call_duration_seconds, f.callback_requested, f.escalation_requested,
-           f.resolution_state, f.fcr, f.values,
+           f.resolution_state, f.fcr, f.call_values,
            t.category, t.severity
       FROM agent_messages m
       LEFT JOIN call_facts f     ON f.message_id = m.id
@@ -406,7 +406,7 @@ export interface CallFactsRow {
   escalation_requested: boolean;
   resolution_state: 'open' | 'in_progress' | 'resolved' | 'unresolved';
   resolved_at: Date | null; resolved_by: string | null; fcr: boolean | null;
-  values: Record<string, unknown>; raw_payload: Record<string, unknown>;
+  call_values: Record<string, unknown>; raw_payload: Record<string, unknown>;
   created_at: Date; updated_at: Date;
 }
 
@@ -421,7 +421,7 @@ export async function upsertCallFacts(pool: pg.Pool, a: CallFactsInput): Promise
        (tenant_id, message_id, caller_suid, caller_name, caller_phone, caller_timezone,
         line_ref, attribution_label, call_type, summary, call_outcome, sentiment,
         call_duration_seconds, callback_requested, callback_preferred_time, escalation_requested,
-        values, raw_payload)
+        call_values, raw_payload)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      ON CONFLICT (message_id) DO UPDATE SET
        caller_suid = EXCLUDED.caller_suid, caller_name = EXCLUDED.caller_name,
@@ -433,7 +433,7 @@ export async function upsertCallFacts(pool: pg.Pool, a: CallFactsInput): Promise
        callback_requested = EXCLUDED.callback_requested,
        callback_preferred_time = EXCLUDED.callback_preferred_time,
        escalation_requested = EXCLUDED.escalation_requested,
-       values = EXCLUDED.values, raw_payload = EXCLUDED.raw_payload, updated_at = now()`,
+       call_values = EXCLUDED.call_values, raw_payload = EXCLUDED.raw_payload, updated_at = now()`,
     [a.tenantId, a.messageId, a.callerSuid, a.callerName, a.callerPhone, a.callerTimezone,
      a.lineRef, a.attributionLabel, a.callType, a.summary, a.callOutcome, a.sentiment,
      a.callDurationSeconds, a.callbackRequested, a.callbackPreferredTime, a.escalationRequested,

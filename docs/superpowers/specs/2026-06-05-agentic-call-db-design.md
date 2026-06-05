@@ -154,7 +154,7 @@ Migration `1700000000030_call_facts.cjs`. 1:1 with the inbound message.
 | `resolved_at` | timestamptz | |
 | `resolved_by` | uuid → users (SET NULL) | |
 | `fcr` | boolean | nullable (first-call-resolution) |
-| `values` | jsonb default `'{}'` | raw tenant-specific business fields |
+| `call_values` | jsonb default `'{}'` | raw tenant-specific business fields (named `call_values`, not `values` — reserved word) |
 | `raw_payload` | jsonb default `'{}'` | full webhook payload, for audit/replay |
 | `created_at` / `updated_at` | timestamptz default now() | |
 
@@ -171,7 +171,7 @@ SELECT m.id AS message_id, m.tenant_id, m.content AS summary_text, m.created_at,
        f.caller_suid, f.caller_name, f.caller_phone,
        f.line_ref, f.attribution_label, f.call_type, f.call_outcome, f.sentiment,
        f.callback_requested, f.escalation_requested, f.resolution_state, f.fcr,
-       f.values, t.category, t.severity
+       f.call_values, t.category, t.severity
 FROM agent_messages m
 LEFT JOIN call_facts f      ON f.message_id = m.id
 LEFT JOIN line_call_tags t  ON t.message_id = m.id
