@@ -33,4 +33,11 @@ describe('lineReportConfigs repo', () => {
     expect(c.spike_pct).toBe(30);
     expect(c.enabled).toBe(true);
   });
+
+  it('round-trips attribution_map', async () => {
+    const t = await createTenant(pool);
+    await upsertLineReportConfig(pool, t.id, { attributionMap: { source: 'values_key', values_key: 'department' } });
+    const cfg = await getLineReportConfig(pool, t.id);
+    expect(cfg?.attribution_map).toEqual({ source: 'values_key', values_key: 'department' });
+  });
 });

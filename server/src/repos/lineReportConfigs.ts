@@ -1,4 +1,4 @@
-import type pg from 'pg';
+﻿import type pg from 'pg';
 
 export interface LineReportConfigRow {
   id: string;
@@ -17,6 +17,7 @@ export interface LineReportConfigRow {
   client_name: string | null;
   client_context: string | null;
   ingest_sends_as_calls: boolean;
+  attribution_map: { source?: 'agent' | 'values_key'; values_key?: string };
   created_at: Date;
   updated_at: Date;
 }
@@ -41,6 +42,7 @@ export interface LineReportConfigPatch {
   clientName?: string | null;
   clientContext?: string | null;
   ingestSendsAsCalls?: boolean;
+  attributionMap?: { source?: 'agent' | 'values_key'; values_key?: string };
 }
 
 const clamp = (n: number, lo: number, hi: number) =>
@@ -75,19 +77,20 @@ export async function upsertLineReportConfig(
   const taxonomy = patch.taxonomy != null
     ? patch.taxonomy.map(s => s.trim()).filter(Boolean)
     : null;
+  const attributionMap = patch.attributionMap ?? null;
 
   const r = await pool.query<LineReportConfigRow>(
     `INSERT INTO line_report_configs
        (tenant_id, enabled, daily_digest, weekly_rollup, weekly_send_day, send_hour_utc,
         recipients, taxonomy, spike_pct, spike_min_count, baseline_periods, brand_voice,
-        client_name, client_context, ingest_sends_as_calls)
+        client_name, client_context, ingest_sends_as_calls, attribution_map)
      VALUES ($1,
         COALESCE($2, false), COALESCE($3, true), COALESCE($4, true),
         COALESCE($5, 1), COALESCE($6, 6),
         COALESCE($7, '[]'::jsonb), COALESCE($8, $9::jsonb),
         COALESCE($10, 50), COALESCE($11, 5), COALESCE($12, 4), $13,
         $15, $16,
-        COALESCE($14, false))
+        COALESCE($14, false), COALESCE($17, '{}'::jsonb))
      ON CONFLICT (tenant_id) DO UPDATE SET
         enabled          = COALESCE($2,  line_report_configs.enabled),
         daily_digest     = COALESCE($3,  line_report_configs.daily_digest),
@@ -103,6 +106,7 @@ export async function upsertLineReportConfig(
         client_name      = COALESCE($15, line_report_configs.client_name),
         client_context   = COALESCE($16, line_report_configs.client_context),
         ingest_sends_as_calls = COALESCE($14, line_report_configs.ingest_sends_as_calls),
+        attribution_map  = COALESCE($17, line_report_configs.attribution_map),
         updated_at       = now()
      RETURNING *`,
     [
@@ -122,6 +126,7 @@ export async function upsertLineReportConfig(
       patch.ingestSendsAsCalls ?? null,
       patch.clientName ?? null,
       patch.clientContext ?? null,
+      attributionMap != null ? JSON.stringify(attributionMap) : null,
     ],
   );
   return r.rows[0];
