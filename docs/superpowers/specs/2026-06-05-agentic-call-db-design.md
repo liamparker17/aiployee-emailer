@@ -102,8 +102,10 @@ Observations that drive the model:
 
 **Endpoint:** `POST /v1/jobix/calls` (new route; does not touch existing `/v1/emails`).
 
-**Auth:** resolve `company_key` → tenant; require a shared secret (HMAC header or bearer) —
-configured per environment. Reject unknown `company_key` or bad signature.
+**Auth:** reuse the existing per-tenant **API-key** mechanism (same as `/v1/emails`):
+`Authorization: Bearer <api key>` → `requireCtx` resolves `ctx.tenantId` (`role === 'api_key'`).
+No new secret system. The body's `company_key` is Jobix's internal id — stored in `raw_payload`
+for reference, not used for auth. Non-api-key / missing key → 401.
 
 **Idempotency:** stable call id = Jobix call ref if present, else `suid` + call timestamp.
 Reuse the existing `agent_messages (tenant_id, message_ref)` unique index — `message_ref` = that
@@ -225,7 +227,7 @@ Server tests run serially against the Neon test branch (see project memory).
   (caller suid/name/phone from `customer_data.main`, outcome, callback flags, duration parsed,
   `values`/`raw_payload` stored).
 - **Idempotency:** same call id twice → one message, `call_facts` upserted not duplicated.
-- **Auth:** bad/missing secret → 401; unknown `company_key` → 404/403.
+- **Auth:** missing/invalid API key → 401; non-api-key ctx (e.g. session) → 401.
 - **Attribution:** `source: agent`, `source: values_key`, and default heuristic each resolve
   `attribution_label` / `call_type` correctly; missing keys → null (no crash).
 - **Duration parsing:** "3 minutes 42 seconds" → 222; malformed → null.
