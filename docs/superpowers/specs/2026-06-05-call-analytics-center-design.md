@@ -36,7 +36,11 @@ disposition) are Slice B.
 
 ## 1. Data layer — `server/src/repos/callAnalytics.ts`
 
-Read from the **`calls` view** instead of the ad-hoc `agent_messages`+`line_call_tags` join.
+Add the structured columns by **LEFT JOIN-ing `call_facts f ON f.message_id = m.id`** onto the
+existing `agent_messages m` (`role='inbound'`) + `line_call_tags t` query. This preserves the exact
+current call set (the `calls` view additionally requires `source='jobix'`, which could drop inbound
+`manual` rows — so we do NOT read the view here; it remains for other consumers/tests). Facts are
+nullable (LEFT JOIN), so tenants without/before backfill still list normally.
 
 ### 1.1 `listCalls` — widen the row + filters
 `CallRow` gains the structured columns (all nullable):
@@ -129,9 +133,9 @@ Other panels (FirstRun, Categories, AskAbe, Settings) unchanged.
 
 ## 4. Data flow
 
-Jobix webhook / mirror → `agent_messages` + `call_facts` → **`calls` view** → `callAnalytics` repo
-(`listCalls`, `callAnalyticsSummary`, `breakdownBy`, `crosstabDeptCategory`) → routes → Calls page
-(dashboard + grid + drill-down). One read path; the view is the single source.
+Jobix webhook / mirror → `agent_messages` + `call_facts` (+ `line_call_tags`) → `callAnalytics` repo
+(`listCalls`, `callAnalyticsSummary`, `breakdownBy`, `crosstabDeptCategory`), each LEFT-JOINing
+`call_facts` onto the inbound query → routes → Calls page (dashboard + grid + drill-down).
 
 ## 5. Error handling
 
