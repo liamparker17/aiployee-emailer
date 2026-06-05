@@ -994,14 +994,69 @@ function ExplorerPanel({ categories }: { categories: string[] }) {
       {/* Call detail modal */}
       <Modal open={!!sel} onClose={() => setSel(null)} title="Call detail">
         {sel && (
-          <div className="space-y-3 text-sm">
-            <div className="flex flex-wrap gap-4">
-              <div><span className="text-ink-muted">Date: </span><span className="text-ink">{new Date(sel.created_at).toLocaleString()}</span></div>
-              <div><span className="text-ink-muted">Category: </span><span className="text-ink">{sel.category ?? '—'}</span></div>
-              <div><span className="text-ink-muted">Severity: </span><SeverityChip severity={sel.severity} /></div>
+          <div className="space-y-4 text-sm">
+            {/* Caller */}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+              <div>
+                <span className="text-ink-muted block text-xs mb-0.5">Caller name</span>
+                <span className="text-ink">{sel.caller_name ?? '—'}</span>
+              </div>
+              <div>
+                <span className="text-ink-muted block text-xs mb-0.5">Caller phone</span>
+                <span className="text-ink">{sel.caller_phone ?? '—'}</span>
+              </div>
+              <div>
+                <span className="text-ink-muted block text-xs mb-0.5">Department</span>
+                <span className="text-ink">{sel.attribution_label ?? '—'}</span>
+              </div>
+              <div>
+                <span className="text-ink-muted block text-xs mb-0.5">Type</span>
+                <span className="text-ink">{sel.call_type ?? '—'}</span>
+              </div>
+              <div>
+                <span className="text-ink-muted block text-xs mb-0.5">Outcome</span>
+                <span className="text-ink">{sel.call_outcome ?? '—'}</span>
+              </div>
+              <div>
+                <span className="text-ink-muted block text-xs mb-0.5">Sentiment</span>
+                <SentimentChip sentiment={sel.sentiment} />
+              </div>
+              <div>
+                <span className="text-ink-muted block text-xs mb-0.5">Duration</span>
+                <span className="text-ink">{fmtDuration(sel.call_duration_seconds)}</span>
+              </div>
+              <div>
+                <span className="text-ink-muted block text-xs mb-0.5">Resolution</span>
+                <ResolutionChip state={sel.resolution_state} />
+              </div>
+              <div>
+                <span className="text-ink-muted block text-xs mb-0.5">Callback requested</span>
+                <span className="text-ink">{sel.callback_requested === true ? 'Yes' : sel.callback_requested === false ? 'No' : '—'}</span>
+              </div>
+              <div>
+                <span className="text-ink-muted block text-xs mb-0.5">Escalation requested</span>
+                <span className="text-ink">{sel.escalation_requested === true ? 'Yes' : sel.escalation_requested === false ? 'No' : '—'}</span>
+              </div>
+              <div>
+                <span className="text-ink-muted block text-xs mb-0.5">Category</span>
+                {sel.category
+                  ? <span className="bg-accent/15 text-accent text-xs px-2 py-0.5 rounded-full">{sel.category}</span>
+                  : <span className="text-ink-dim text-xs">—</span>}
+              </div>
+              <div>
+                <span className="text-ink-muted block text-xs mb-0.5">Severity</span>
+                <SeverityChip severity={sel.severity} />
+              </div>
+              <div className="col-span-2">
+                <span className="text-ink-muted block text-xs mb-0.5">Time</span>
+                <span className="text-ink">{new Date(sel.created_at).toLocaleString()}</span>
+              </div>
             </div>
             <hr className="border-line" />
-            <pre className="whitespace-pre-wrap text-ink bg-surface-raised rounded-lg p-4 text-sm max-h-96 overflow-y-auto">{sel.content}</pre>
+            <div>
+              <span className="text-ink-muted block text-xs mb-1">Summary</span>
+              <pre className="whitespace-pre-wrap text-ink bg-surface-raised rounded-lg p-4 text-sm max-h-96 overflow-y-auto">{sel.content}</pre>
+            </div>
           </div>
         )}
       </Modal>
