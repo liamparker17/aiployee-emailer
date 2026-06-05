@@ -298,6 +298,97 @@ describe('GET/PUT /api/calls/settings', () => {
   });
 });
 
+// ── NEW: GET /api/calls filters + sort + breakdown multi-dim ──────────────
+
+// Helper: seed an inbound call with call_facts (attribution, outcome, etc.)
+async function seedCallWithFacts(
+  pool: pg.Pool,
+  tenantId: string,
+  opts: {
+    content?: string;
+    attribution?: string;
+    outcome?: string;
+    sentiment?: string;
+    resolution?: string;
+  } = {},
+): Promise<{ id: string; thread_id: string }> {
+  const call = await seedInboundCall(pool, tenantId, opts.content ?? 'test call');
+  await pool.query(
+    `INSERT INTO call_facts (message_id, tenant_id, attribution_label, call_outcome, sentiment, resolution_state)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [call.id, tenantId, opts.attribution ?? null, opts.outcome ?? null, opts.sentiment ?? null, opts.resolution ?? 'open'],
+  );
+  return call;
+}
+
+import type pg from 'pg';
+
+describe('GET /api/calls — new filters', () => {
+  it('filters by attribution_label', async () => {
+    const { tenantId, headers } = await adminSession();
+    await seedCallWithFacts(pool, tenantId, { content: 'Accounts call', attribution: 'Accounts' });
+    await seedCallWithFacts(pool, tenantId, { content: 'Claims call', attribution: 'Claims' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/calls?attribution=Accounts&sort=attribution_label&sortDir=asc',
+      headers,
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(Array.isArray(body.calls)).toBe(true);
+    expect(body.calls).toHaveLength(1);
+    expect(body.calls[0].attribution_label).toBe('Accounts');
+  });
+
+  it('rejects bogus sort field with 400', async () => {
+    const { headers } = await adminSession();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/calls?sort=bogus',
+      headers,
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('returns 403 for non-admin on GET /api/calls', async () => {
+    const { tenantId } = await adminSession();
+    const { headers } = await nonAdminSession(tenantId);
+    const res = await app.inject({ method: 'GET', url: '/api/calls', headers });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('GET /api/calls/breakdown — multi-dimension', () => {
+  it('returns all dimension keys in response', async () => {
+    const { tenantId, headers } = await adminSession();
+    await seedCallWithFacts(pool, tenantId, { content: 'Test call', attribution: 'Accounts', outcome: 'resolved', sentiment: 'positive', resolution: 'resolved' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/calls/breakdown?window=7d',
+      headers,
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty('summary');
+    expect(body).toHaveProperty('byCategory');
+    expect(body).toHaveProperty('byDepartment');
+    expect(body).toHaveProperty('byOutcome');
+    expect(body).toHaveProperty('bySentiment');
+    expect(body).toHaveProperty('byResolution');
+    expect(body).toHaveProperty('crosstab');
+    expect(body).toHaveProperty('perDay');
+    expect(Array.isArray(body.byCategory)).toBe(true);
+    expect(Array.isArray(body.byDepartment)).toBe(true);
+    expect(Array.isArray(body.byOutcome)).toBe(true);
+    expect(Array.isArray(body.bySentiment)).toBe(true);
+    expect(Array.isArray(body.byResolution)).toBe(true);
+    expect(Array.isArray(body.crosstab)).toBe(true);
+    expect(Array.isArray(body.perDay)).toBe(true);
+    expect(typeof body.summary).toBe('object');
+    expect(typeof body.summary.total).toBe('number');
+  });
+});
+
 // ── GET /api/calls/:id ────────────────────────────────────────────────────
 
 describe('GET /api/calls/:id', () => {

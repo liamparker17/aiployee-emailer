@@ -3,37 +3,98 @@ import type pg from 'pg';
 export interface CallRow {
   id: string; created_at: Date; content: string;
   category: string | null; severity: string | null;
+  caller_name: string | null; caller_phone: string | null;
+  attribution_label: string | null; call_type: string | null;
+  call_outcome: string | null; sentiment: string | null;
+  call_duration_seconds: number | null;
+  callback_requested: boolean | null; escalation_requested: boolean | null;
+  resolution_state: string | null;
 }
 
-export async function listCalls(pool: pg.Pool, tenantId: string, opts: {
+// Allow-lists: map API field names to SQL columns. User input never reaches SQL directly.
+const SORT_COLUMNS: Record<string, string> = {
+  created_at: 'm.created_at', attribution_label: 'f.attribution_label', category: 't.category',
+  call_outcome: 'f.call_outcome', sentiment: 'f.sentiment',
+  call_duration_seconds: 'f.call_duration_seconds', resolution_state: 'f.resolution_state',
+};
+export const BREAKDOWN_COLUMNS: Record<string, string> = {
+  attribution_label: 'f.attribution_label', category: 't.category',
+  call_outcome: 'f.call_outcome', sentiment: 'f.sentiment', resolution_state: 'f.resolution_state',
+};
+
+const CALL_FROM = `agent_messages m
+       LEFT JOIN call_facts f     ON f.message_id = m.id
+       LEFT JOIN line_call_tags t ON t.message_id = m.id`;
+const CALL_COLS = `m.id, m.created_at, m.content, t.category, t.severity,
+       f.caller_name, f.caller_phone, f.attribution_label, f.call_type,
+       f.call_outcome, f.sentiment, f.call_duration_seconds,
+       f.callback_requested, f.escalation_requested, f.resolution_state`;
+
+export interface ListCallsOpts {
   category?: string; search?: string; from?: Date; to?: Date; limit?: number; offset?: number;
-}): Promise<{ calls: CallRow[]; total: number }> {
+  attribution?: string; outcome?: string; sentiment?: string; resolution?: string;
+  callbackRequested?: boolean; escalationRequested?: boolean;
+  sort?: string; sortDir?: 'asc' | 'desc';
+}
+
+export async function listCalls(pool: pg.Pool, tenantId: string, opts: ListCallsOpts): Promise<{ calls: CallRow[]; total: number }> {
   const where = [`m.tenant_id = $1`, `m.role = 'inbound'`];
   const params: unknown[] = [tenantId];
-  if (opts.category) { params.push(opts.category); where.push(`t.category = $${params.length}`); }
-  if (opts.search)   { params.push('%' + opts.search + '%'); where.push(`m.content ILIKE $${params.length}`); }
-  if (opts.from)     { params.push(opts.from); where.push(`m.created_at >= $${params.length}`); }
-  if (opts.to)       { params.push(opts.to);   where.push(`m.created_at < $${params.length}`); }
+  const eq = (val: unknown, col: string) => { params.push(val); where.push(`${col} = $${params.length}`); };
+  if (opts.category) eq(opts.category, 't.category');
+  if (opts.search) { params.push('%' + opts.search + '%'); where.push(`m.content ILIKE $${params.length}`); }
+  if (opts.from) { params.push(opts.from); where.push(`m.created_at >= $${params.length}`); }
+  if (opts.to) { params.push(opts.to); where.push(`m.created_at < $${params.length}`); }
+  if (opts.attribution) eq(opts.attribution, 'f.attribution_label');
+  if (opts.outcome) eq(opts.outcome, 'f.call_outcome');
+  if (opts.sentiment) eq(opts.sentiment, 'f.sentiment');
+  if (opts.resolution) eq(opts.resolution, 'f.resolution_state');
+  if (opts.callbackRequested !== undefined) eq(opts.callbackRequested, 'f.callback_requested');
+  if (opts.escalationRequested !== undefined) eq(opts.escalationRequested, 'f.escalation_requested');
   const whereSql = where.join(' AND ');
-  const totalR = await pool.query<{ n: string }>(
-    `SELECT count(*)::text n FROM agent_messages m
-       LEFT JOIN line_call_tags t ON t.message_id = m.id WHERE ${whereSql}`, params);
+  const totalR = await pool.query<{ n: string }>(`SELECT count(*)::text n FROM ${CALL_FROM} WHERE ${whereSql}`, params);
+  const sortCol = SORT_COLUMNS[opts.sort ?? 'created_at'] ?? 'm.created_at';
+  const dir = opts.sortDir === 'asc' ? 'ASC' : 'DESC';
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
   const offset = Math.max(opts.offset ?? 0, 0);
   params.push(limit); const limIdx = params.length;
   params.push(offset); const offIdx = params.length;
   const r = await pool.query<CallRow>(
-    `SELECT m.id, m.created_at, m.content, t.category, t.severity
-       FROM agent_messages m LEFT JOIN line_call_tags t ON t.message_id = m.id
-      WHERE ${whereSql} ORDER BY m.created_at DESC LIMIT $${limIdx} OFFSET $${offIdx}`, params);
+    `SELECT ${CALL_COLS} FROM ${CALL_FROM} WHERE ${whereSql}
+      ORDER BY ${sortCol} ${dir} NULLS LAST, m.created_at DESC
+      LIMIT $${limIdx} OFFSET $${offIdx}`, params);
   return { calls: r.rows, total: Number(totalR.rows[0].n) };
+}
+
+export async function listCallsForExport(pool: pg.Pool, tenantId: string, opts: ListCallsOpts): Promise<CallRow[]> {
+  const where = [`m.tenant_id = $1`, `m.role = 'inbound'`];
+  const params: unknown[] = [tenantId];
+  const eq = (val: unknown, col: string) => { params.push(val); where.push(`${col} = $${params.length}`); };
+  if (opts.category) eq(opts.category, 't.category');
+  if (opts.search) { params.push('%' + opts.search + '%'); where.push(`m.content ILIKE $${params.length}`); }
+  if (opts.from) { params.push(opts.from); where.push(`m.created_at >= $${params.length}`); }
+  if (opts.to) { params.push(opts.to); where.push(`m.created_at < $${params.length}`); }
+  if (opts.attribution) eq(opts.attribution, 'f.attribution_label');
+  if (opts.outcome) eq(opts.outcome, 'f.call_outcome');
+  if (opts.sentiment) eq(opts.sentiment, 'f.sentiment');
+  if (opts.resolution) eq(opts.resolution, 'f.resolution_state');
+  if (opts.callbackRequested !== undefined) eq(opts.callbackRequested, 'f.callback_requested');
+  if (opts.escalationRequested !== undefined) eq(opts.escalationRequested, 'f.escalation_requested');
+  const whereSql = where.join(' AND ');
+  const sortCol = SORT_COLUMNS[opts.sort ?? 'created_at'] ?? 'm.created_at';
+  const dir = opts.sortDir === 'asc' ? 'ASC' : 'DESC';
+  const limit = Math.min(opts.limit ?? 5000, 5000);
+  params.push(limit); const limIdx = params.length;
+  const r = await pool.query<CallRow>(
+    `SELECT ${CALL_COLS} FROM ${CALL_FROM} WHERE ${whereSql}
+      ORDER BY ${sortCol} ${dir} NULLS LAST, m.created_at DESC
+      LIMIT $${limIdx} OFFSET 0`, params);
+  return r.rows;
 }
 
 export async function getCall(pool: pg.Pool, tenantId: string, id: string): Promise<CallRow | null> {
   const r = await pool.query<CallRow>(
-    `SELECT m.id, m.created_at, m.content, t.category, t.severity
-       FROM agent_messages m LEFT JOIN line_call_tags t ON t.message_id = m.id
-      WHERE m.tenant_id = $1 AND m.id = $2 AND m.role = 'inbound'`, [tenantId, id]);
+    `SELECT ${CALL_COLS} FROM ${CALL_FROM} WHERE m.tenant_id = $1 AND m.id = $2 AND m.role = 'inbound'`, [tenantId, id]);
   return r.rows[0] ?? null;
 }
 
@@ -102,4 +163,58 @@ export async function searchEmails(
     count: Number(c.rows[0].n),
     examples: r.rows.map(x => ({ subject: x.subject, excerpt: (x.body ?? '').replace(/\s+/g, ' ').slice(0, 180), sent_at: x.sent_at })),
   };
+}
+
+export interface CallSummary {
+  total: number; resolved: number; resolutionRatePct: number;
+  fcrCount: number; callbackCount: number; escalationCount: number; avgDurationSeconds: number;
+  sentimentMix: { positive: number; neutral: number; negative: number; unknown: number };
+}
+export async function callAnalyticsSummary(pool: pg.Pool, tenantId: string, start: Date, end: Date): Promise<CallSummary> {
+  const r = await pool.query<Record<string, string>>(
+    `SELECT count(*)::text total,
+            count(*) FILTER (WHERE f.resolution_state = 'resolved')::text resolved,
+            count(*) FILTER (WHERE f.fcr IS TRUE)::text fcr,
+            count(*) FILTER (WHERE f.callback_requested IS TRUE)::text callback,
+            count(*) FILTER (WHERE f.escalation_requested IS TRUE)::text escalation,
+            COALESCE(round(avg(f.call_duration_seconds))::int, 0)::text avg_duration,
+            count(*) FILTER (WHERE f.sentiment = 'positive')::text s_pos,
+            count(*) FILTER (WHERE f.sentiment = 'neutral')::text s_neu,
+            count(*) FILTER (WHERE f.sentiment = 'negative')::text s_neg,
+            count(*) FILTER (WHERE f.sentiment IS NULL)::text s_unk
+       FROM agent_messages m LEFT JOIN call_facts f ON f.message_id = m.id
+      WHERE m.tenant_id = $1 AND m.role = 'inbound' AND m.created_at >= $2 AND m.created_at < $3`,
+    [tenantId, start, end]);
+  const x = r.rows[0]; const total = Number(x.total); const resolved = Number(x.resolved);
+  return {
+    total, resolved,
+    resolutionRatePct: total ? Math.round((resolved / total) * 100) : 0,
+    fcrCount: Number(x.fcr), callbackCount: Number(x.callback), escalationCount: Number(x.escalation),
+    avgDurationSeconds: Number(x.avg_duration),
+    sentimentMix: { positive: Number(x.s_pos), neutral: Number(x.s_neu), negative: Number(x.s_neg), unknown: Number(x.s_unk) },
+  };
+}
+
+export async function breakdownBy(pool: pg.Pool, tenantId: string, dimension: string, start: Date, end: Date): Promise<Array<{ key: string | null; count: number }>> {
+  const col = BREAKDOWN_COLUMNS[dimension];
+  if (!col) throw new Error(`invalid breakdown dimension: ${dimension}`);
+  const r = await pool.query<{ key: string | null; count: string }>(
+    `SELECT ${col} AS key, count(*)::text count
+       FROM agent_messages m
+       LEFT JOIN call_facts f     ON f.message_id = m.id
+       LEFT JOIN line_call_tags t ON t.message_id = m.id
+      WHERE m.tenant_id = $1 AND m.role = 'inbound' AND m.created_at >= $2 AND m.created_at < $3
+      GROUP BY 1 ORDER BY count(*) DESC`, [tenantId, start, end]);
+  return r.rows.map(x => ({ key: x.key, count: Number(x.count) }));
+}
+
+export async function crosstabDeptCategory(pool: pg.Pool, tenantId: string, start: Date, end: Date): Promise<Array<{ attribution_label: string | null; category: string | null; count: number }>> {
+  const r = await pool.query<{ attribution_label: string | null; category: string | null; count: string }>(
+    `SELECT f.attribution_label, t.category, count(*)::text count
+       FROM agent_messages m
+       LEFT JOIN call_facts f     ON f.message_id = m.id
+       LEFT JOIN line_call_tags t ON t.message_id = m.id
+      WHERE m.tenant_id = $1 AND m.role = 'inbound' AND m.created_at >= $2 AND m.created_at < $3
+      GROUP BY 1, 2 ORDER BY count(*) DESC`, [tenantId, start, end]);
+  return r.rows.map(x => ({ attribution_label: x.attribution_label, category: x.category, count: Number(x.count) }));
 }

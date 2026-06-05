@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireTenantCtx } from '../auth/ctx.js';
 import { AppError, sendError } from '../util/errors.js';
-import { listCalls, getCall, breakdownByCategory, callsPerDay } from '../repos/callAnalytics.js';
+import { listCalls, listCallsForExport, getCall, breakdownByCategory, callsPerDay, callAnalyticsSummary, breakdownBy, crosstabDeptCategory } from '../repos/callAnalytics.js';
 import { getLineReportConfig, upsertLineReportConfig } from '../repos/lineReportConfigs.js';
 import { suggestCategories } from '../agent/abe/categorySuggest.js';
 import { retagCalls } from '../agent/abe/retag.js';
@@ -40,20 +40,58 @@ async function tenantLlm(app: FastifyInstance, tenantId: string) {
 export function registerCallAnalyticsRoutes(app: FastifyInstance): void {
   // ── List calls ─────────────────────────────────────────────────────────────
 
+  const ListCallsQ = z.object({
+    category: z.string().optional(),
+    search: z.string().optional(),
+    from: z.coerce.date().optional(),
+    to: z.coerce.date().optional(),
+    limit: z.coerce.number().optional(),
+    offset: z.coerce.number().optional(),
+    attribution: z.string().optional(),
+    outcome: z.string().optional(),
+    sentiment: z.string().optional(),
+    resolution: z.string().optional(),
+    callbackRequested: z.coerce.boolean().optional(),
+    escalationRequested: z.coerce.boolean().optional(),
+    sort: z.enum(['created_at', 'attribution_label', 'category', 'call_outcome', 'sentiment', 'call_duration_seconds', 'resolution_state']).optional(),
+    sortDir: z.enum(['asc', 'desc']).optional(),
+  });
+
   app.get('/api/calls', async (req, reply) => {
     try {
       const ctx = requireTenantCtx(req);
       requireAdmin(ctx);
-      const q = req.query as Record<string, string>;
-      const out = await listCalls(app.pool, ctx.tenantId, {
-        category: q.category || undefined,
-        search: q.search || undefined,
-        from: q.from ? new Date(q.from) : undefined,
-        to: q.to ? new Date(q.to) : undefined,
-        limit: q.limit ? Number(q.limit) : undefined,
-        offset: q.offset ? Number(q.offset) : undefined,
-      });
+      const Q = ListCallsQ.parse(req.query);
+      const out = await listCalls(app.pool, ctx.tenantId, Q);
       reply.send(out);
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // ── Export CSV (MUST be before /:id) ──────────────────────────────────────
+
+  function csvCell(v: unknown): string {
+    const s = v == null ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  app.get('/api/calls/export.csv', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      requireAdmin(ctx);
+      const Q = ListCallsQ.parse(req.query);
+      const calls = await listCallsForExport(app.pool, ctx.tenantId, Q);
+      const header = ['Time','Caller','Phone','Department','Type','Category','Outcome','Sentiment','Duration','Callback','Escalation','Resolution','Summary'];
+      const lines = [header.join(',')];
+      for (const c of calls) lines.push([
+        c.created_at instanceof Date ? c.created_at.toISOString() : String(c.created_at),
+        c.caller_name, c.caller_phone, c.attribution_label, c.call_type, c.category,
+        c.call_outcome, c.sentiment, c.call_duration_seconds,
+        c.callback_requested ? 'yes' : '', c.escalation_requested ? 'yes' : '',
+        c.resolution_state, (c.content ?? '').replace(/\s+/g, ' ').slice(0, 500),
+      ].map(csvCell).join(','));
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="calls.csv"');
+      return reply.send(lines.join('\n'));
     } catch (e) { sendError(reply, e); }
   });
 
@@ -65,12 +103,18 @@ export function registerCallAnalyticsRoutes(app: FastifyInstance): void {
       requireAdmin(ctx);
       const w = (req.query as Record<string, string>).window ?? '7d';
       const { start, end } = windowRange(w);
-      const [byCategory, perDay] = await Promise.all([
+      const [summary, byCategoryLegacy, byDepartment, byOutcome, bySentiment, byResolution, crosstab, perDay] = await Promise.all([
+        callAnalyticsSummary(app.pool, ctx.tenantId, start, end),
         breakdownByCategory(app.pool, ctx.tenantId, start, end),
+        breakdownBy(app.pool, ctx.tenantId, 'attribution_label', start, end),
+        breakdownBy(app.pool, ctx.tenantId, 'call_outcome', start, end),
+        breakdownBy(app.pool, ctx.tenantId, 'sentiment', start, end),
+        breakdownBy(app.pool, ctx.tenantId, 'resolution_state', start, end),
+        crosstabDeptCategory(app.pool, ctx.tenantId, start, end),
         callsPerDay(app.pool, ctx.tenantId, start, end),
       ]);
-      const total = byCategory.reduce((s, b) => s + b.count, 0);
-      reply.send({ window: w, total, byCategory, perDay });
+      const byCategory = byCategoryLegacy;
+      reply.send({ window: w, total: summary.total, summary, byCategory, byDepartment, byOutcome, bySentiment, byResolution, crosstab, perDay });
     } catch (e) { sendError(reply, e); }
   });
 

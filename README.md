@@ -53,6 +53,16 @@ Break-even vs even one client on Brevo Starter: month one.
 - **Email log.** Per-tenant searchable history with status, error, and full message body.
 - **Strict isolation.** A tenant cannot see or affect another tenant's data.
 
+## Call intelligence (Abe & the Call Analytics Center)
+
+Beyond transactional email, the platform now doubles as an **agentic call database**. Voice/WhatsApp agents (e.g. Jobix) post each completed call's structured outcome to a webhook; the platform stores it as a first-class **call record**, and tenants explore and act on those calls in-app.
+
+- **Structured call ingest.** `POST /v1/jobix/calls` (per-tenant API key, same auth as `/v1/emails`) captures the full Jobix post-call payload — caller identity, summary, outcome, sentiment, callback/escalation flags, duration, and the tenant-specific `values` bag — into a `call_facts` record (one per inbound call, idempotent on the call reference). A per-tenant `attribution_map` resolves which department/agent/line a call belongs to. *(Legacy path: call summaries sent through `POST /v1/emails` are still mirrored into the call pipeline when a tenant opts in.)*
+- **Call Analytics Center.** The tenant **Calls** page gives a big-picture dashboard — volumes by **department × reason**, outcome and sentiment mix, resolution and first-call-resolution rates, callbacks, escalations — and an **Excel-style grid** of individual calls: sortable, filterable on every structured dimension, drill-down detail, and CSV export.
+- **Abe, the call-line analyst.** An AI employee reads the call line, flags spikes / complaints / urgent cases, and drafts client-facing updates and callback handovers. Every outbound message is gated by human approval — Abe never auto-sends.
+
+All call features are admin-gated per tenant (`tenant_admin` / `super_admin`) and isolated like everything else.
+
 ## Throughput & reliability
 
 - **~30,000 emails/hour** at default settings (500 emails per cron tick, 1 tick/min). Tunable via `CRON_BATCH_SIZE`. Real ceiling is the tenant's SMTP provider's rate limit, not us.
@@ -223,6 +233,10 @@ POST /v1/emails
 GET  /v1/emails/:id                        → email row with current status
 GET  /v1/emails?status=&since=&limit=      → tenant-scoped list
 
+POST /v1/jobix/calls                       (per-tenant API key — structured call ingest)
+  { company_key?, customer_data?: { main, values }, ... }  (any Jobix post-call shape)
+  → 202 { created, message_id }
+
 POST /v1/webhooks/bounce/ses               (SES SNS, signature-verified)
 POST /v1/webhooks/bounce/mailgun           (Mailgun, HMAC-verified)
 
@@ -232,22 +246,11 @@ POST /v1/cron/retry-failed                 (cron-job.org, Bearer CRON_SECRET)
 
 ## Status
 
-**Live and reachable**, not yet validated end-to-end with a real send under load.
+**Live in production** at https://aiployee-emailer.vercel.app (Vercel + Neon Postgres, 30+ migrations applied). The transactional emailer, the multi-tenant admin UI, Abe (the call-line analyst with human-approval send-gate), structured call ingest (`/v1/jobix/calls`), and the Call Analytics Center are all deployed.
 
-What's confirmed:
-- Vercel deployment up: https://aiployee-emailer.vercel.app/healthz returns `{"ok":true}`
-- Neon Postgres connected, all 6 migrations applied
-- Super-admin user created, login flow works
-- Local unit tests pass (config, crypto, password, API key, render)
+The server test suite is a large DB-backed integration suite (run serially against a Neon test branch); the strict `tsc` build gates every deploy. New work follows a spec → plan → TDD flow under `docs/superpowers/`.
 
-What still needs validation in the live environment before treating as production-ready for client traffic:
-- A real send through a real SMTP provider (any tenant's SES/Mailgun/Brevo)
-- cron-job.org actually firing the two jobs (depends on `CRON_SECRET` being set + cron-job.org configured)
-- A scheduled send arriving at the right time
-- A bounce webhook from SES marking an email bounced and adding the address to suppressions
-- Onboarding a real second tenant and confirming isolation
-
-The acceptance walkthrough at `docs/acceptance/README.md` covers each of these as a runnable test. Treat it as the gate before client traffic.
+Per-feature design specs, implementation plans, and the original acceptance walkthrough live under `docs/`. The acceptance walkthrough at `docs/acceptance/README.md` remains the manual gate for the core email path before onboarding a new client to live traffic.
 
 ## License
 
