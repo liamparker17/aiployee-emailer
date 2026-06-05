@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import {
   listCalls,
-  getBreakdown,
+  getCallBreakdown,
   getCategories,
   putCategories,
   suggestCategories,
@@ -14,7 +14,7 @@ import {
   importPastCalls,
   autoSetupCategories,
 } from '../lib/calls';
-import type { CallRow, CallFilters, Breakdown } from '../lib/calls';
+import type { CallRow, CallFilters, CallBreakdown } from '../lib/calls';
 import { exportCallsCsvUrl } from '../lib/calls';
 import { Table, Th, Td } from '../components/Table';
 import { Button } from '../components/Button';
@@ -210,20 +210,73 @@ function CategoryEditor({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Panel 2: Breakdown
+// Panel 2: Breakdown (multi-dimension dashboard)
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/** Normalise a possibly-null key to a display label */
+function labelKey(key: string | null, fallback = 'Unknown'): string {
+  return key ?? fallback;
+}
+
+/** Reusable ranked bar-row list */
+function BarList({
+  title,
+  rows,
+  total,
+  labelFallback = 'Unknown',
+}: {
+  title: string;
+  rows: Array<{ key: string | null; count: number }>;
+  total: number;
+  labelFallback?: string;
+}) {
+  if (!rows.length) return null;
+  return (
+    <div>
+      <p className="text-xs font-medium text-ink-muted mb-2 uppercase tracking-wide">{title}</p>
+      <Table>
+        <thead>
+          <tr>
+            <Th>{title}</Th>
+            <Th>Calls</Th>
+            <Th>Share</Th>
+            <Th>Bar</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => {
+            const pct = total > 0 ? Math.round((row.count / total) * 100) : 0;
+            return (
+              <tr key={`${row.key}-${i}`}>
+                <Td>{labelKey(row.key, labelFallback)}</Td>
+                <Td>{row.count}</Td>
+                <Td>{pct}%</Td>
+                <Td>
+                  <div className="w-32 bg-surface-raised rounded-full h-2" aria-hidden>
+                    <div className="bg-accent h-2 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </Td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </Table>
+    </div>
+  );
+}
+
 function BreakdownPanel({ ingestOn, reloadKey }: { ingestOn: boolean; reloadKey: number }) {
   const toast = useToast();
-  const [win, setWin] = useState('7d');
-  const [data, setData] = useState<Breakdown | null>(null);
+  const [win, setWin] = useState<'today' | '7d' | '30d'>('7d');
+  const [data, setData] = useState<CallBreakdown | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function load(w: string) {
+  async function load(w: 'today' | '7d' | '30d') {
     setLoading(true);
     setError(null);
     try {
-      const r = await getBreakdown(w);
+      const r = await getCallBreakdown(w);
       setData(r);
     } catch (err) {
       const msg = friendlyError(err);
@@ -238,13 +291,14 @@ function BreakdownPanel({ ingestOn, reloadKey }: { ingestOn: boolean; reloadKey:
 
   return (
     <Card className="space-y-4">
+      {/* Header + window toggle */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-base font-semibold text-ink">Call breakdown</h2>
         <div className="flex gap-1" role="group" aria-label="Time window">
           {WINDOWS.map(w => (
             <button
               key={w.value}
-              onClick={() => setWin(w.value)}
+              onClick={() => setWin(w.value as 'today' | '7d' | '30d')}
               aria-pressed={win === w.value}
               className={`px-3 py-1 rounded-btn text-sm border transition ${
                 win === w.value
@@ -260,14 +314,14 @@ function BreakdownPanel({ ingestOn, reloadKey }: { ingestOn: boolean; reloadKey:
 
       {loading ? (
         <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8" />)}
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-8" />)}
         </div>
       ) : error ? (
         <div className="text-red-400 text-sm space-y-2">
           <p>{error}</p>
           <Button variant="ghost" onClick={() => load(win)}>Try again</Button>
         </div>
-      ) : !data || data.total === 0 ? (
+      ) : !data || data.summary.total === 0 ? (
         <EmptyState
           icon={Phone}
           title="No calls yet"
@@ -278,38 +332,73 @@ function BreakdownPanel({ ingestOn, reloadKey }: { ingestOn: boolean; reloadKey:
           }
         />
       ) : (
-        <div className="space-y-4">
-          <Table>
-            <thead>
-              <tr>
-                <Th>Category</Th>
-                <Th>Calls</Th>
-                <Th>Share</Th>
-                <Th>Bar</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.byCategory.map(row => {
-                const pct = Math.round((row.count / data.total) * 100);
-                return (
-                  <tr key={row.category}>
-                    <Td>{row.category || 'Uncategorised'}</Td>
-                    <Td>{row.count}</Td>
-                    <Td>{pct}%</Td>
-                    <Td>
-                      <div className="w-32 bg-surface-raised rounded-full h-2" aria-hidden>
-                        <div
-                          className="bg-accent h-2 rounded-full"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </Td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </Table>
+        <div className="space-y-6">
+          {/* 1. Metric cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[
+              { label: 'Total calls', value: String(data.summary.total) },
+              { label: 'Resolution rate', value: `${data.summary.resolutionRatePct}%` },
+              { label: 'FCR', value: String(data.summary.fcrCount) },
+              { label: 'Callbacks', value: String(data.summary.callbackCount) },
+              { label: 'Escalations', value: String(data.summary.escalationCount) },
+              { label: 'Avg duration', value: fmtDuration(data.summary.avgDurationSeconds) },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-card border border-line bg-surface-raised px-4 py-3 space-y-1">
+                <p className="text-xs text-ink-muted uppercase tracking-wide">{label}</p>
+                <p className="text-xl font-semibold text-ink">{value}</p>
+              </div>
+            ))}
+          </div>
 
+          {/* 2. Who & why (crosstab) */}
+          {data.crosstab.length > 0 && (() => {
+            // Group rows by attribution_label, sort departments by total desc
+            const map = new Map<string, Array<{ category: string; count: number }>>();
+            for (const row of data.crosstab) {
+              const dept = labelKey(row.attribution_label, 'Unattributed');
+              const cat = labelKey(row.category, 'Uncategorised');
+              if (!map.has(dept)) map.set(dept, []);
+              map.get(dept)!.push({ category: cat, count: row.count });
+            }
+            // Sort departments by sum of counts desc
+            const depts = Array.from(map.entries())
+              .map(([dept, cats]) => ({ dept, cats: cats.sort((a, b) => b.count - a.count), total: cats.reduce((s, c) => s + c.count, 0) }))
+              .sort((a, b) => b.total - a.total);
+            return (
+              <div>
+                <p className="text-xs font-medium text-ink-muted mb-2 uppercase tracking-wide">Who &amp; why</p>
+                <div className="space-y-3">
+                  {depts.map(({ dept, cats, total: deptTotal }) => (
+                    <div key={dept}>
+                      <p className="text-sm font-medium text-ink mb-1">{dept} <span className="text-ink-muted font-normal">({deptTotal})</span></p>
+                      <div className="pl-3 space-y-1">
+                        {cats.map(({ category, count }) => {
+                          const pct = deptTotal > 0 ? Math.round((count / deptTotal) * 100) : 0;
+                          return (
+                            <div key={category} className="flex items-center gap-3 text-sm">
+                              <span className="w-36 shrink-0 text-ink-muted truncate">{category}</span>
+                              <div className="flex-1 bg-surface-raised rounded-full h-1.5">
+                                <div className="bg-accent/70 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="w-8 text-right text-ink">{count}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* 3. Mini-breakdowns */}
+          <BarList title="By Department" rows={data.byDepartment} total={data.summary.total} labelFallback="Unknown" />
+          <BarList title="By Outcome" rows={data.byOutcome} total={data.summary.total} labelFallback="Unknown" />
+          <BarList title="By Sentiment" rows={data.bySentiment} total={data.summary.total} labelFallback="Unknown" />
+          <BarList title="By Resolution" rows={data.byResolution} total={data.summary.total} labelFallback="Unknown" />
+
+          {/* 4. Per-day trend */}
           {data.perDay.length > 0 && (
             <div>
               <p className="text-xs font-medium text-ink-muted mb-2 uppercase tracking-wide">Per day</p>
