@@ -66,6 +66,32 @@ export async function listCalls(pool: pg.Pool, tenantId: string, opts: ListCalls
   return { calls: r.rows, total: Number(totalR.rows[0].n) };
 }
 
+export async function listCallsForExport(pool: pg.Pool, tenantId: string, opts: ListCallsOpts): Promise<CallRow[]> {
+  const where = [`m.tenant_id = $1`, `m.role = 'inbound'`];
+  const params: unknown[] = [tenantId];
+  const eq = (val: unknown, col: string) => { params.push(val); where.push(`${col} = $${params.length}`); };
+  if (opts.category) eq(opts.category, 't.category');
+  if (opts.search) { params.push('%' + opts.search + '%'); where.push(`m.content ILIKE $${params.length}`); }
+  if (opts.from) { params.push(opts.from); where.push(`m.created_at >= $${params.length}`); }
+  if (opts.to) { params.push(opts.to); where.push(`m.created_at < $${params.length}`); }
+  if (opts.attribution) eq(opts.attribution, 'f.attribution_label');
+  if (opts.outcome) eq(opts.outcome, 'f.call_outcome');
+  if (opts.sentiment) eq(opts.sentiment, 'f.sentiment');
+  if (opts.resolution) eq(opts.resolution, 'f.resolution_state');
+  if (opts.callbackRequested !== undefined) eq(opts.callbackRequested, 'f.callback_requested');
+  if (opts.escalationRequested !== undefined) eq(opts.escalationRequested, 'f.escalation_requested');
+  const whereSql = where.join(' AND ');
+  const sortCol = SORT_COLUMNS[opts.sort ?? 'created_at'] ?? 'm.created_at';
+  const dir = opts.sortDir === 'asc' ? 'ASC' : 'DESC';
+  const limit = Math.min(opts.limit ?? 5000, 5000);
+  params.push(limit); const limIdx = params.length;
+  const r = await pool.query<CallRow>(
+    `SELECT ${CALL_COLS} FROM ${CALL_FROM} WHERE ${whereSql}
+      ORDER BY ${sortCol} ${dir} NULLS LAST, m.created_at DESC
+      LIMIT $${limIdx} OFFSET 0`, params);
+  return r.rows;
+}
+
 export async function getCall(pool: pg.Pool, tenantId: string, id: string): Promise<CallRow | null> {
   const r = await pool.query<CallRow>(
     `SELECT ${CALL_COLS} FROM ${CALL_FROM} WHERE m.tenant_id = $1 AND m.id = $2 AND m.role = 'inbound'`, [tenantId, id]);

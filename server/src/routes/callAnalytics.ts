@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireTenantCtx } from '../auth/ctx.js';
 import { AppError, sendError } from '../util/errors.js';
-import { listCalls, getCall, breakdownByCategory, callsPerDay, callAnalyticsSummary, breakdownBy, crosstabDeptCategory } from '../repos/callAnalytics.js';
+import { listCalls, listCallsForExport, getCall, breakdownByCategory, callsPerDay, callAnalyticsSummary, breakdownBy, crosstabDeptCategory } from '../repos/callAnalytics.js';
 import { getLineReportConfig, upsertLineReportConfig } from '../repos/lineReportConfigs.js';
 import { suggestCategories } from '../agent/abe/categorySuggest.js';
 import { retagCalls } from '../agent/abe/retag.js';
@@ -64,6 +64,34 @@ export function registerCallAnalyticsRoutes(app: FastifyInstance): void {
       const Q = ListCallsQ.parse(req.query);
       const out = await listCalls(app.pool, ctx.tenantId, Q);
       reply.send(out);
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // ── Export CSV (MUST be before /:id) ──────────────────────────────────────
+
+  function csvCell(v: unknown): string {
+    const s = v == null ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  app.get('/api/calls/export.csv', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      requireAdmin(ctx);
+      const Q = ListCallsQ.parse(req.query);
+      const calls = await listCallsForExport(app.pool, ctx.tenantId, Q);
+      const header = ['Time','Caller','Phone','Department','Type','Category','Outcome','Sentiment','Duration','Callback','Escalation','Resolution','Summary'];
+      const lines = [header.join(',')];
+      for (const c of calls) lines.push([
+        c.created_at instanceof Date ? c.created_at.toISOString() : String(c.created_at),
+        c.caller_name, c.caller_phone, c.attribution_label, c.call_type, c.category,
+        c.call_outcome, c.sentiment, c.call_duration_seconds,
+        c.callback_requested ? 'yes' : '', c.escalation_requested ? 'yes' : '',
+        c.resolution_state, (c.content ?? '').replace(/\s+/g, ' ').slice(0, 500),
+      ].map(csvCell).join(','));
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="calls.csv"');
+      return reply.send(lines.join('\n'));
     } catch (e) { sendError(reply, e); }
   });
 
