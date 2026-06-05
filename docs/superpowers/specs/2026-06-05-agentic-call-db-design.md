@@ -134,6 +134,10 @@ Migration `1700000000030_call_facts.cjs`. 1:1 with the inbound message.
 | `id` | uuid pk | |
 | `tenant_id` | uuid not null → tenants | CASCADE |
 | `message_id` | uuid not null → agent_messages | **unique**, CASCADE |
+| `caller_suid` | text | Jobix `customer_data.main.suid` — stable caller id (repeat-caller/FCR) |
+| `caller_name` | text | `customer_data.main.name` |
+| `caller_phone` | text | `customer_data.main.phone` |
+| `caller_timezone` | text | `customer_data.main.timezone` |
 | `line_ref` | text | which Jobix agent/line (attribution source) |
 | `attribution_label` | text | resolved department/owner (§5) |
 | `call_type` | text | Seller / "Booking Confirmation" / "abandoned deposit"… |
@@ -153,7 +157,7 @@ Migration `1700000000030_call_facts.cjs`. 1:1 with the inbound message.
 | `created_at` / `updated_at` | timestamptz default now() | |
 
 Indexes: `(tenant_id, created_at desc)`, `(tenant_id, attribution_label)`,
-`(tenant_id, resolution_state)`.
+`(tenant_id, resolution_state)`, `(tenant_id, caller_suid)` (repeat-caller / FCR lookups).
 
 `line_call_tags` (Abe-inferred category/severity) is **unchanged**. `call_facts` is the
 payload-derived dimension; the LLM tagger only enriches what Jobix does *not* provide.
@@ -162,6 +166,7 @@ payload-derived dimension; the LLM tagger only enriches what Jobix does *not* pr
 ```sql
 CREATE VIEW calls AS
 SELECT m.id AS message_id, m.tenant_id, m.content AS summary_text, m.created_at,
+       f.caller_suid, f.caller_name, f.caller_phone,
        f.line_ref, f.attribution_label, f.call_type, f.call_outcome, f.sentiment,
        f.callback_requested, f.escalation_requested, f.resolution_state, f.fcr,
        f.values, t.category, t.severity
@@ -217,7 +222,8 @@ also gets `call_facts`.
 Server tests run serially against the Neon test branch (see project memory).
 
 - **Ingest happy path:** webhook → one `agent_messages` + one `call_facts`, fields mapped
-  (outcome, callback flags, duration parsed, `values`/`raw_payload` stored).
+  (caller suid/name/phone from `customer_data.main`, outcome, callback flags, duration parsed,
+  `values`/`raw_payload` stored).
 - **Idempotency:** same call id twice → one message, `call_facts` upserted not duplicated.
 - **Auth:** bad/missing secret → 401; unknown `company_key` → 404/403.
 - **Attribution:** `source: agent`, `source: values_key`, and default heuristic each resolve
