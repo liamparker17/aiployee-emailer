@@ -15,6 +15,7 @@ import { registerSenderRoutes } from './routes/senders.js';
 import { registerTemplateRoutes } from './routes/templates.js';
 import { registerApiKeyRoutes } from './routes/apiKeys.js';
 import { registerV1EmailRoutes } from './routes/v1Emails.js';
+import { registerV1JobixRoutes } from './routes/v1Jobix.js';
 import { registerCronRoutes } from './routes/cron.js';
 import { registerV1WebhookRoutes } from './routes/v1Webhooks.js';
 import { registerSuppressionRoutes } from './routes/suppressions.js';
@@ -71,6 +72,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerTemplateRoutes(app);
   await registerApiKeyRoutes(app);
   await registerV1EmailRoutes(app);
+  await registerV1JobixRoutes(app);
   await registerCronRoutes(app);
   await registerV1WebhookRoutes(app);
   await registerSuppressionRoutes(app);
