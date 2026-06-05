@@ -168,3 +168,27 @@ export async function callAnalyticsSummary(pool: pg.Pool, tenantId: string, star
     sentimentMix: { positive: Number(x.s_pos), neutral: Number(x.s_neu), negative: Number(x.s_neg), unknown: Number(x.s_unk) },
   };
 }
+
+export async function breakdownBy(pool: pg.Pool, tenantId: string, dimension: string, start: Date, end: Date): Promise<Array<{ key: string | null; count: number }>> {
+  const col = BREAKDOWN_COLUMNS[dimension];
+  if (!col) throw new Error(`invalid breakdown dimension: ${dimension}`);
+  const r = await pool.query<{ key: string | null; count: string }>(
+    `SELECT ${col} AS key, count(*)::text count
+       FROM agent_messages m
+       LEFT JOIN call_facts f     ON f.message_id = m.id
+       LEFT JOIN line_call_tags t ON t.message_id = m.id
+      WHERE m.tenant_id = $1 AND m.role = 'inbound' AND m.created_at >= $2 AND m.created_at < $3
+      GROUP BY 1 ORDER BY count(*) DESC`, [tenantId, start, end]);
+  return r.rows.map(x => ({ key: x.key, count: Number(x.count) }));
+}
+
+export async function crosstabDeptCategory(pool: pg.Pool, tenantId: string, start: Date, end: Date): Promise<Array<{ attribution_label: string | null; category: string | null; count: number }>> {
+  const r = await pool.query<{ attribution_label: string | null; category: string | null; count: string }>(
+    `SELECT f.attribution_label, t.category, count(*)::text count
+       FROM agent_messages m
+       LEFT JOIN call_facts f     ON f.message_id = m.id
+       LEFT JOIN line_call_tags t ON t.message_id = m.id
+      WHERE m.tenant_id = $1 AND m.role = 'inbound' AND m.created_at >= $2 AND m.created_at < $3
+      GROUP BY 1, 2 ORDER BY count(*) DESC`, [tenantId, start, end]);
+  return r.rows.map(x => ({ attribution_label: x.attribution_label, category: x.category, count: Number(x.count) }));
+}
