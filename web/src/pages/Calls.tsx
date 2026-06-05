@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Phone, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Bot, Download } from 'lucide-react';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -14,7 +14,8 @@ import {
   importPastCalls,
   autoSetupCategories,
 } from '../lib/calls';
-import type { Call, Breakdown } from '../lib/calls';
+import type { CallRow, CallFilters, Breakdown } from '../lib/calls';
+import { exportCallsCsvUrl } from '../lib/calls';
 import { Table, Th, Td } from '../components/Table';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
@@ -483,22 +484,115 @@ function CategoriesPanel({ categories, onUpdated }: { categories: string[]; onUp
 // ═══════════════════════════════════════════════════════════════════════════════
 const PAGE_SIZE = 50;
 
+// ── Sort config ───────────────────────────────────────────────────────────────
+type SortField = NonNullable<CallFilters['sort']>;
+
+interface SortableCol {
+  label: string;
+  field: SortField;
+}
+
+const SORTABLE_COLS: SortableCol[] = [
+  { label: 'Time',       field: 'created_at' },
+  { label: 'Department', field: 'attribution_label' },
+  { label: 'Category',   field: 'category' },
+  { label: 'Outcome',    field: 'call_outcome' },
+  { label: 'Sentiment',  field: 'sentiment' },
+  { label: 'Duration',   field: 'call_duration_seconds' },
+  { label: 'Resolution', field: 'resolution_state' },
+];
+
+// ── Resolution options ────────────────────────────────────────────────────────
+const RESOLUTION_OPTIONS = ['open', 'in_progress', 'resolved', 'unresolved'];
+
+// ── Sortable header cell ──────────────────────────────────────────────────────
+function SortTh({
+  col,
+  sort,
+  sortDir,
+  onSort,
+  children,
+}: {
+  col: SortField;
+  sort: SortField | undefined;
+  sortDir: 'asc' | 'desc';
+  onSort: (col: SortField) => void;
+  children: ReactNode;
+}) {
+  const active = sort === col;
+  return (
+    <Th>
+      <button
+        type="button"
+        onClick={() => onSort(col)}
+        className={`flex items-center gap-1 whitespace-nowrap hover:text-accent transition ${active ? 'text-accent' : ''}`}
+        aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      >
+        {children}
+        {active ? (
+          <span className="text-xs">{sortDir === 'asc' ? '▲' : '▼'}</span>
+        ) : (
+          <span className="text-xs opacity-30">▼</span>
+        )}
+      </button>
+    </Th>
+  );
+}
+
+// ── select helper ─────────────────────────────────────────────────────────────
+const SELECT_CLS = 'rounded-btn border border-line bg-surface-raised text-ink px-3 py-2 text-sm focus:outline-none focus:border-accent';
+
 function ExplorerPanel({ categories }: { categories: string[] }) {
   const toast = useToast();
+
+  // ── filter state ─────────────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [attribution, setAttribution] = useState('');
+  const [outcome, setOutcome] = useState('');
+  const [sentiment, setSentiment] = useState('');
+  const [resolution, setResolution] = useState('');
+  const [callbackRequested, setCallbackRequested] = useState<boolean | undefined>(undefined);
+  const [escalationRequested, setEscalationRequested] = useState<boolean | undefined>(undefined);
+  const [sort, setSort] = useState<SortField | undefined>(undefined);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  // ── pagination + data state ───────────────────────────────────────────────────
   const [offset, setOffset] = useState(0);
-  const [items, setItems] = useState<Call[]>([]);
+  const [items, setItems] = useState<CallRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [sel, setSel] = useState<Call | null>(null);
+  const [sel, setSel] = useState<CallRow | null>(null);
+
+  // ── derived option lists from loaded rows ─────────────────────────────────────
+  const deptOptions = Array.from(new Set(items.map(r => r.attribution_label).filter(Boolean))) as string[];
+  const outcomeOptions = Array.from(new Set(items.map(r => r.call_outcome).filter(Boolean))) as string[];
+  const sentimentOptions = Array.from(new Set(items.map(r => r.sentiment).filter(Boolean))) as string[];
+
+  // ── build filters object ──────────────────────────────────────────────────────
+  function buildFilters(off: number): CallFilters {
+    const f: CallFilters = { limit: PAGE_SIZE, offset: off };
+    if (search)      f.search     = search;
+    if (category)    f.category   = category;
+    if (from)        f.from       = from;
+    if (to)          f.to         = to;
+    if (attribution) f.attribution = attribution;
+    if (outcome)     f.outcome    = outcome;
+    if (sentiment)   f.sentiment  = sentiment;
+    if (resolution)  f.resolution = resolution;
+    if (callbackRequested  !== undefined) f.callbackRequested  = callbackRequested;
+    if (escalationRequested !== undefined) f.escalationRequested = escalationRequested;
+    if (sort)        f.sort       = sort;
+    if (sort)        f.sortDir    = sortDir;
+    return f;
+  }
 
   async function load(off: number) {
     setLoading(true);
     try {
-      const r = await listCalls({ search, category, from, to, limit: PAGE_SIZE, offset: off });
+      const r = await listCalls(buildFilters(off));
       setItems(r.calls);
       setTotal(r.total);
     } catch (err) {
@@ -508,24 +602,47 @@ function ExplorerPanel({ categories }: { categories: string[] }) {
     }
   }
 
+  // ── refetch on any filter or sort change ──────────────────────────────────────
   useEffect(() => {
     setOffset(0);
     load(0);
-  }, [search, category, from, to]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, category, from, to, attribution, outcome, sentiment, resolution,
+      callbackRequested, escalationRequested, sort, sortDir]);
 
   function goPage(newOff: number) {
     setOffset(newOff);
     load(newOff);
   }
 
+  function handleSort(col: SortField) {
+    if (sort === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSort(col);
+      setSortDir('desc');
+    }
+  }
+
   const start = offset + 1;
   const end = Math.min(offset + PAGE_SIZE, total);
+  const csvUrl = exportCallsCsvUrl(buildFilters(offset));
 
   return (
     <Card className="space-y-4">
-      <h2 className="text-base font-semibold text-ink">Call explorer</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="text-base font-semibold text-ink">Call explorer</h2>
+        <a
+          href={csvUrl}
+          download
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-btn border border-line bg-surface-raised text-ink text-sm hover:border-accent/60 hover:text-accent transition"
+          aria-label="Export calls as CSV"
+        >
+          <Download size={14} /> Export CSV
+        </a>
+      </div>
 
-      {/* Filters */}
+      {/* Filters row 1: search + category + dates */}
       <div className="flex flex-wrap gap-3">
         <div className="flex-1 min-w-[200px]">
           <label className="sr-only">Search what callers said</label>
@@ -539,7 +656,7 @@ function ExplorerPanel({ categories }: { categories: string[] }) {
         <div>
           <label className="sr-only">Filter by category</label>
           <select
-            className="rounded-btn border border-line bg-surface-raised text-ink px-3 py-2 text-sm focus:outline-none focus:border-accent"
+            className={SELECT_CLS}
             value={category}
             onChange={e => setCategory(e.target.value)}
             aria-label="Filter by category"
@@ -552,7 +669,7 @@ function ExplorerPanel({ categories }: { categories: string[] }) {
           <label className="sr-only">From date</label>
           <input
             type="date"
-            className="rounded-btn border border-line bg-surface-raised text-ink px-3 py-2 text-sm focus:outline-none focus:border-accent"
+            className={SELECT_CLS}
             value={from}
             onChange={e => setFrom(e.target.value)}
             aria-label="From date"
@@ -562,12 +679,84 @@ function ExplorerPanel({ categories }: { categories: string[] }) {
           <label className="sr-only">To date</label>
           <input
             type="date"
-            className="rounded-btn border border-line bg-surface-raised text-ink px-3 py-2 text-sm focus:outline-none focus:border-accent"
+            className={SELECT_CLS}
             value={to}
             onChange={e => setTo(e.target.value)}
             aria-label="To date"
           />
         </div>
+      </div>
+
+      {/* Filters row 2: department + outcome + sentiment + resolution + checkboxes */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <div>
+          <label className="sr-only">Filter by department</label>
+          <select
+            className={SELECT_CLS}
+            value={attribution}
+            onChange={e => setAttribution(e.target.value)}
+            aria-label="Filter by department"
+          >
+            <option value="">Any department</option>
+            {deptOptions.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="sr-only">Filter by outcome</label>
+          <select
+            className={SELECT_CLS}
+            value={outcome}
+            onChange={e => setOutcome(e.target.value)}
+            aria-label="Filter by outcome"
+          >
+            <option value="">Any outcome</option>
+            {outcomeOptions.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="sr-only">Filter by sentiment</label>
+          <select
+            className={SELECT_CLS}
+            value={sentiment}
+            onChange={e => setSentiment(e.target.value)}
+            aria-label="Filter by sentiment"
+          >
+            <option value="">Any sentiment</option>
+            {sentimentOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="sr-only">Filter by resolution</label>
+          <select
+            className={SELECT_CLS}
+            value={resolution}
+            onChange={e => setResolution(e.target.value)}
+            aria-label="Filter by resolution"
+          >
+            <option value="">Any resolution</option>
+            {RESOLUTION_OPTIONS.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
+          </select>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-ink cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={callbackRequested === true}
+            onChange={e => setCallbackRequested(e.target.checked ? true : undefined)}
+            className="h-4 w-4 rounded border-line accent-magenta"
+            aria-label="Callback requested"
+          />
+          Callback
+        </label>
+        <label className="flex items-center gap-2 text-sm text-ink cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={escalationRequested === true}
+            onChange={e => setEscalationRequested(e.target.checked ? true : undefined)}
+            className="h-4 w-4 rounded border-line accent-magenta"
+            aria-label="Escalation requested"
+          />
+          Escalation
+        </label>
       </div>
 
       {/* Results */}
@@ -579,18 +768,26 @@ function ExplorerPanel({ categories }: { categories: string[] }) {
         <EmptyState
           icon={Phone}
           title="No calls match"
-          description="Try a different search or window."
+          description="Try a different search or filter."
         />
       ) : (
         <>
-          {/* Desktop table */}
-          <div className="hidden md:block">
+          {/* Desktop table — horizontally scrollable */}
+          <div className="hidden md:block overflow-x-auto">
             <Table>
               <thead>
                 <tr>
-                  <Th>Date</Th>
-                  <Th>Category</Th>
-                  <Th>Severity</Th>
+                  <SortTh col="created_at"           sort={sort} sortDir={sortDir} onSort={handleSort}>Time</SortTh>
+                  <Th>Caller</Th>
+                  <SortTh col="attribution_label"    sort={sort} sortDir={sortDir} onSort={handleSort}>Department</SortTh>
+                  <Th>Type</Th>
+                  <SortTh col="category"             sort={sort} sortDir={sortDir} onSort={handleSort}>Category</SortTh>
+                  <SortTh col="call_outcome"         sort={sort} sortDir={sortDir} onSort={handleSort}>Outcome</SortTh>
+                  <SortTh col="sentiment"            sort={sort} sortDir={sortDir} onSort={handleSort}>Sentiment</SortTh>
+                  <SortTh col="call_duration_seconds" sort={sort} sortDir={sortDir} onSort={handleSort}>Duration</SortTh>
+                  <Th>Callback</Th>
+                  <Th>Escalation</Th>
+                  <SortTh col="resolution_state"    sort={sort} sortDir={sortDir} onSort={handleSort}>Resolution</SortTh>
                   <Th>Excerpt</Th>
                 </tr>
               </thead>
@@ -604,17 +801,44 @@ function ExplorerPanel({ categories }: { categories: string[] }) {
                     onKeyDown={e => e.key === 'Enter' && setSel(call)}
                     aria-label={`Open call from ${new Date(call.created_at).toLocaleDateString()}`}
                   >
-                    <Td className="text-ink-dim whitespace-nowrap">{new Date(call.created_at).toLocaleString()}</Td>
-                    <Td>
-                      {call.category ? (
-                        <span className="bg-accent/15 text-accent text-xs px-2 py-0.5 rounded-full">{call.category}</span>
+                    <Td className="text-ink-dim whitespace-nowrap text-xs">
+                      {new Date(call.created_at).toLocaleString()}
+                    </Td>
+                    <Td className="whitespace-nowrap">
+                      {call.caller_name || call.caller_phone ? (
+                        <div className="flex flex-col">
+                          {call.caller_name && <span className="text-sm text-ink">{call.caller_name}</span>}
+                          {call.caller_phone && <span className="text-xs text-ink-muted">{call.caller_phone}</span>}
+                        </div>
                       ) : (
                         <span className="text-ink-dim text-xs">—</span>
                       )}
                     </Td>
-                    <Td>
-                      <SeverityChip severity={call.severity} />
+                    <Td className="text-sm whitespace-nowrap">
+                      {call.attribution_label ?? <span className="text-ink-dim text-xs">—</span>}
                     </Td>
+                    <Td className="text-sm whitespace-nowrap">
+                      {call.call_type ?? <span className="text-ink-dim text-xs">—</span>}
+                    </Td>
+                    <Td>
+                      {call.category ? (
+                        <span className="bg-accent/15 text-accent text-xs px-2 py-0.5 rounded-full whitespace-nowrap">{call.category}</span>
+                      ) : (
+                        <span className="text-ink-dim text-xs">—</span>
+                      )}
+                    </Td>
+                    <Td className="text-sm whitespace-nowrap">
+                      {call.call_outcome ?? <span className="text-ink-dim text-xs">—</span>}
+                    </Td>
+                    <Td><SentimentChip sentiment={call.sentiment} /></Td>
+                    <Td className="text-sm whitespace-nowrap">{fmtDuration(call.call_duration_seconds)}</Td>
+                    <Td className="text-center text-sm">
+                      {call.callback_requested === true ? '✓' : call.callback_requested === false ? '—' : <span className="text-ink-dim text-xs">—</span>}
+                    </Td>
+                    <Td className="text-center text-sm">
+                      {call.escalation_requested === true ? '✓' : call.escalation_requested === false ? '—' : <span className="text-ink-dim text-xs">—</span>}
+                    </Td>
+                    <Td><ResolutionChip state={call.resolution_state} /></Td>
                     <Td className="text-ink-muted text-sm max-w-xs truncate">
                       {call.content.slice(0, 120)}{call.content.length > 120 ? '…' : ''}
                     </Td>
@@ -629,17 +853,25 @@ function ExplorerPanel({ categories }: { categories: string[] }) {
             {items.map(call => (
               <button
                 key={call.id}
-                className="w-full text-left bg-surface-raised border border-line rounded-xl p-4 space-y-1 hover:border-accent/50 transition focus:outline-none focus:ring-2 focus:ring-accent"
+                className="w-full text-left bg-surface-raised border border-line rounded-xl p-4 space-y-1.5 hover:border-accent/50 transition focus:outline-none focus:ring-2 focus:ring-accent"
                 onClick={() => setSel(call)}
                 aria-label={`Open call from ${new Date(call.created_at).toLocaleDateString()}`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs text-ink-dim">{new Date(call.created_at).toLocaleString()}</span>
+                  {call.attribution_label && (
+                    <span className="text-xs text-ink-muted">{call.attribution_label}</span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
                   {call.category && (
                     <span className="bg-accent/15 text-accent text-xs px-2 py-0.5 rounded-full">{call.category}</span>
                   )}
+                  {call.call_outcome && (
+                    <span className="text-xs text-ink-muted">{call.call_outcome}</span>
+                  )}
+                  <ResolutionChip state={call.resolution_state} />
                 </div>
-                <SeverityChip severity={call.severity} />
                 <p className="text-sm text-ink-muted line-clamp-2">{call.content}</p>
               </button>
             ))}
@@ -695,6 +927,34 @@ function SeverityChip({ severity }: { severity: string | null }) {
     severity === 'medium' ? 'bg-yellow-500/15 text-yellow-400' :
     'bg-green-500/15 text-green-400';
   return <span className={`text-xs px-2 py-0.5 rounded-full ${colour}`}>{severity}</span>;
+}
+
+/** Format call_duration_seconds → "m:ss" or "—" */
+function fmtDuration(s: number | null): string {
+  if (s === null || s === undefined) return '—';
+  const mins = Math.floor(s / 60);
+  const secs = String(s % 60).padStart(2, '0');
+  return `${mins}:${secs}`;
+}
+
+function SentimentChip({ sentiment }: { sentiment: string | null }) {
+  if (!sentiment) return <span className="text-ink-dim text-xs">—</span>;
+  const colour =
+    sentiment === 'positive' ? 'bg-green-500/15 text-green-400' :
+    sentiment === 'negative' ? 'bg-red-500/15 text-red-400' :
+    'bg-surface-raised text-ink-muted';
+  return <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${colour}`}>{sentiment}</span>;
+}
+
+function ResolutionChip({ state }: { state: string | null }) {
+  if (!state) return <span className="text-ink-dim text-xs">—</span>;
+  const colour =
+    state === 'resolved'    ? 'bg-green-500/15 text-green-400' :
+    state === 'in_progress' ? 'bg-blue-500/15 text-blue-400' :
+    state === 'unresolved'  ? 'bg-yellow-500/15 text-yellow-400' :
+    'bg-surface-raised text-ink-muted'; // open
+  const label = state.replace('_', ' ');
+  return <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${colour}`}>{label}</span>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
