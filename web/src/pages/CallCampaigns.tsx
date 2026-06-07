@@ -59,9 +59,10 @@ export default function CallCampaigns() {
   const [loading, setLoading] = useState(true);
 
   // Agent form
+  type SchemaRow = ValuesField & { _id: string };
   const [agentLabel, setAgentLabel] = useState('');
   const [agentKey, setAgentKey] = useState('');
-  const [agentSchema, setAgentSchema] = useState<ValuesField[]>([]);
+  const [agentSchema, setAgentSchema] = useState<SchemaRow[]>([]);
 
   // Campaign form
   const [campName, setCampName] = useState('');
@@ -95,7 +96,7 @@ export default function CallCampaigns() {
   async function submitAgent(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await createAgent({ label: agentLabel, company_key: agentKey, values_schema: agentSchema });
+      await createAgent({ label: agentLabel, company_key: agentKey, values_schema: agentSchema.map(({ _id, ...f }) => f) });
       setAgentLabel(''); setAgentKey(''); setAgentSchema([]);
       await reload();
       toast.success('Agent registered');
@@ -107,7 +108,7 @@ export default function CallCampaigns() {
     e.preventDefault();
     try {
       const c = await createCampaign({ agent_id: campAgent, name: campName, audience_type: 'csv' });
-      setCampName('');
+      setCampName(''); setCampAgent('');
       await reload();
       setSelected(c.campaign.id);
       toast.success('Draft created — add recipients');
@@ -137,13 +138,13 @@ export default function CallCampaigns() {
 
   // ── schema builder helpers ──────────────────────────────────────────────────
   function addField() {
-    setAgentSchema(s => [...s, { key: '', label: '', required: false }]);
+    setAgentSchema(s => [...s, { _id: crypto.randomUUID(), key: '', label: '', required: false }]);
   }
-  function removeField(i: number) {
-    setAgentSchema(s => s.filter((_, idx) => idx !== i));
+  function removeField(id: string) {
+    setAgentSchema(s => s.filter(f => f._id !== id));
   }
-  function patchField(i: number, patch: Partial<ValuesField>) {
-    setAgentSchema(s => s.map((f, idx) => idx === i ? { ...f, ...patch } : f));
+  function patchField(id: string, patch: Partial<ValuesField>) {
+    setAgentSchema(s => s.map(f => f._id === id ? { ...f, ...patch } : f));
   }
 
   const activeAgents = agents.filter(a => a.active);
@@ -212,31 +213,31 @@ export default function CallCampaigns() {
               </div>
               {agentSchema.length > 0 && (
                 <div className="space-y-2">
-                  {agentSchema.map((f, i) => (
-                    <div key={i} className="flex items-center gap-2">
+                  {agentSchema.map((f) => (
+                    <div key={f._id} className="flex items-center gap-2">
                       <Input
                         placeholder="key"
                         value={f.key}
-                        onChange={e => patchField(i, { key: e.target.value })}
+                        onChange={e => patchField(f._id, { key: e.target.value })}
                         className="w-32"
                       />
                       <Input
                         placeholder="label"
                         value={f.label}
-                        onChange={e => patchField(i, { label: e.target.value })}
+                        onChange={e => patchField(f._id, { label: e.target.value })}
                       />
                       <label className="flex items-center gap-1.5 text-sm text-ink-muted whitespace-nowrap">
                         <input
                           type="checkbox"
                           checked={f.required}
-                          onChange={e => patchField(i, { required: e.target.checked })}
+                          onChange={e => patchField(f._id, { required: e.target.checked })}
                           className="rounded"
                         />
                         Required
                       </label>
                       <button
                         type="button"
-                        onClick={() => removeField(i)}
+                        onClick={() => removeField(f._id)}
                         className="text-ink-dim hover:text-error transition"
                       >
                         <Trash2 size={14} />
