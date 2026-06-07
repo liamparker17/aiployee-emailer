@@ -4,7 +4,7 @@ import {
   listAgents, createAgent,
   listCampaigns, createCampaign,
   addCsvRecipients, listRecipients,
-  approveCampaign, pauseCampaign, cancelCampaign,
+  approveCampaign, pauseCampaign, resumeCampaign, cancelCampaign,
   type CallAgent, type CallCampaign, type Recipient, type ValuesField,
 } from '../lib/callCampaigns';
 import { Table, Th, Td } from '../components/Table';
@@ -331,6 +331,15 @@ export default function CallCampaigns() {
                           title="Pause"
                         >
                           <PauseCircle size={14} /> Pause
+                        </Button>
+                      )}
+                      {c.status === 'paused' && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => doAction(() => resumeCampaign(c.id))}
+                          title="Resume"
+                        >
+                          <CheckCircle2 size={14} /> Resume
                         </Button>
                       )}
                       {c.status !== 'canceled' && c.status !== 'completed' && (

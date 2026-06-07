@@ -16,6 +16,8 @@ import { advancePlayTouches } from '../agent/abe/touches.js';
 import { updatePlayOutcomes } from '../repos/agentOutcomes.js';
 import { runCallQueue } from '../calls/runCallQueue.js';
 
+const CALL_QUEUE_BATCH = 50; // outbound launches per cron tick (conservative; Jobix dials async)
+
 function requireCronAuth(req: FastifyRequest, secret: string): void {
   const auth = req.headers.authorization ?? '';
   const provided = auth.startsWith('Bearer ') ? auth.slice(7).trim() : (req.headers['x-cron-secret'] as string | undefined) ?? '';
@@ -193,7 +195,7 @@ export async function registerCronRoutes(app: FastifyInstance) {
   cron('/v1/cron/process-call-queue', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       requireCronAuth(req, app.cfg.cronSecret);
-      const summary = await runCallQueue(app.pool, app.cfg.encKey, { batchSize: app.cfg.cronBatchSize ?? 50, maxAttempts: 3 });
+      const summary = await runCallQueue(app.pool, app.cfg.encKey, { batchSize: CALL_QUEUE_BATCH, maxAttempts: 3 });
       return reply.send({ ok: true, ...summary });
     } catch (e) { sendError(reply, e); }
   });

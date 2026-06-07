@@ -34,4 +34,5 @@ export const listRecipients = (id: string, status?: RecipientStatus) =>
   api<{ recipients: Recipient[]; total: number }>(`/api/calls/campaigns/${id}/recipients${status ? `?status=${status}` : ''}`);
 export const approveCampaign = (id: string) => api<{ campaign: CallCampaign }>(`/api/calls/campaigns/${id}/approve`, { method: 'POST' });
 export const pauseCampaign = (id: string) => api<{ campaign: CallCampaign }>(`/api/calls/campaigns/${id}/pause`, { method: 'POST' });
+export const resumeCampaign = (id: string) => api<{ campaign: CallCampaign }>(`/api/calls/campaigns/${id}/resume`, { method: 'POST' });
 export const cancelCampaign = (id: string) => api<{ campaign: CallCampaign }>(`/api/calls/campaigns/${id}/cancel`, { method: 'POST' });
