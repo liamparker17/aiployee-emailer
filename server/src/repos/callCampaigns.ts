@@ -310,3 +310,62 @@ export async function validateRecipients(
   }
   return { ok: errors.length === 0, errors };
 }
+
+// ─── Worker helpers ──────────────────────────────────────────────────────────
+
+export async function claimPending(pool: pg.Pool, batchSize: number, maxAttempts: number): Promise<RecipientRow[]> {
+  const r = await pool.query<RecipientRow>(
+    `UPDATE call_campaign_recipients SET status = 'queued', updated_at = now()
+     WHERE id IN (
+       SELECT r.id FROM call_campaign_recipients r
+       JOIN call_campaigns c ON c.id = r.campaign_id
+       WHERE c.status IN ('approved','running')
+         AND (c.scheduled_for IS NULL OR c.scheduled_for <= now())
+         AND (r.status = 'pending' OR (r.status = 'failed' AND r.attempts < $1))
+       ORDER BY r.created_at
+       LIMIT $2
+       FOR UPDATE SKIP LOCKED
+     )
+     RETURNING *`, [maxAttempts, batchSize]);
+  if (r.rows.length) {
+    const campaignIds = [...new Set(r.rows.map(x => x.campaign_id))];
+    await pool.query(`UPDATE call_campaigns SET status = 'running', updated_at = now()
+                      WHERE id = ANY($1) AND status = 'approved'`, [campaignIds]);
+  }
+  return r.rows;
+}
+
+export async function markLaunched(pool: pg.Pool, recipientId: string, response: unknown): Promise<void> {
+  await pool.query(
+    `UPDATE call_campaign_recipients
+     SET status = 'launched', launched_at = now(), attempts = attempts + 1,
+         jobix_response = $2, last_error = NULL, updated_at = now()
+     WHERE id = $1`, [recipientId, JSON.stringify(response ?? null)]);
+}
+
+export async function markFailed(pool: pg.Pool, recipientId: string, error: string): Promise<void> {
+  await pool.query(
+    `UPDATE call_campaign_recipients
+     SET status = 'failed', attempts = attempts + 1, last_error = $2, updated_at = now()
+     WHERE id = $1`, [recipientId, error.slice(0, 2000)]);
+}
+
+export async function completeFinishedCampaigns(pool: pg.Pool, maxAttempts: number): Promise<number> {
+  const r = await pool.query(
+    `UPDATE call_campaigns c SET status = 'completed', updated_at = now()
+     WHERE c.status = 'running'
+       AND NOT EXISTS (
+         SELECT 1 FROM call_campaign_recipients r
+         WHERE r.campaign_id = c.id
+           AND (r.status IN ('pending','queued') OR (r.status = 'failed' AND r.attempts < $1))
+       )`, [maxAttempts]);
+  return r.rowCount ?? 0;
+}
+
+export async function linkResultBySuid(pool: pg.Pool, tenantId: string, suid: string, messageId: string | null, outcome: string | null): Promise<boolean> {
+  const r = await pool.query(
+    `UPDATE call_campaign_recipients
+     SET result_message_id = $3, outcome = $4, status = 'completed', updated_at = now()
+     WHERE tenant_id = $1 AND suid = $2`, [tenantId, suid, messageId, outcome]);
+  return (r.rowCount ?? 0) > 0;
+}
