@@ -27,6 +27,7 @@ import { registerAbeRoutes } from './routes/abe.js';
 import { registerAgentChatRoutes } from './routes/agentChat.js';
 import { registerLineReportRoutes } from './routes/lineReports.js';
 import { registerCallAnalyticsRoutes } from './routes/callAnalytics.js';
+import { registerCallAgentRoutes } from './routes/callAgents.js';
 import { registerCallHandoverRoutes } from './routes/callHandovers.js';
 import { registerDomainRoutes } from './routes/domains.js';
 import { registerEventWebhookRoutes } from './routes/eventWebhooks.js';
@@ -84,6 +85,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   registerAgentChatRoutes(app);
   registerLineReportRoutes(app);
   registerCallAnalyticsRoutes(app);
+  registerCallAgentRoutes(app);
   registerCallHandoverRoutes(app);
   await registerDomainRoutes(app);
   await registerEventWebhookRoutes(app);
