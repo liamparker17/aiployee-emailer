@@ -73,4 +73,15 @@ describe('call campaigns routes', () => {
     const res = await app.inject({ method: 'GET', url: '/api/calls/campaigns', headers });
     expect(res.statusCode).toBe(403);
   });
+
+  it('400 when adding audience recipients to a csv-type campaign', async () => {
+    const { tenantId, headers } = await adminSession();
+    const a = await createAgent(pool, Buffer.alloc(32, 1), { tenantId, label: 'A', companyKey: 'k', valuesSchema: [] });
+    const create = await app.inject({ method: 'POST', url: '/api/calls/campaigns', headers,
+      payload: { agent_id: a.id, name: 'CsvCamp', audience_type: 'csv' } });
+    const campaignId = JSON.parse(create.body).campaign.id;
+    const res = await app.inject({ method: 'POST', url: `/api/calls/campaigns/${campaignId}/recipients`, headers,
+      payload: { source: 'audience' } });
+    expect(res.statusCode).toBe(400);
+  });
 });

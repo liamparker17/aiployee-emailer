@@ -53,6 +53,9 @@ export function registerCallCampaignRoutes(app: FastifyInstance): void {
         z.object({ source: z.literal('csv'), rows: z.array(z.record(z.string())).min(1).max(10000) }),
         z.object({ source: z.literal('audience') }),
       ]).parse(req.body);
+      if (b.source === 'audience' && (c.audience_type === 'csv' || !c.audience_id)) {
+        throw new AppError('bad_request', 400, 'Campaign has no stored audience; upload CSV rows instead');
+      }
       const result = b.source === 'csv'
         ? await addRecipientsFromCsv(app.pool, { tenantId: ctx.tenantId, campaignId: id, agentId: c.agent_id, rows: b.rows })
         : await addRecipientsFromAudience(app.pool, { tenantId: ctx.tenantId, campaignId: id, agentId: c.agent_id,
