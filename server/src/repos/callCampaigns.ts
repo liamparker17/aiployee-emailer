@@ -208,10 +208,10 @@ async function insertRecipients(
   }
   await pool.query(
     `UPDATE call_campaigns
-     SET recipient_count = (SELECT COUNT(*) FROM call_campaign_recipients WHERE campaign_id = $1),
+     SET recipient_count = (SELECT COUNT(*) FROM call_campaign_recipients WHERE campaign_id = $1 AND tenant_id = $2),
          updated_at = now()
-     WHERE id = $1`,
-    [campaignId]);
+     WHERE id = $1 AND tenant_id = $2`,
+    [campaignId, tenantId]);
   return { added, errors };
 }
 
