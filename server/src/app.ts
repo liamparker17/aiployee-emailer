@@ -28,6 +28,7 @@ import { registerAgentChatRoutes } from './routes/agentChat.js';
 import { registerLineReportRoutes } from './routes/lineReports.js';
 import { registerCallAnalyticsRoutes } from './routes/callAnalytics.js';
 import { registerCallAgentRoutes } from './routes/callAgents.js';
+import { registerCallCampaignRoutes } from './routes/callCampaigns.js';
 import { registerCallHandoverRoutes } from './routes/callHandovers.js';
 import { registerDomainRoutes } from './routes/domains.js';
 import { registerEventWebhookRoutes } from './routes/eventWebhooks.js';
@@ -86,6 +87,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   registerLineReportRoutes(app);
   registerCallAnalyticsRoutes(app);
   registerCallAgentRoutes(app);
+  registerCallCampaignRoutes(app);
   registerCallHandoverRoutes(app);
   await registerDomainRoutes(app);
   await registerEventWebhookRoutes(app);
