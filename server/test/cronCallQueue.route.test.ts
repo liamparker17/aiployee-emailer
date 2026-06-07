@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { makePool, truncateAll } from './helpers/db.js';
@@ -18,6 +18,7 @@ const pool = makePool();
 beforeAll(async () => { app = await buildApp({ cfg }); });
 beforeEach(async () => { await truncateAll(pool); });
 afterAll(async () => { await app.close(); await pool.end(); });
+afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('POST /v1/cron/process-call-queue', () => {
   it('401 without the cron secret', async () => {
@@ -31,6 +32,7 @@ describe('POST /v1/cron/process-call-queue', () => {
     const c = await createCampaign(pool, { tenantId: t.id, agentId: a.id, name: 'C', audienceType: 'csv' });
     await addRecipientsFromCsv(pool, { tenantId: t.id, campaignId: c.id, agentId: a.id, rows: [{ name: 'n', phone: '+2760' }] });
     await approveCampaign(pool, t.id, c.id, null);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ status: 'accepted' }), { status: 200 })));
     const res = await app.inject({ method: 'POST', url: '/v1/cron/process-call-queue', headers: { authorization: 'Bearer ' + 'c'.repeat(24) } });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).ok).toBe(true);
