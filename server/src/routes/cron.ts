@@ -14,6 +14,7 @@ import { listExecutingPlays, listPlaysForOutcomeRollup } from '../repos/agentPla
 import { getDefaultSender } from '../repos/senders.js';
 import { advancePlayTouches } from '../agent/abe/touches.js';
 import { updatePlayOutcomes } from '../repos/agentOutcomes.js';
+import { runCallQueue } from '../calls/runCallQueue.js';
 
 function requireCronAuth(req: FastifyRequest, secret: string): void {
   const auth = req.headers.authorization ?? '';
@@ -185,6 +186,15 @@ export async function registerCronRoutes(app: FastifyInstance) {
         }
       }
       return reply.send({ ok: true, plays: plays.length, updated, errors });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // /v1/cron/process-call-queue — drain outbound call queue (claims + launches via Jobix). ~every minute.
+  cron('/v1/cron/process-call-queue', async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      requireCronAuth(req, app.cfg.cronSecret);
+      const summary = await runCallQueue(app.pool, app.cfg.encKey, { batchSize: app.cfg.cronBatchSize ?? 50, maxAttempts: 3 });
+      return reply.send({ ok: true, ...summary });
     } catch (e) { sendError(reply, e); }
   });
 }
