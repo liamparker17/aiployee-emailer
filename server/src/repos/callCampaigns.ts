@@ -357,7 +357,7 @@ export async function completeFinishedCampaigns(pool: pg.Pool, maxAttempts: numb
        AND NOT EXISTS (
          SELECT 1 FROM call_campaign_recipients r
          WHERE r.campaign_id = c.id
-           AND (r.status IN ('pending','queued') OR (r.status = 'failed' AND r.attempts < $1))
+           AND (r.status IN ('pending','queued','launched') OR (r.status = 'failed' AND r.attempts < $1))
        )`, [maxAttempts]);
   return r.rowCount ?? 0;
 }
