@@ -26,6 +26,7 @@ import Campaigns from './pages/Campaigns';
 import LaunchCampaign from './pages/LaunchCampaign';
 import Abe from './pages/Abe';
 import Calls from './pages/Calls';
+import CallCampaigns from './pages/CallCampaigns';
 
 function Authed({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -88,6 +89,7 @@ export const router = createBrowserRouter([
       { path: 'suppressions', element: <Suppressions /> },
       { path: 'users', element: <Users /> },
       { path: 'calls', element: <Calls /> },
+      { path: 'outbound-calls', element: <CallCampaigns /> },
     ],
   },
 

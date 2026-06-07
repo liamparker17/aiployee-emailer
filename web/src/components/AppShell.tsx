@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState, type ReactNode } from 'react';
-import { LayoutDashboard, Send, FileText, Server, ShieldCheck, KeyRound, Wand2, Bot, Webhook, ScrollText, ShieldBan, Users, UsersRound, ListChecks, Filter, Megaphone, Rocket, Building2, LogOut, Phone, ChevronDown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Send, FileText, Server, ShieldCheck, KeyRound, Wand2, Bot, Webhook, ScrollText, ShieldBan, Users, UsersRound, ListChecks, Filter, Megaphone, Rocket, Building2, LogOut, Phone, PhoneOutgoing, ChevronDown, ChevronRight } from 'lucide-react';
 import { useAuth } from '../auth';
 import TenantSwitcher from './TenantSwitcher';
 import { Logo } from './Logo';
@@ -67,6 +67,9 @@ export default function AppShell() {
           <NavLink to={`${base}/abe`} className={link}><Bot size={16} />Abe</NavLink>
           {isAdmin && (
             <NavLink to={`${base}/calls`} className={link}><Phone size={16} />Calls</NavLink>
+          )}
+          {isAdmin && (
+            <NavLink to={`${base}/outbound-calls`} className={link}><PhoneOutgoing size={16} />Outbound Calls</NavLink>
           )}
 
           {/* ── Demoted: everything else, collapsed by default ── */}
