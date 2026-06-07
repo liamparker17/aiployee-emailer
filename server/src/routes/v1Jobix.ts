@@ -5,6 +5,7 @@ import { requireCtx } from '../auth/ctx.js';
 import { ingestJobixCall } from '../agent/abe/ingestCall.js';
 import { getLineReportConfig } from '../repos/lineReportConfigs.js';
 import type { AttributionMap } from '../agent/abe/jobixPayload.js';
+import { linkResultBySuid } from '../repos/callCampaigns.js';
 
 // Lenient: Jobix shapes vary per tenant. We accept any object and let normalizeCall sort it out.
 const Body = z.record(z.unknown());
@@ -36,6 +37,15 @@ export async function registerV1JobixRoutes(app: FastifyInstance) {
         pool: app.pool, tenantId: ctx.tenantId, callRef: ref, body: b, attribution,
         lineRef: (b.company_key as string | undefined) ?? null,
       });
+
+      const cd = (b.customer_data ?? {}) as Record<string, unknown>;
+      const main = (cd.main ?? {}) as Record<string, unknown>;
+      const suid = String((main.suid ?? b.suid ?? '') || '');
+      const outcome = (b.call_outcome ?? b.outcome ?? null) as string | null;
+      if (suid) {
+        await linkResultBySuid(app.pool, ctx.tenantId, suid, out.messageId, outcome);
+      }
+
       return reply.code(202).send({ created: out.created, message_id: out.messageId });
     } catch (e) { sendError(reply, e); }
   });
