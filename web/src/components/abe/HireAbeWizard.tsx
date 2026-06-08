@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Button } from '../Button';
-import { Card } from '../Card';
-import { Input, Field } from '../Input';
-import { useToast } from '../Toast';
-import { api } from '../../api';
-import { useAuth } from '../../auth';
+import { Button } from '@aiployee/ui';
+import { Card } from '@aiployee/ui';
+import { Input, Field } from '@aiployee/ui';
+import { useToast } from '@aiployee/ui';
+import { api } from '@aiployee/ui';
+import { useAuth } from '@aiployee/ui';
 import type { AbeGoal } from '../../lib/abe';
 
 function describeError(err: unknown): string {

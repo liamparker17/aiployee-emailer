@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
-import { Card } from '../Card';
-import { Button } from '../Button';
-import { Skeleton } from '../Skeleton';
-import { useToast } from '../Toast';
-import { api } from '../../api';
-import { useAuth } from '../../auth';
+import { Card } from '@aiployee/ui';
+import { Button } from '@aiployee/ui';
+import { Skeleton } from '@aiployee/ui';
+import { useToast } from '@aiployee/ui';
+import { api } from '@aiployee/ui';
+import { useAuth } from '@aiployee/ui';
 import type { AbeGoal, AbePlay } from '../../lib/abe';
 
 interface Props { goal: AbeGoal; onChange: () => void }

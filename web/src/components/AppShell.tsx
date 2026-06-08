@@ -1,9 +1,9 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState, type ReactNode } from 'react';
 import { LayoutDashboard, Send, FileText, Server, ShieldCheck, KeyRound, Wand2, Bot, Webhook, ScrollText, ShieldBan, Users, UsersRound, ListChecks, Filter, Megaphone, Rocket, Building2, LogOut, Phone, PhoneOutgoing, Workflow, ChevronDown, ChevronRight } from 'lucide-react';
-import { useAuth } from '../auth';
-import TenantSwitcher from './TenantSwitcher';
-import { Logo } from './Logo';
+import { useAuth } from '@aiployee/ui';
+import { TenantSwitcher } from '@aiployee/ui';
+import { Logo } from '@aiployee/ui';
 
 const link = ({ isActive }: { isActive: boolean }) =>
   `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${

@@ -4,7 +4,7 @@ import { ChevronDown, ArrowLeft, Plus } from 'lucide-react';
 import { useTenants } from '../lib/tenants';
 import { useAuth } from '../auth';
 
-export default function TenantSwitcher() {
+export function TenantSwitcher() {
   const { tenants } = useTenants();
   const { tenantId } = useParams<{ tenantId: string }>();
   const { setActiveTenant } = useAuth();

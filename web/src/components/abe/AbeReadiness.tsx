@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { Card } from '../Card';
-import { api } from '../../api';
-import { useAuth } from '../../auth';
+import { Card } from '@aiployee/ui';
+import { api } from '@aiployee/ui';
+import { useAuth } from '@aiployee/ui';
 
 interface Sender { id: string; is_default: boolean }
 

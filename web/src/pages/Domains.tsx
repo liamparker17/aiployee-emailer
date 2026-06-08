@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ShieldCheck } from 'lucide-react';
-import { api } from '../api';
-import { Table, Th, Td } from '../components/Table';
-import { Button } from '../components/Button';
-import { Input } from '../components/Input';
-import { PageHeader } from '../components/PageHeader';
-import { EmptyState } from '../components/EmptyState';
-import { Skeleton } from '../components/Skeleton';
-import { StatusBadge } from '../components/StatusBadge';
-import { CopyButton } from '../components/CopyButton';
-import { useToast } from '../components/Toast';
+import { api } from '@aiployee/ui';
+import { Table, Th, Td } from '@aiployee/ui';
+import { Button } from '@aiployee/ui';
+import { Input } from '@aiployee/ui';
+import { PageHeader } from '@aiployee/ui';
+import { EmptyState } from '@aiployee/ui';
+import { Skeleton } from '@aiployee/ui';
+import { StatusBadge } from '@aiployee/ui';
+import { CopyButton } from '@aiployee/ui';
+import { useToast } from '@aiployee/ui';
 
 interface Domain {
   id: string;

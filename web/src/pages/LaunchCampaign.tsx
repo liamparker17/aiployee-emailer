@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Rocket } from 'lucide-react';
-import { api } from '../api';
-import { Button } from '../components/Button';
-import { Input, Field } from '../components/Input';
-import { Card } from '../components/Card';
-import { PageHeader } from '../components/PageHeader';
-import { useToast } from '../components/Toast';
+import { api } from '@aiployee/ui';
+import { Button } from '@aiployee/ui';
+import { Input, Field } from '@aiployee/ui';
+import { Card } from '@aiployee/ui';
+import { PageHeader } from '@aiployee/ui';
+import { useToast } from '@aiployee/ui';
 
 interface Sender { id: string; email: string; display_name: string }
 type Row = { email: string; name?: string; attributes: Record<string, string> };

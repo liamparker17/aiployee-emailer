@@ -1,4 +1,4 @@
-import { api } from '../api';
+import { api } from '@aiployee/ui';
 
 export interface AbeGoal {
   id: string; enabled: boolean;

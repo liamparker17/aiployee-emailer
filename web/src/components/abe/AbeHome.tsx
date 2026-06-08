@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Bot, ShieldCheck } from 'lucide-react';
-import { Card } from '../Card';
+import { Card } from '@aiployee/ui';
 import AbeFeed from './AbeFeed';
 import AbeReadiness from './AbeReadiness';
 import AbeChat from './AbeChat';

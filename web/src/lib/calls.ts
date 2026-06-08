@@ -1,4 +1,4 @@
-import { api } from '../api';
+import { api } from '@aiployee/ui';
 
 // ── Legacy slim type (used by existing Calls.tsx components) ──────────────────
 export interface Call {

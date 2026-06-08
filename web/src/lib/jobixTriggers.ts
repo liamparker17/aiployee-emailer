@@ -1,4 +1,4 @@
-import { api } from '../api';
+import { api } from '@aiployee/ui';
 
 export type TokenPlacement = 'bearer' | 'header' | 'query' | 'body';
 export interface JobixTrigger {

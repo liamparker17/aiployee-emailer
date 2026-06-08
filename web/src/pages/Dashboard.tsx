@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Inbox } from 'lucide-react';
-import { api } from '../api';
-import { PageHeader } from '../components/PageHeader';
-import { Table, Th, Td } from '../components/Table';
-import { StatusBadge } from '../components/StatusBadge';
-import { EmptyState } from '../components/EmptyState';
-import { Skeleton } from '../components/Skeleton';
+import { api } from '@aiployee/ui';
+import { PageHeader } from '@aiployee/ui';
+import { Table, Th, Td } from '@aiployee/ui';
+import { StatusBadge } from '@aiployee/ui';
+import { EmptyState } from '@aiployee/ui';
+import { Skeleton } from '@aiployee/ui';
 
 interface Email { id: string; to_addr: string; subject: string; status: string; created_at: string }
 interface Summary { sent: number; opens: number; uniqueOpens: number; clicks: number; uniqueClicks: number; bounced: number }

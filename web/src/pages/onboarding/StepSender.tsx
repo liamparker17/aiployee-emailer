@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { api } from '../../api';
+import { api } from '@aiployee/ui';
 import { useWizardState } from './state';
-import { Input } from '../../components/Input';
-import { Button } from '../../components/Button';
-import { useToast } from '../../components/Toast';
+import { Input } from '@aiployee/ui';
+import { Button } from '@aiployee/ui';
+import { useToast } from '@aiployee/ui';
 
 interface Preset { label: string; host: string; port: number; secure: boolean }
 const PRESETS: Record<string, Preset> = {

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { FileText } from 'lucide-react';
-import { api } from '../api';
-import { Field, Input } from '../components/Input';
-import { PageHeader } from '../components/PageHeader';
-import { EmptyState } from '../components/EmptyState';
-import { Skeleton } from '../components/Skeleton';
-import { CopyButton } from '../components/CopyButton';
+import { api } from '@aiployee/ui';
+import { Field, Input } from '@aiployee/ui';
+import { PageHeader } from '@aiployee/ui';
+import { EmptyState } from '@aiployee/ui';
+import { Skeleton } from '@aiployee/ui';
+import { CopyButton } from '@aiployee/ui';
 
 interface Template { id: string; name: string; variables: string[] }
 interface Sender { id: string; email: string; display_name: string; is_default: boolean }
