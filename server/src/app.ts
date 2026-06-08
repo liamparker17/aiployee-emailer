@@ -30,6 +30,7 @@ import { registerCallAnalyticsRoutes } from './routes/callAnalytics.js';
 import { registerCallAgentRoutes } from './routes/callAgents.js';
 import { registerJobixTriggerRoutes } from './routes/jobixTriggers.js';
 import { registerCallCampaignRoutes } from './routes/callCampaigns.js';
+import { registerFlowRoutes } from './routes/flows.js';
 import { registerCallHandoverRoutes } from './routes/callHandovers.js';
 import { registerDomainRoutes } from './routes/domains.js';
 import { registerEventWebhookRoutes } from './routes/eventWebhooks.js';
@@ -90,6 +91,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   registerCallAgentRoutes(app);
   registerJobixTriggerRoutes(app);
   registerCallCampaignRoutes(app);
+  registerFlowRoutes(app);
   registerCallHandoverRoutes(app);
   await registerDomainRoutes(app);
   await registerEventWebhookRoutes(app);

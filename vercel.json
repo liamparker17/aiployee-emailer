@@ -16,7 +16,8 @@
     { "path": "/v1/cron/abe-outcomes",  "schedule": "0 9 * * *" },
     { "path": "/v1/cron/line-report",   "schedule": "0 7 * * *" },
     { "path": "/v1/cron/abe-handovers", "schedule": "*/5 * * * *" },
-    { "path": "/v1/cron/process-call-queue", "schedule": "* * * * *" }
+    { "path": "/v1/cron/process-call-queue", "schedule": "* * * * *" },
+    { "path": "/v1/cron/process-flows", "schedule": "* * * * *" }
   ],
   "rewrites": [
     { "source": "/healthz",        "destination": "/api/index" },

@@ -27,6 +27,7 @@ import LaunchCampaign from './pages/LaunchCampaign';
 import Abe from './pages/Abe';
 import Calls from './pages/Calls';
 import CallCampaigns from './pages/CallCampaigns';
+import Flows from './pages/Flows';
 
 function Authed({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -90,6 +91,7 @@ export const router = createBrowserRouter([
       { path: 'users', element: <Users /> },
       { path: 'calls', element: <Calls /> },
       { path: 'outbound-calls', element: <CallCampaigns /> },
+      { path: 'flows', element: <Flows /> },
     ],
   },
 

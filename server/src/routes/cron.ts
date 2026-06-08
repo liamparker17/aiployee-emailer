@@ -16,6 +16,7 @@ import { getDefaultSender } from '../repos/senders.js';
 import { advancePlayTouches } from '../agent/abe/touches.js';
 import { updatePlayOutcomes } from '../repos/agentOutcomes.js';
 import { runCallQueue } from '../calls/runCallQueue.js';
+import { runFlowQueue } from '../flows/runFlowQueue.js';
 
 const CALL_QUEUE_BATCH = 50; // outbound launches per cron tick (conservative; Jobix dials async)
 
@@ -194,6 +195,15 @@ export async function registerCronRoutes(app: FastifyInstance) {
     try {
       requireCronAuth(req, app.cfg.cronSecret);
       const summary = await runCallQueue(app.pool, app.cfg.encKey, { batchSize: CALL_QUEUE_BATCH, maxAttempts: 3 });
+      return reply.send({ ok: true, ...summary });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // /v1/cron/process-flows — advance flow enrollments through their steps. ~every minute.
+  cron('/v1/cron/process-flows', async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      requireCronAuth(req, app.cfg.cronSecret);
+      const summary = await runFlowQueue(app.pool, app.cfg.encKey, { batchSize: 100, maxStepsPerTick: 50 });
       return reply.send({ ok: true, ...summary });
     } catch (e) { sendError(reply, e); }
   });
