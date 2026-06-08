@@ -12,3 +12,19 @@ export * from './auth/csrf.js';
 export * from './auth/ctx.js';
 export * from './auth/password.js';
 export * from './auth/apiKey.js';
+// Slice C (backbone repos): tenants, users, api keys, contacts, lists, segments, suppressions.
+export * from './repos/tenants.js';
+export * from './repos/users.js';
+export * from './repos/apiKeys.js';
+export * from './repos/contacts.js';
+export * from './repos/contactLists.js';
+export * from './repos/segments.js';
+export * from './repos/suppressions.js';
+// Slice D (platform routes): auth/login, session, users, tenant admin, api keys.
+// NOTE: these route modules import the @aiployee/core barrel internally; safe because
+// all such symbols are used inside request handlers (runtime), never at module top-level.
+export * from './routes/auth.js';
+export * from './routes/session.js';
+export * from './routes/users.js';
+export * from './routes/adminTenants.js';
+export * from './routes/apiKeys.js';

@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireTenantCtx } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
-import { listUsersForTenant, createInvitedUser, getUserById, countTenantAdmins, deleteUser } from '../repos/users.js';
+import { listUsersForTenant, createInvitedUser, getUserById, countTenantAdmins, deleteUser } from '@aiployee/core';
 
 const InviteBody = z.object({ email: z.string().email(), role: z.enum(['tenant_admin','tenant_user']).default('tenant_user') });
 

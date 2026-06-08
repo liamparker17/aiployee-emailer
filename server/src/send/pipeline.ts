@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { AppError } from '@aiployee/core';
 import { getSenderByEmail } from '../repos/senders.js';
 import { getTemplateByName } from '../repos/templates.js';
-import { isSuppressed } from '../repos/suppressions.js';
+import { isSuppressed } from '@aiployee/core';
 import { insertEmail, type EmailRow } from '../repos/emails.js';
 import { render } from './render.js';
 

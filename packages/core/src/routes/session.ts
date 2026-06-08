@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireCtx, requireSuperAdmin } from '@aiployee/core';
 import { AppError, sendError } from '@aiployee/core';
-import { listTenants, getTenant } from '../repos/tenants.js';
+import { listTenants, getTenant } from '@aiployee/core';
 
 const Body = z.object({ tenantId: z.string().uuid() });
 

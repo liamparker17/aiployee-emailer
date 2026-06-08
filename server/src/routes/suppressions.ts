@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireTenantCtx } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
-import { addSuppression, listSuppressions, removeSuppression } from '../repos/suppressions.js';
+import { addSuppression, listSuppressions, removeSuppression } from '@aiployee/core';
 
 const AddBody = z.object({ address: z.string().email(), reason: z.enum(['bounce','complaint','manual']).default('manual') });
 

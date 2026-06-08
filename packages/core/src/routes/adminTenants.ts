@@ -2,8 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireSuperAdmin } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
-import { createTenant, listTenants, deleteTenant, renameTenant } from '../repos/tenants.js';
-import { createInvitedUser } from '../repos/users.js';
+import { createTenant, listTenants, deleteTenant, renameTenant } from '@aiployee/core';
+import { createInvitedUser } from '@aiployee/core';
 
 const CreateBody = z.object({
   name: z.string().min(1),

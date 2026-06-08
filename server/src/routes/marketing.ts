@@ -2,8 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireTenantCtx } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
-import { listContacts, createContact, updateContact, deleteContact, importContacts } from '../repos/contacts.js';
-import { listLists, getList, createList, deleteList, addMembers, removeMember, listMembers } from '../repos/contactLists.js';
+import { listContacts, createContact, updateContact, deleteContact, importContacts } from '@aiployee/core';
+import { listLists, getList, createList, deleteList, addMembers, removeMember, listMembers } from '@aiployee/core';
 
 const attrs = z.record(z.string(), z.unknown());
 

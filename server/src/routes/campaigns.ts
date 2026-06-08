@@ -5,9 +5,9 @@ import { sendError, AppError } from '@aiployee/core';
 import { listCampaigns, getCampaign, createCampaign, setCampaignStatus, deleteCampaign, campaignStats } from '../repos/campaigns.js';
 import { sendCampaign } from '../marketing/campaignSend.js';
 import { verifyUnsubToken } from '../marketing/unsubscribe.js';
-import { getContact, updateContact, importContacts, getContactIdsByEmails } from '../repos/contacts.js';
-import { createList, addMembers } from '../repos/contactLists.js';
-import { addSuppression } from '../repos/suppressions.js';
+import { getContact, updateContact, importContacts, getContactIdsByEmails } from '@aiployee/core';
+import { createList, addMembers } from '@aiployee/core';
+import { addSuppression } from '@aiployee/core';
 
 const attrs = z.record(z.string(), z.unknown());
 const LaunchBody = z.object({

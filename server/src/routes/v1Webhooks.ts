@@ -3,7 +3,7 @@ import { sendError, AppError } from '@aiployee/core';
 import { verifySnsMessage, parseSesNotification } from '../webhooks/ses.js';
 import { verifyMailgun, parseMailgunEvent } from '../webhooks/mailgun.js';
 import { findByMessageId, markStatus } from '../repos/emails.js';
-import { addSuppression } from '../repos/suppressions.js';
+import { addSuppression } from '@aiployee/core';
 import { deliverEmailEvent } from '../webhooks/eventDelivery.js';
 
 export async function registerV1WebhookRoutes(app: FastifyInstance) {

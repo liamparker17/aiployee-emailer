@@ -8,8 +8,8 @@ import {
   createSegment,
   deleteSegment,
   previewSegment,
-} from '../repos/segments.js';
-import type { SegmentFilter } from '../repos/segments.js';
+} from '@aiployee/core';
+import type { SegmentFilter } from '@aiployee/core';
 
 const ruleSchema = z.object({
   field: z.string().min(1),

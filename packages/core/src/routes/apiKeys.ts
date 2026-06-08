@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireTenantCtx } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
 import { generateApiKey, hashApiKey, prefixOf } from '@aiployee/core';
-import { insertApiKey, listApiKeys, revokeApiKey, getApiKeyById, deleteApiKeyPermanent } from '../repos/apiKeys.js';
+import { insertApiKey, listApiKeys, revokeApiKey, getApiKeyById, deleteApiKeyPermanent } from '@aiployee/core';
 
 const CreateBody = z.object({ name: z.string().min(1), parentId: z.string().uuid().optional() });
 

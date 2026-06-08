@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { AppError } from '@aiployee/core';
 import type { ValuesField } from './callAgents.js';
-import { listMembers } from './contactLists.js';
-import { listSegmentContactIds } from './segments.js';
-import type { SegmentFilter } from './segments.js';
-import { getContactsByIds } from './contacts.js';
+import { listMembers } from '@aiployee/core';
+import { listSegmentContactIds } from '@aiployee/core';
+import type { SegmentFilter } from '@aiployee/core';
+import { getContactsByIds } from '@aiployee/core';
 
 export type CampaignStatus = 'draft' | 'approved' | 'running' | 'paused' | 'completed' | 'canceled';
 export type RecipientStatus = 'pending' | 'queued' | 'launched' | 'failed' | 'suppressed' | 'completed' | 'canceled';
