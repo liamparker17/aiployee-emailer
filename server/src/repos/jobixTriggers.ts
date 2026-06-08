@@ -117,7 +117,7 @@ export interface FireRow {
   response_snippet: string | null; error: string | null; created_by: string | null; created_at: Date;
 }
 
-interface RecordFireInput {
+export interface RecordFireInput {
   tenantId: string; triggerId: string; source: FireSource; vars: Record<string, unknown>;
   httpStatus: number | null; ok: boolean; responseSnippet: string | null; error: string | null; createdBy: string | null;
 }
@@ -135,7 +135,7 @@ export async function listFires(pool: pg.Pool, tenantId: string, triggerId: stri
     `SELECT COUNT(*)::text AS n FROM jobix_trigger_fires WHERE tenant_id = $1 AND trigger_id = $2`, [tenantId, triggerId]);
   const r = await pool.query<FireRow>(
     `SELECT * FROM jobix_trigger_fires WHERE tenant_id = $1 AND trigger_id = $2
-     ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
+     ORDER BY created_at DESC, id DESC LIMIT $3 OFFSET $4`,
     [tenantId, triggerId, opts.limit ?? 50, opts.offset ?? 0]);
   return { fires: r.rows, total: Number(total.rows[0].n) };
 }
