@@ -140,6 +140,6 @@ export async function listFires(pool: pg.Pool, tenantId: string, triggerId: stri
   return { fires: r.rows, total: Number(total.rows[0].n) };
 }
 
-export async function touchLastFired(pool: pg.Pool, id: string): Promise<void> {
-  await pool.query(`UPDATE jobix_triggers SET last_fired_at = now(), updated_at = now() WHERE id = $1`, [id]);
+export async function touchLastFired(pool: pg.Pool, tenantId: string, id: string): Promise<void> {
+  await pool.query(`UPDATE jobix_triggers SET last_fired_at = now(), updated_at = now() WHERE tenant_id = $1 AND id = $2`, [tenantId, id]);
 }

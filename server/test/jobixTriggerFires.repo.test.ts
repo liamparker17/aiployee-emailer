@@ -26,7 +26,7 @@ describe('jobixTriggers repo — fire log', () => {
 
   it('touchLastFired sets last_fired_at', async () => {
     const t = await createTenant(pool); const tr = await trig(t.id);
-    await touchLastFired(pool, tr.id);
+    await touchLastFired(pool, t.id, tr.id);
     const f = await getTriggerForFire(pool, KEY, t.id, tr.id);
     expect(f).toBeTruthy();
     const row = await pool.query(`SELECT last_fired_at FROM jobix_triggers WHERE id = $1`, [tr.id]);

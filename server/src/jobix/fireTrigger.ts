@@ -32,7 +32,7 @@ export async function fireTrigger(pool: pg.Pool, encKey: Buffer, args: FireArgs)
     const result: FireResult = { ok: false, httpStatus: null, responseSnippet: null, error: 'invalid_payload', renderedPayload: text, unresolved };
     await recordFire(pool, { tenantId: args.tenantId, triggerId: args.triggerId, source: args.source, vars: args.vars ?? {},
       httpStatus: null, ok: false, responseSnippet: null, error: 'invalid_payload', createdBy: args.userId ?? null });
-    await touchLastFired(pool, args.triggerId);
+    await touchLastFired(pool, args.tenantId, args.triggerId);
     return result;
   }
 
@@ -57,6 +57,6 @@ export async function fireTrigger(pool: pg.Pool, encKey: Buffer, args: FireArgs)
 
   await recordFire(pool, { tenantId: args.tenantId, triggerId: args.triggerId, source: args.source, vars: args.vars ?? {},
     httpStatus: result.httpStatus, ok: result.ok, responseSnippet: result.responseSnippet, error: result.error, createdBy: args.userId ?? null });
-  await touchLastFired(pool, args.triggerId);
+  await touchLastFired(pool, args.tenantId, args.triggerId);
   return result;
 }
