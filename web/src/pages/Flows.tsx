@@ -141,6 +141,21 @@ export default function Flows() {
     <div>
       <PageHeader title="Flows" subtitle="Build campaign flows — enrol contacts and walk them through steps (call, wait, branch)." />
 
+      <details className="mb-4 rounded-card border border-line bg-surface-raised">
+        <summary className="cursor-pointer select-none px-4 py-3 font-medium text-ink">
+          How to connect a Call step to Jobix (one-time setup)
+        </summary>
+        <div className="px-4 pb-4 space-y-3 text-sm text-ink-muted">
+          <p>A <b>Call</b> step rings a customer using your Jobix voice agent. To make calls actually go out, set this up once:</p>
+          <ol className="list-decimal pl-5 space-y-2">
+            <li><b>In Jobix:</b> build an automation that <b>starts with a Webhook trigger</b> and <b>ends with a Call</b>. Click <b>Generate</b> to create a token and copy it. (Map the JSON we send — <code>name</code>, <code>phone</code>, <code>context</code> — into who it calls and what the agent says.)</li>
+            <li><b>In this app, on the Webhooks page → "Jobix Call Triggers":</b> add a trigger, paste that token, set the payload template with <code>{'{{name}}'}</code> <code>{'{{phone}}'}</code> <code>{'{{context}}'}</code>, then click <b>Test</b> until you get a green result. That green is your proof Jobix is connected.</li>
+            <li><b>Back here:</b> add a <b>Call</b> step and pick that trigger. Add <b>Wait</b> / <b>Condition</b> steps if you like, click <b>Save steps</b>, then <b>Activate</b> the flow and <b>enrol</b> your contacts below.</li>
+          </ol>
+          <p className="text-ink-dim"><b>Heads up:</b> calls go out as soon as you enrol someone into an <b>active</b> flow — test with your own number first. Pause the flow any time to stop everyone mid-sequence.</p>
+        </div>
+      </details>
+
       <Card>
         <h3>Your flows</h3>
         <form onSubmit={create} className="flex gap-2 items-end mb-3">
