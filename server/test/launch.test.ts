@@ -4,9 +4,9 @@ import { loadConfig } from '@aiployee/core';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant, createUser } from './helpers/factories.js';
 import { csrfFor, login } from './helpers/auth.js';
-import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
-import { createSender } from '../src/repos/senders.js';
-import { listEmails } from '../src/repos/emails.js';
+import { createSmtpConfig } from '@aiployee/core';
+import { createSender } from '@aiployee/core';
+import { listEmails } from '@aiployee/core';
 
 const KEY = Buffer.alloc(32, 1);
 const cfg = loadConfig({

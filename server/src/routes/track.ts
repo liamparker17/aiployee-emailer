@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { recordOpen, recordClick } from '../repos/emailEvents.js';
-import { TRACKING_PIXEL } from '../send/tracking.js';
+import { TRACKING_PIXEL } from '@aiployee/core';
 
 // Public (no auth) — these URLs are embedded in sent emails and hit by recipients.
 export async function registerTrackRoutes(app: FastifyInstance) {

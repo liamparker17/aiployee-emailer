@@ -6,7 +6,7 @@ import {
   listEventWebhooks,
   createEventWebhook,
   deleteEventWebhook,
-} from '../repos/eventWebhooks.js';
+} from '@aiployee/core';
 
 const ALLOWED_EVENTS = ['sent', 'delivered', 'bounced', 'complained'] as const;
 

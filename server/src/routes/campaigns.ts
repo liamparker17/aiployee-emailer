@@ -4,7 +4,7 @@ import { requireTenantCtx } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
 import { listCampaigns, getCampaign, createCampaign, setCampaignStatus, deleteCampaign, campaignStats } from '../repos/campaigns.js';
 import { sendCampaign } from '../marketing/campaignSend.js';
-import { verifyUnsubToken } from '../marketing/unsubscribe.js';
+import { verifyUnsubToken } from '@aiployee/core';
 import { getContact, updateContact, importContacts, getContactIdsByEmails } from '@aiployee/core';
 import { createList, addMembers } from '@aiployee/core';
 import { addSuppression } from '@aiployee/core';

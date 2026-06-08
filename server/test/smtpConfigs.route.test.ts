@@ -4,7 +4,7 @@ import { loadConfig } from '@aiployee/core';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createUser, createTenant } from './helpers/factories.js';
 import { csrfFor, login } from './helpers/auth.js';
-import { getSmtpConfigWithPassword } from '../src/repos/smtpConfigs.js';
+import { getSmtpConfigWithPassword } from '@aiployee/core';
 
 const cfg = loadConfig({
   NODE_ENV: 'test', PORT: '0',

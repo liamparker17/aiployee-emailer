@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireTenantCtx } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
-import { getEmail, listEmails, cancelScheduledEmail, type EmailStatus } from '../repos/emails.js';
+import { getEmail, listEmails, cancelScheduledEmail, type EmailStatus } from '@aiployee/core';
 
 export async function registerEmailRoutes(app: FastifyInstance) {
   app.get('/api/emails', async (req, reply) => {

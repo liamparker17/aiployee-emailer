@@ -4,8 +4,8 @@ import { loadConfig } from '@aiployee/core';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant, createUser } from './helpers/factories.js';
 import { csrfFor, login } from './helpers/auth.js';
-import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
-import { createSender } from '../src/repos/senders.js';
+import { createSmtpConfig } from '@aiployee/core';
+import { createSender } from '@aiployee/core';
 import { insertApiKey, revokeApiKey, deleteApiKeyPermanent } from '@aiployee/core';
 import { generateApiKey, hashApiKey, prefixOf } from '@aiployee/core';
 

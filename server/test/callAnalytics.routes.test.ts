@@ -7,8 +7,8 @@ import { csrfFor, login } from './helpers/auth.js';
 import { seedInboundCall } from './helpers/lineReport.js';
 import { insertCallTag } from '../src/repos/lineCallTags.js';
 import { upsertLineReportConfig } from '../src/repos/lineReportConfigs.js';
-import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
-import { createSender } from '../src/repos/senders.js';
+import { createSmtpConfig } from '@aiployee/core';
+import { createSender } from '@aiployee/core';
 
 const KEY = Buffer.alloc(32, 1);
 const cfg = loadConfig({

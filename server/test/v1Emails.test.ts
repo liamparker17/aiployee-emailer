@@ -3,12 +3,12 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '@aiployee/core';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
-import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
-import { createSender } from '../src/repos/senders.js';
+import { createSmtpConfig } from '@aiployee/core';
+import { createSender } from '@aiployee/core';
 import { insertApiKey } from '@aiployee/core';
 import { generateApiKey, hashApiKey, prefixOf } from '@aiployee/core';
 import { startTestSmtp } from './helpers/smtp.js';
-import { getEmail } from '../src/repos/emails.js';
+import { getEmail } from '@aiployee/core';
 
 const KEY = Buffer.alloc(32, 1);
 const cfg = loadConfig({

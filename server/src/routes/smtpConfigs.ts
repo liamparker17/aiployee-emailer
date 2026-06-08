@@ -4,8 +4,8 @@ import { requireTenantCtx } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
 import {
   createSmtpConfig, listSmtpConfigs, getSmtpConfigWithPassword, deleteSmtpConfig,
-} from '../repos/smtpConfigs.js';
-import { buildTransport } from '../send/sender.js';
+} from '@aiployee/core';
+import { buildTransport } from '@aiployee/core';
 
 const CreateBody = z.object({
   name: z.string().min(1),

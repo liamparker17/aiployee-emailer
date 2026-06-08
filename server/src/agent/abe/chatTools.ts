@@ -5,7 +5,7 @@ import { getGoal, upsertGoal, type GoalPatch } from '../../repos/agentGoals.js';
 import { findDormantContacts } from '../../repos/agentDormant.js';
 import { listPlays, getPlay } from '../../repos/agentPlays.js';
 import { getPlayOutcomes } from '../../repos/agentOutcomes.js';
-import { getDefaultSender } from '../../repos/senders.js';
+import { getDefaultSender } from '@aiployee/core';
 import { getAgentOpenAIKey } from '../../repos/agent.js';
 import { runAbeShift } from './shift.js';
 
