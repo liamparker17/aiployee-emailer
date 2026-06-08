@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ChangeEvent } from 'react';
+import { useEffect, useState, Fragment, type FormEvent, type ChangeEvent } from 'react';
 import { Webhook } from 'lucide-react';
 import { api } from '../api';
 import { Table, Th, Td } from '../components/Table';
@@ -415,8 +415,8 @@ function JobixTriggersSection() {
             </thead>
             <tbody>
               {triggers.map(t => (
-                <>
-                  <tr key={t.id}>
+                <Fragment key={t.id}>
+                  <tr>
                     <Td><span className="text-sm text-ink font-medium">{t.label}</span></Td>
                     <Td>
                       <span className="font-mono text-xs text-ink-muted break-all max-w-xs block truncate" title={t.url}>
@@ -461,7 +461,7 @@ function JobixTriggersSection() {
                       </Td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </Table>
