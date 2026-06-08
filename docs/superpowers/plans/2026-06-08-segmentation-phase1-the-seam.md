@@ -16,6 +16,8 @@ This is a **restructure**, not greenfield. Two conventions make the steps concre
 
 1. **Move-lists, not file bodies.** When a step says "move X → Y", the file content is unchanged; only its path and import specifiers change. The exact source→dest paths ARE the concrete content.
 2. **Compiler-as-oracle for imports.** After any move, the verification is `npm run build` (tsc). Every unresolved-import error is fixed by repointing that import to its new home (`@aiployee/core`, `@aiployee/ui`, `@aiployee/shared`, or a sibling within the same app). Repeat build→fix until green. This is a deterministic procedure, not a placeholder.
+   - ⚠️ **`tsc` does NOT cover `server/test/**`** (vitest transforms those, not the build). After moving a module, you MUST also rewrite test-file imports of it (tests reference source as `../src/<module>.js`). Run the same sed over `server/test`. A clean `npm run build` with broken test imports is a false green.
+   - ⚠️ **Never read a test result through `| tail`** — the pipe makes the shell report `tail`'s exit code (always 0), masking a failed suite. Run the suite unpiped (or `echo ${PIPESTATUS[0]}`) and confirm `VITEST EXIT: 0` plus the `Test Files … passed` summary.
 
 **Definition of "green" used throughout:** `npm run build` exits 0 **and** the server tests pass. Tests are DB-backed integration tests that read **`TEST_DATABASE_URL`** (NOT `DATABASE_URL`) and **must** run serially. The canonical command is:
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '@aiployee/core';
 
 describe('loadConfig', () => {
   it('parses required env', () => {

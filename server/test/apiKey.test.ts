@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateApiKey, hashApiKey, prefixOf } from '../src/auth/apiKey.js';
+import { generateApiKey, hashApiKey, prefixOf } from '@aiployee/core';
 
 describe('api key', () => {
   it('generates keys with aip_live_ prefix', () => {

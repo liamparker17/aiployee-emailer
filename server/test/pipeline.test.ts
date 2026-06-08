@@ -4,7 +4,7 @@ import { createTenant } from './helpers/factories.js';
 import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
 import { createSender } from '../src/repos/senders.js';
 import { createTemplate } from '../src/repos/templates.js';
-import { addSuppression } from '../src/repos/suppressions.js';
+import { addSuppression } from '@aiployee/core';
 import { queueEmail } from '../src/send/pipeline.js';
 
 const KEY = Buffer.alloc(32, 1);
