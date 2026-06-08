@@ -9,7 +9,8 @@ import { runLineReportShift } from '../agent/abe/lineShift.js';
 import { extractHandovers } from '../agent/abe/handoverExtract.js';
 import { openAiFactory } from '../agent/runner.js';
 import { listEnabledLineConfigs } from '../repos/lineReportConfigs.js';
-import { getAgentOpenAIKey, getAgentConfig } from '../repos/agent.js';
+import { getAgentOpenAIKey } from '../repos/agent.js';
+import { CALL_BATCH_MODEL } from '../agent/abe/models.js';
 import { listExecutingPlays, listPlaysForOutcomeRollup } from '../repos/agentPlays.js';
 import { getDefaultSender } from '../repos/senders.js';
 import { advancePlayTouches } from '../agent/abe/touches.js';
@@ -131,12 +132,10 @@ export async function registerCronRoutes(app: FastifyInstance) {
             skipped.push({ tenantId: c.tenant_id, reason: 'no_openai_key' });
             continue;
           }
-          const agentCfg = await getAgentConfig(app.pool, c.tenant_id);
-          const model = agentCfg?.model ?? 'gpt-4o';
           const r = await runLineReportShift({
             pool: app.pool, tenantId: c.tenant_id,
             llmFactory: factory,
-            model, now: new Date(),
+            model: CALL_BATCH_MODEL, now: new Date(),
             openAiKey: key ?? undefined,
           });
           if (r.status === 'ran') ran++;
@@ -162,8 +161,7 @@ export async function registerCronRoutes(app: FastifyInstance) {
         try {
           const key = await getAgentOpenAIKey(app.pool, app.cfg.encKey, c.tenant_id);
           if (!key && !app.agentLlmFactory) continue;
-          const agentCfg = await getAgentConfig(app.pool, c.tenant_id);
-          await extractHandovers({ pool: app.pool, tenantId: c.tenant_id, llm: factory(key ?? undefined), model: agentCfg?.model ?? 'gpt-4o', batch: 100 });
+          await extractHandovers({ pool: app.pool, tenantId: c.tenant_id, llm: factory(key ?? undefined), model: CALL_BATCH_MODEL, batch: 100 });
           ran++;
         } catch (err) { req.log?.error?.({ err }, 'handover extract failed'); }
       }

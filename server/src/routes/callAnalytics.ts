@@ -8,8 +8,9 @@ import { suggestCategories } from '../agent/abe/categorySuggest.js';
 import { retagCalls } from '../agent/abe/retag.js';
 import { backfillCallsFromEmails } from '../agent/abe/backfillCalls.js';
 import { setupCategories } from '../agent/abe/setupCategories.js';
-import { getAgentOpenAIKey, getAgentConfig } from '../repos/agent.js';
+import { getAgentOpenAIKey } from '../repos/agent.js';
 import { openAiFactory } from '../agent/runner.js';
+import { CALL_BATCH_MODEL } from '../agent/abe/models.js';
 
 function requireAdmin(ctx: ReturnType<typeof requireTenantCtx>): void {
   if (ctx.role !== 'tenant_admin' && ctx.role !== 'super_admin') {
@@ -32,9 +33,10 @@ async function tenantLlm(app: FastifyInstance, tenantId: string) {
   const key = await getAgentOpenAIKey(app.pool, app.cfg.encKey, tenantId);
   const factory = (app.agentLlmFactory ?? openAiFactory) as unknown as
     (k?: string) => { chat(a: { model: string; messages: Array<{ role: string; content: string }> }): Promise<{ content: string }> };
-  const cfg = await getAgentConfig(app.pool, tenantId);
   if (!key && !app.agentLlmFactory) throw new AppError('no_openai_key', 400, 'Connect an OpenAI key first.');
-  return { llm: factory(key ?? undefined), model: cfg?.model ?? 'gpt-4o' };
+  // Batch classification/extraction (tagging, suggest, retag, import) runs on the cheap model —
+  // NOT the tenant's interactive Abe model. Keeps bulk call processing ~15-20x cheaper.
+  return { llm: factory(key ?? undefined), model: CALL_BATCH_MODEL };
 }
 
 export function registerCallAnalyticsRoutes(app: FastifyInstance): void {

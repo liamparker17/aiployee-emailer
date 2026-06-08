@@ -341,7 +341,11 @@ function BreakdownPanel({ ingestOn, reloadKey }: { ingestOn: boolean; reloadKey:
               { label: 'FCR', value: String(data.summary.fcrCount) },
               { label: 'Callbacks', value: String(data.summary.callbackCount) },
               { label: 'Escalations', value: String(data.summary.escalationCount) },
-              { label: 'Avg duration', value: fmtDuration(data.summary.avgDurationSeconds) },
+              // Avg duration is only shown when the call source actually provides durations
+              // (Jobix voice). Overflow/summary-only lines have none, so we hide the dead card.
+              ...(data.summary.avgDurationSeconds
+                ? [{ label: 'Avg duration', value: fmtDuration(data.summary.avgDurationSeconds) }]
+                : []),
             ].map(({ label, value }) => (
               <div key={label} className="rounded-card border border-line bg-surface-raised px-4 py-3 space-y-1">
                 <p className="text-xs text-ink-muted uppercase tracking-wide">{label}</p>
@@ -873,7 +877,9 @@ function ExplorerPanel({ categories }: { categories: string[] }) {
                   <SortTh col="category"             sort={sort} sortDir={sortDir} onSort={handleSort}>Category</SortTh>
                   <SortTh col="call_outcome"         sort={sort} sortDir={sortDir} onSort={handleSort}>Outcome</SortTh>
                   <SortTh col="sentiment"            sort={sort} sortDir={sortDir} onSort={handleSort}>Sentiment</SortTh>
-                  <SortTh col="call_duration_seconds" sort={sort} sortDir={sortDir} onSort={handleSort}>Duration</SortTh>
+                  {data.summary.avgDurationSeconds
+                    ? <SortTh col="call_duration_seconds" sort={sort} sortDir={sortDir} onSort={handleSort}>Duration</SortTh>
+                    : null}
                   <Th>Callback</Th>
                   <Th>Escalation</Th>
                   <SortTh col="resolution_state"    sort={sort} sortDir={sortDir} onSort={handleSort}>Resolution</SortTh>
@@ -920,7 +926,9 @@ function ExplorerPanel({ categories }: { categories: string[] }) {
                       {call.call_outcome ?? <span className="text-ink-dim text-xs">—</span>}
                     </Td>
                     <Td><SentimentChip sentiment={call.sentiment} /></Td>
-                    <Td className="text-sm whitespace-nowrap">{fmtDuration(call.call_duration_seconds)}</Td>
+                    {data.summary.avgDurationSeconds
+                      ? <Td className="text-sm whitespace-nowrap">{fmtDuration(call.call_duration_seconds)}</Td>
+                      : null}
                     <Td className="text-center text-sm">
                       {call.callback_requested === true ? '✓' : call.callback_requested === false ? '—' : <span className="text-ink-dim text-xs">—</span>}
                     </Td>

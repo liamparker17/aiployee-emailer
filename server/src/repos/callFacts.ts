@@ -50,3 +50,31 @@ export async function getCallFactsByMessage(pool: pg.Pool, messageId: string): P
   const r = await pool.query<CallFactsRow>(`SELECT * FROM call_facts WHERE message_id = $1`, [messageId]);
   return r.rows[0] ?? null;
 }
+
+// AI-derived classification written by the tagger. Creates a minimal call_facts row if one
+// doesn't exist yet (e.g. imported/line-pipeline calls that never went through Jobix ingest),
+// otherwise updates only the classification fields. resolution_state is only set from AI when
+// it is still 'open' (never clobbers a human disposition set via the Actions UI).
+export interface CallClassificationInput {
+  tenantId: string; messageId: string;
+  callOutcome: string | null; sentiment: string | null;
+  callbackRequested: boolean; escalationRequested: boolean;
+  resolutionState: 'open' | 'in_progress' | 'resolved' | 'unresolved' | null;
+}
+
+export async function upsertCallClassification(pool: pg.Pool, a: CallClassificationInput): Promise<void> {
+  await pool.query(
+    `INSERT INTO call_facts
+       (tenant_id, message_id, call_outcome, sentiment, callback_requested, escalation_requested, resolution_state)
+     VALUES ($1,$2,$3,$4,$5,$6, COALESCE($7,'open'))
+     ON CONFLICT (message_id) DO UPDATE SET
+       call_outcome = EXCLUDED.call_outcome,
+       sentiment = EXCLUDED.sentiment,
+       callback_requested = EXCLUDED.callback_requested,
+       escalation_requested = EXCLUDED.escalation_requested,
+       resolution_state = CASE
+         WHEN call_facts.resolution_state = 'open' AND $7 IS NOT NULL THEN $7
+         ELSE call_facts.resolution_state END,
+       updated_at = now()`,
+    [a.tenantId, a.messageId, a.callOutcome, a.sentiment, a.callbackRequested, a.escalationRequested, a.resolutionState]);
+}
