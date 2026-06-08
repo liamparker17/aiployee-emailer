@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { sendError, AppError } from '../util/errors.js';
+import { sendError, AppError } from '@aiployee/core';
 import { queueEmail, SendInputShape } from '../send/pipeline.js';
 import { getEmail, listEmails, claimForSend, type EmailStatus } from '../repos/emails.js';
 import { dispatchEmail } from '../send/dispatch.js';

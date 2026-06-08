@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { sendError, AppError } from '../util/errors.js';
+import { sendError, AppError } from '@aiployee/core';
 import { requireCtx } from '../auth/ctx.js';
 import { ingestJobixCall } from '../agent/abe/ingestCall.js';
 import { getLineReportConfig } from '../repos/lineReportConfigs.js';

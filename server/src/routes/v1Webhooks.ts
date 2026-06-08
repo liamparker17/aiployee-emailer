@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { sendError, AppError } from '../util/errors.js';
+import { sendError, AppError } from '@aiployee/core';
 import { verifySnsMessage, parseSesNotification } from '../webhooks/ses.js';
 import { verifyMailgun, parseMailgunEvent } from '../webhooks/mailgun.js';
 import { findByMessageId, markStatus } from '../repos/emails.js';

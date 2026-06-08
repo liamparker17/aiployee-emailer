@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import { encrypt, decrypt } from '../crypto/enc.js';
+import { encrypt, decrypt } from '@aiployee/core';
 
 export interface SmtpConfigRow {
   id: string; tenant_id: string; name: string; host: string; port: number;

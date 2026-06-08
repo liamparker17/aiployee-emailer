@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { requireTenantCtx } from '../auth/ctx.js';
-import { sendError } from '../util/errors.js';
+import { sendError } from '@aiployee/core';
 import { engagementSummary } from '../repos/emailEvents.js';
 
 export async function registerAnalyticsRoutes(app: FastifyInstance) {

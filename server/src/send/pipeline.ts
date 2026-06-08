@@ -1,6 +1,6 @@
 import type pg from 'pg';
 import { z } from 'zod';
-import { AppError } from '../util/errors.js';
+import { AppError } from '@aiployee/core';
 import { getSenderByEmail } from '../repos/senders.js';
 import { getTemplateByName } from '../repos/templates.js';
 import { isSuppressed } from '../repos/suppressions.js';

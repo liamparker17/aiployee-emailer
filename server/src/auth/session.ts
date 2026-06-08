@@ -4,7 +4,7 @@ import fastifySession from '@fastify/session';
 import connectPgSimple from 'connect-pg-simple';
 import session from 'express-session';
 import type pg from 'pg';
-import type { Config } from '../config.js';
+import type { Config } from '@aiployee/core';
 
 export async function registerSessions(app: FastifyInstance, cfg: Config, pool: pg.Pool) {
   const PgStore = connectPgSimple(session);

@@ -1,7 +1,7 @@
 import type pg from 'pg';
 import nodemailer, { type Transporter } from 'nodemailer';
 import type SMTPPool from 'nodemailer/lib/smtp-pool/index.js';
-import { logger } from '../util/logger.js';
+import { logger } from '@aiployee/core';
 import { markSent, markFailed, type EmailRow } from '../repos/emails.js';
 import { getSenderById, type Sender } from '../repos/senders.js';
 import { getSmtpConfigWithPassword, type SmtpConfigRow } from '../repos/smtpConfigs.js';

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireTenantCtx } from '../auth/ctx.js';
-import { sendError, AppError } from '../util/errors.js';
+import { sendError, AppError } from '@aiployee/core';
 import { generateApiKey, hashApiKey, prefixOf } from '../auth/apiKey.js';
 import { insertApiKey, listApiKeys, revokeApiKey, getApiKeyById, deleteApiKeyPermanent } from '../repos/apiKeys.js';
 

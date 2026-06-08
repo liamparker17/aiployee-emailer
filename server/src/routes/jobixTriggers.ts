@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireTenantCtx } from '../auth/ctx.js';
-import { AppError, sendError } from '../util/errors.js';
+import { AppError, sendError } from '@aiployee/core';
 import { createTrigger, listTriggers, updateTrigger, deleteTrigger, listFires } from '../repos/jobixTriggers.js';
 import { fireTrigger } from '../jobix/fireTrigger.js';
 

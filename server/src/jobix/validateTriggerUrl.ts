@@ -1,4 +1,4 @@
-import { AppError } from '../util/errors.js';
+import { AppError } from '@aiployee/core';
 
 const PRIVATE_HOST = /^(0\.0\.0\.0|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[01])\.)/;
 

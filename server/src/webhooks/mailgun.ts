@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { Config } from '../config.js';
+import type { Config } from '@aiployee/core';
 
 interface MailgunEnvelope {
   signature?: { timestamp: string; token: string; signature: string };

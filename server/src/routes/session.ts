@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireCtx, requireSuperAdmin } from '../auth/ctx.js';
-import { AppError, sendError } from '../util/errors.js';
+import { AppError, sendError } from '@aiployee/core';
 import { listTenants, getTenant } from '../repos/tenants.js';
 
 const Body = z.object({ tenantId: z.string().uuid() });

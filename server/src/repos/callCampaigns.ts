@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { AppError } from '../util/errors.js';
+import { AppError } from '@aiployee/core';
 import type { ValuesField } from './callAgents.js';
 import { listMembers } from './contactLists.js';
 import { listSegmentContactIds } from './segments.js';

@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import { AppError } from '../util/errors.js';
+import { AppError } from '@aiployee/core';
 import { render } from '../send/render.js';
 import { insertEmail } from '../repos/emails.js';
 import { isSuppressed } from '../repos/suppressions.js';

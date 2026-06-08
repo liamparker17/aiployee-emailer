@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { verifyPassword, hashPassword } from '../auth/password.js';
-import { AppError, sendError } from '../util/errors.js';
+import { AppError, sendError } from '@aiployee/core';
 
 const LoginBody = z.object({ email: z.string().email(), password: z.string().min(1) });
 const AcceptBody = z.object({ token: z.string().min(10), password: z.string().min(8) });

@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply, RouteHandlerMethod } from 'fastify';
 import { timingSafeEqual } from 'node:crypto';
-import { sendError, AppError } from '../util/errors.js';
+import { sendError, AppError } from '@aiployee/core';
 import { claimDueForSend, requeueFailedAndStuck } from '../repos/emails.js';
 import { dispatchBatch } from '../send/dispatch.js';
 import { listEnabledGoals, getGoal } from '../repos/agentGoals.js';

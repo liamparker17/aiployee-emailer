@@ -1,3 +1,7 @@
 // @aiployee/core — backend backbone barrel.
-// Populated as modules move in (Task 2): db pool, auth, crypto, util, backbone repos.
-export {};
+// Slice A (primitives): config, util, crypto, db pool.
+export * from './config.js';
+export * from './util/logger.js';
+export * from './util/errors.js';
+export * from './crypto/enc.js';
+export * from './db/pool.js';
