@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireTenantCtx } from '../auth/ctx.js';
+import { requireTenantCtx } from '@aiployee/core';
 import { AppError, sendError } from '@aiployee/core';
 import { getGoal, upsertGoal, markManagerVerified } from '../repos/agentGoals.js';
 import { verifyApprovalToken, hashToken, tokenHashesEqual } from '../agent/abe/approvalToken.js';

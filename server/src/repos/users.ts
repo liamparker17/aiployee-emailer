@@ -1,6 +1,6 @@
 import type pg from 'pg';
 import { randomBytes } from 'node:crypto';
-import { hashPassword } from '../auth/password.js';
+import { hashPassword } from '@aiployee/core';
 import type { Role } from '@aiployee/shared';
 
 export interface User { id: string; tenant_id: string | null; email: string; role: Role }

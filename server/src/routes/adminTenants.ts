@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireSuperAdmin } from '../auth/ctx.js';
+import { requireSuperAdmin } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
 import { createTenant, listTenants, deleteTenant, renameTenant } from '../repos/tenants.js';
 import { createInvitedUser } from '../repos/users.js';

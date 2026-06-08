@@ -4,7 +4,7 @@ import { sendError, AppError } from '@aiployee/core';
 import { queueEmail, SendInputShape } from '../send/pipeline.js';
 import { getEmail, listEmails, claimForSend, type EmailStatus } from '../repos/emails.js';
 import { dispatchEmail } from '../send/dispatch.js';
-import { requireCtx } from '../auth/ctx.js';
+import { requireCtx } from '@aiployee/core';
 import { captureCallFromSend } from '../agent/abe/mirrorCall.js';
 
 const ApiSendBody = SendInputShape.omit({ tenantId: true, apiKeyId: true }).refine(

@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireTenantCtx } from '../auth/ctx.js';
+import { requireTenantCtx } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
-import { generateApiKey, hashApiKey, prefixOf } from '../auth/apiKey.js';
+import { generateApiKey, hashApiKey, prefixOf } from '@aiployee/core';
 import { insertApiKey, listApiKeys, revokeApiKey, getApiKeyById, deleteApiKeyPermanent } from '../repos/apiKeys.js';
 
 const CreateBody = z.object({ name: z.string().min(1), parentId: z.string().uuid().optional() });

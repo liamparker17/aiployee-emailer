@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { requireCtx, requireTenantCtx } from '../auth/ctx.js';
+import { requireCtx, requireTenantCtx } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
 import { runAgentTurn } from '../agent/runner.js';
 import { deliverThreadEvent } from '../agent/webhook.js';

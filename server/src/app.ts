@@ -5,9 +5,9 @@ import fastifyStatic from '@fastify/static';
 import { logger } from '@aiployee/core';
 import { loadConfig, type Config } from '@aiployee/core';
 import { getPool } from '@aiployee/core';
-import { registerSessions } from './auth/session.js';
-import { registerCsrf } from './auth/csrf.js';
-import { registerCtx } from './auth/ctx.js';
+import { registerSessions } from '@aiployee/core';
+import { registerCsrf } from '@aiployee/core';
+import { registerCtx } from '@aiployee/core';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerAdminTenantRoutes } from './routes/adminTenants.js';
 import { registerSmtpConfigRoutes } from './routes/smtpConfigs.js';
@@ -116,10 +116,10 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   return app;
 }
 
+// cfg/pool are augmented by @aiployee/core (fastifyAugment). These agent factories
+// are command-centre concerns and will move with the CC app.
 declare module 'fastify' {
   interface FastifyInstance {
-    cfg: Config;
-    pool: import('pg').Pool;
     agentLlmFactory?: import('./agent/runner.js').LlmFactory;
     agentWebhookSender?: import('./agent/webhook.js').WebhookSender;
     agentMcpProviderFactory?: import('./agent/mcp.js').McpProviderFactory;

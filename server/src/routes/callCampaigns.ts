@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireTenantCtx } from '../auth/ctx.js';
+import { requireTenantCtx } from '@aiployee/core';
 import { AppError, sendError } from '@aiployee/core';
 import {
   createCampaign, getCampaign, listCampaigns, listRecipients,

@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { hashApiKey } from './apiKey.js';
-import { AppError } from '@aiployee/core';
+import { AppError } from '../util/errors.js';
 
 export interface Ctx {
   tenantId: string;            // empty string '' for super-admin
