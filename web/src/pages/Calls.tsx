@@ -877,7 +877,7 @@ function ExplorerPanel({ categories }: { categories: string[] }) {
                   <SortTh col="category"             sort={sort} sortDir={sortDir} onSort={handleSort}>Category</SortTh>
                   <SortTh col="call_outcome"         sort={sort} sortDir={sortDir} onSort={handleSort}>Outcome</SortTh>
                   <SortTh col="sentiment"            sort={sort} sortDir={sortDir} onSort={handleSort}>Sentiment</SortTh>
-                  {data.summary.avgDurationSeconds
+                  {items.some(c => (c.call_duration_seconds ?? 0) > 0)
                     ? <SortTh col="call_duration_seconds" sort={sort} sortDir={sortDir} onSort={handleSort}>Duration</SortTh>
                     : null}
                   <Th>Callback</Th>
@@ -926,7 +926,7 @@ function ExplorerPanel({ categories }: { categories: string[] }) {
                       {call.call_outcome ?? <span className="text-ink-dim text-xs">—</span>}
                     </Td>
                     <Td><SentimentChip sentiment={call.sentiment} /></Td>
-                    {data.summary.avgDurationSeconds
+                    {items.some(c => (c.call_duration_seconds ?? 0) > 0)
                       ? <Td className="text-sm whitespace-nowrap">{fmtDuration(call.call_duration_seconds)}</Td>
                       : null}
                     <Td className="text-center text-sm">
