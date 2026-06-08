@@ -108,3 +108,38 @@ export async function deleteTrigger(pool: pg.Pool, tenantId: string, id: string)
   const r = await pool.query(`DELETE FROM jobix_triggers WHERE tenant_id = $1 AND id = $2`, [tenantId, id]);
   return (r.rowCount ?? 0) > 0;
 }
+
+export type FireSource = 'manual' | 'test' | 'event' | 'abe';
+
+export interface FireRow {
+  id: string; tenant_id: string; trigger_id: string; source: FireSource;
+  vars: Record<string, unknown>; http_status: number | null; ok: boolean;
+  response_snippet: string | null; error: string | null; created_by: string | null; created_at: Date;
+}
+
+interface RecordFireInput {
+  tenantId: string; triggerId: string; source: FireSource; vars: Record<string, unknown>;
+  httpStatus: number | null; ok: boolean; responseSnippet: string | null; error: string | null; createdBy: string | null;
+}
+
+export async function recordFire(pool: pg.Pool, f: RecordFireInput): Promise<void> {
+  await pool.query(
+    `INSERT INTO jobix_trigger_fires (tenant_id, trigger_id, source, vars, http_status, ok, response_snippet, error, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [f.tenantId, f.triggerId, f.source, JSON.stringify(f.vars ?? {}), f.httpStatus, f.ok,
+     f.responseSnippet ? f.responseSnippet.slice(0, 2000) : null, f.error ? f.error.slice(0, 2000) : null, f.createdBy]);
+}
+
+export async function listFires(pool: pg.Pool, tenantId: string, triggerId: string, opts: { limit?: number; offset?: number }): Promise<{ fires: FireRow[]; total: number }> {
+  const total = await pool.query<{ n: string }>(
+    `SELECT COUNT(*)::text AS n FROM jobix_trigger_fires WHERE tenant_id = $1 AND trigger_id = $2`, [tenantId, triggerId]);
+  const r = await pool.query<FireRow>(
+    `SELECT * FROM jobix_trigger_fires WHERE tenant_id = $1 AND trigger_id = $2
+     ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
+    [tenantId, triggerId, opts.limit ?? 50, opts.offset ?? 0]);
+  return { fires: r.rows, total: Number(total.rows[0].n) };
+}
+
+export async function touchLastFired(pool: pg.Pool, id: string): Promise<void> {
+  await pool.query(`UPDATE jobix_triggers SET last_fired_at = now(), updated_at = now() WHERE id = $1`, [id]);
+}
