@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useEffect } from 'react';
-import { LayoutDashboard, Bot, Phone, PhoneOutgoing, Workflow, Wand2, LogOut } from 'lucide-react';
+import { LayoutDashboard, Bot, Phone, PhoneOutgoing, Workflow, Wand2, LogOut, Send } from 'lucide-react';
 import { useAuth } from '@aiployee/ui';
 import { TenantSwitcher } from '@aiployee/ui';
 import { Logo } from '@aiployee/ui';
@@ -31,6 +31,10 @@ export default function AppShell() {
         </div>
         <p className="text-[11px] text-ink-dim px-2 mb-4">Command Centre</p>
         <TenantSwitcher />
+        <a href="/auth/handoff?to=https://aiployee-emailer.vercel.app"
+          className="flex items-center gap-3 px-3 py-2 mt-2 rounded-lg text-sm text-ink-muted hover:text-white hover:bg-surface transition">
+          <Send size={16} />Email →
+        </a>
         <nav className="flex flex-col gap-0.5 mt-2 overflow-y-auto">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-magenta px-3 pt-1 pb-1">
             Your AI employee

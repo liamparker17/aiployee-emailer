@@ -58,6 +58,10 @@ export default function AppShell() {
         </div>
         <p className="text-[11px] text-ink-dim px-2 mb-4">Your AI call employee</p>
         <TenantSwitcher />
+        <a href="/auth/handoff?to=https://aiployee-command-centre.vercel.app"
+          className="flex items-center gap-3 px-3 py-2 mt-2 rounded-lg text-sm text-magenta hover:bg-surface transition">
+          <LayoutDashboard size={16} />Command Centre →
+        </a>
         <nav className="flex flex-col gap-0.5 mt-2 overflow-y-auto">
 
           {/* ── Hero: the agentic features ── */}
