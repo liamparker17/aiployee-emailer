@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd ../.. && npm run build && npm -w @aiployee/cc-web run build && npx esbuild server/dist/app.js --bundle --platform=node --format=esm --target=node22 --outfile=apps/command-centre/api/_app.mjs",
+  "buildCommand": "cd ../.. && npm run build && npm -w @aiployee/cc-web run build && npx esbuild server/dist/app.js --bundle --platform=node --format=esm --target=node22 --banner:js=\"import { createRequire as __cr } from 'module'; import { fileURLToPath as __fu } from 'url'; import { dirname as __dn } from 'path'; const require = __cr(import.meta.url); const __filename = __fu(import.meta.url); const __dirname = __dn(__filename);\" --outfile=apps/command-centre/api/_app.mjs",
   "outputDirectory": "public",
   "installCommand": "cd ../.. && npm install",
   "functions": { "api/cc.ts": { "maxDuration": 300 } },
