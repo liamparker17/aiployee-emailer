@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { loadConfig } from '@aiployee/core';
+import { loadConfig } from '../src/config.js';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
-import { createSmtpConfig } from '@aiployee/core';
-import { createSender } from '@aiployee/core';
-import { insertApiKey } from '@aiployee/core';
-import { generateApiKey, hashApiKey, prefixOf } from '@aiployee/core';
+import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
+import { createSender } from '../src/repos/senders.js';
+import { insertApiKey } from '../src/repos/apiKeys.js';
+import { generateApiKey, hashApiKey, prefixOf } from '../src/auth/apiKey.js';
 import { startTestSmtp } from './helpers/smtp.js';
-import { getEmail } from '@aiployee/core';
+import { getEmail } from '../src/repos/emails.js';
 
 const KEY = Buffer.alloc(32, 1);
 const cfg = loadConfig({

@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import { encrypt, decrypt } from '@aiployee/core';
+import { encrypt, decrypt } from '../crypto/enc.js';
 
 export interface RagSqlSourceRow {
   id: string; tenant_id: string; name: string; enabled: boolean; has_connection: boolean; created_at: Date;

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2 } from 'lucide-react';
-import { Modal } from '@aiployee/ui';
-import { Button } from '@aiployee/ui';
-import { Field, Input } from '@aiployee/ui';
-import { useToast } from '@aiployee/ui';
-import { useAuth } from '@aiployee/ui';
-import { api } from '@aiployee/ui';
+import { Modal } from '../Modal';
+import { Button } from '../Button';
+import { Field, Input } from '../Input';
+import { useToast } from '../Toast';
+import { useAuth } from '../../auth';
+import { api } from '../../api';
 import type { AbeGoal } from '../../lib/abe';
 
 function describeError(err: unknown): string {

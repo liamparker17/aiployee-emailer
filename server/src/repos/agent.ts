@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import { encrypt, decrypt } from '@aiployee/core';
+import { encrypt, decrypt } from '../crypto/enc.js';
 
 export interface AgentConfigRow {
   id: string; tenant_id: string; enabled: boolean; model: string; system_prompt: string;

@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Megaphone } from 'lucide-react';
-import { api } from '@aiployee/ui';
-import { Table, Th, Td } from '@aiployee/ui';
-import { Button } from '@aiployee/ui';
-import { Input, Field } from '@aiployee/ui';
-import { Card } from '@aiployee/ui';
-import { Modal } from '@aiployee/ui';
-import { PageHeader } from '@aiployee/ui';
-import { EmptyState } from '@aiployee/ui';
-import { Skeleton } from '@aiployee/ui';
-import { StatusBadge } from '@aiployee/ui';
-import { useToast } from '@aiployee/ui';
+import { api } from '../api';
+import { Table, Th, Td } from '../components/Table';
+import { Button } from '../components/Button';
+import { Input, Field } from '../components/Input';
+import { Card } from '../components/Card';
+import { Modal } from '../components/Modal';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
+import { Skeleton } from '../components/Skeleton';
+import { StatusBadge } from '../components/StatusBadge';
+import { useToast } from '../components/Toast';
 
 interface Campaign { id: string; name: string; status: string; audience_type: string; audience_id: string; scheduled_for: string | null; created_at: string }
 interface Sender { id: string; email: string; display_name: string }

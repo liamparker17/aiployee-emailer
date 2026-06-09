@@ -1,12 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Building2 } from 'lucide-react';
-import { useAuth } from '@aiployee/ui';
-import { useTenants } from '@aiployee/ui';
-import { Input } from '@aiployee/ui';
-import { Button } from '@aiployee/ui';
-import { PageHeader } from '@aiployee/ui';
-import { EmptyState } from '@aiployee/ui';
+import { useAuth } from '../auth';
+import { useTenants } from '../lib/tenants';
+import { Input } from '../components/Input';
+import { Button } from '../components/Button';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
 
 export default function TenantPicker() {
   const { user, setActiveTenant, logout } = useAuth();

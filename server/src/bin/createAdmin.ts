@@ -1,7 +1,7 @@
 import 'dotenv/config';
-import { loadConfig } from '@aiployee/core';
-import { getPool, closePool } from '@aiployee/core';
-import { hashPassword } from '@aiployee/core';
+import { loadConfig } from '../config.js';
+import { getPool, closePool } from '../db/pool.js';
+import { hashPassword } from '../auth/password.js';
 
 const [, , email, password] = process.argv;
 if (!email || !password) {

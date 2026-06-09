@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
-import { createEventWebhook } from '@aiployee/core';
-import { deliverEmailEvent, signEventBody } from '@aiployee/core';
-import { createSendingDomain, setDomainVerification, listSendingDomains } from '@aiployee/core';
+import { createEventWebhook } from '../src/repos/eventWebhooks.js';
+import { deliverEmailEvent, signEventBody } from '../src/webhooks/eventDelivery.js';
+import { createSendingDomain, setDomainVerification, listSendingDomains } from '../src/repos/sendingDomains.js';
 
 const KEY = Buffer.alloc(32, 1);
 const pool = makePool();

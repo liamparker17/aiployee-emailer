@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
-import { createSmtpConfig } from '@aiployee/core';
-import { createSender } from '@aiployee/core';
+import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
+import { createSender } from '../src/repos/senders.js';
 import { listCalls } from '../src/repos/callAnalytics.js';
 import { backfillCallsFromEmails } from '../src/agent/abe/backfillCalls.js';
 

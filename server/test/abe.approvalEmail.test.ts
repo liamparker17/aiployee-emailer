@@ -1,13 +1,13 @@
 // server/test/abe.approvalEmail.test.ts
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { loadConfig } from '@aiployee/core';
+import { loadConfig } from '../src/config.js';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
-import { createSmtpConfig } from '@aiployee/core';
-import { createSender } from '@aiployee/core';
+import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
+import { createSender } from '../src/repos/senders.js';
 import { startTestSmtp } from './helpers/smtp.js';
-import { getEmail } from '@aiployee/core';
+import { getEmail } from '../src/repos/emails.js';
 import { getActiveApprovalByPlay } from '../src/repos/agentApprovals.js';
 import { hashToken } from '../src/agent/abe/approvalToken.js';
 import { sendApprovalEmail, sendManagerVerifyEmail } from '../src/agent/abe/approvalEmail.js';

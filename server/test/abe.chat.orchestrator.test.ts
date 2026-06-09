@@ -3,7 +3,7 @@ import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
 import { upsertGoal } from '../src/repos/agentGoals.js';
 import { listChatMessages } from '../src/repos/agentChat.js';
-import { encrypt } from '@aiployee/core';
+import { encrypt } from '../src/crypto/enc.js';
 import { runAbeChat } from '../src/agent/abe/chat.js';
 
 const pool = makePool();

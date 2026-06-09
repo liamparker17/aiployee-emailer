@@ -1,4 +1,4 @@
-import { api } from '@aiployee/ui';
+import { api } from '../api';
 
 export interface ValuesField { key: string; label: string; required: boolean; type?: string }
 export interface CallAgent { id: string; label: string; values_schema: ValuesField[]; default_timezone: string; active: boolean; hasKey: true }

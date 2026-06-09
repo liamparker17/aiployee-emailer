@@ -1,11 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireTenantCtx } from '@aiployee/core';
-import { sendError, AppError } from '@aiployee/core';
+import { requireTenantCtx } from '../auth/ctx.js';
+import { sendError, AppError } from '../util/errors.js';
 import {
   createSmtpConfig, listSmtpConfigs, getSmtpConfigWithPassword, deleteSmtpConfig,
-} from '@aiployee/core';
-import { buildTransport } from '@aiployee/core';
+} from '../repos/smtpConfigs.js';
+import { buildTransport } from '../send/sender.js';
 
 const CreateBody = z.object({
   name: z.string().min(1),

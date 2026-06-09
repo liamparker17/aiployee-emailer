@@ -5,13 +5,13 @@ import {
   type FlowWithCounts, type FlowStep, type StepInput, type StepKind, type Enrollment, type FlowCounts,
 } from '../lib/flows';
 import { listTriggers, type JobixTrigger } from '../lib/jobixTriggers';
-import { PageHeader } from '@aiployee/ui';
-import { Card } from '@aiployee/ui';
-import { Table, Th, Td } from '@aiployee/ui';
-import { Button } from '@aiployee/ui';
-import { Input, Field } from '@aiployee/ui';
-import { EmptyState } from '@aiployee/ui';
-import { useToast } from '@aiployee/ui';
+import { PageHeader } from '../components/PageHeader';
+import { Card } from '../components/Card';
+import { Table, Th, Td } from '../components/Table';
+import { Button } from '../components/Button';
+import { Input, Field } from '../components/Input';
+import { EmptyState } from '../components/EmptyState';
+import { useToast } from '../components/Toast';
 import { Workflow } from 'lucide-react';
 
 const SELECT = 'rounded-btn border border-line bg-surface-raised text-ink text-sm px-2 py-1.5';

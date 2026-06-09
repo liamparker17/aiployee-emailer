@@ -1,6 +1,6 @@
 import { createBrowserRouter, Navigate, useParams, useLocation } from 'react-router-dom';
 import { useEffect, useState, type ReactNode } from 'react';
-import { AuthProvider, useAuth } from '@aiployee/ui';
+import { AuthProvider, useAuth } from './auth';
 import AppShell from './components/AppShell';
 import Login from './pages/Login';
 import AcceptInvite from './pages/AcceptInvite';

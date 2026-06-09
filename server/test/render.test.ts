@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractVariables, render } from '@aiployee/core';
+import { extractVariables, render } from '../src/send/render.js';
 
 describe('render', () => {
   it('extracts unique variable names', () => {

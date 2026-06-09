@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireTenantCtx } from '@aiployee/core';
-import { AppError, sendError } from '@aiployee/core';
+import { requireTenantCtx } from '../auth/ctx.js';
+import { AppError, sendError } from '../util/errors.js';
 import { createAgent, listAgents, updateAgent } from '../repos/callAgents.js';
 
 function requireAdmin(ctx: ReturnType<typeof requireTenantCtx>): void {

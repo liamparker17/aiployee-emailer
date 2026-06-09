@@ -1,6 +1,6 @@
 import type pg from 'pg';
-import { encrypt, decrypt } from '@aiployee/core';
-import { AppError } from '@aiployee/core';
+import { encrypt, decrypt } from '../crypto/enc.js';
+import { AppError } from '../util/errors.js';
 import { validateTriggerUrl } from '../jobix/validateTriggerUrl.js';
 
 export type TokenPlacement = 'bearer' | 'header' | 'query' | 'body';

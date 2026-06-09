@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '@aiployee/ui';
-import { useAuth } from '@aiployee/ui';
+import { api } from '../../api';
+import { useAuth } from '../../auth';
 import { useWizardState } from './state';
-import { Input } from '@aiployee/ui';
-import { Button } from '@aiployee/ui';
-import { useToast } from '@aiployee/ui';
+import { Input } from '../../components/Input';
+import { Button } from '../../components/Button';
+import { useToast } from '../../components/Toast';
 
 type SendStatus = 'idle' | 'sending' | 'sent' | 'failed';
 

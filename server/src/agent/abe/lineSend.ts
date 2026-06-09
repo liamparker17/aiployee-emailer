@@ -1,10 +1,10 @@
 import type pg from 'pg';
-import { getDefaultSender } from '@aiployee/core';
+import { getDefaultSender } from '../../repos/senders.js';
 import { getLineReportConfig } from '../../repos/lineReportConfigs.js';
 import { getReport, setReportStatus, type LineReportRow } from '../../repos/lineReports.js';
-import { queueEmail } from '@aiployee/core';
-import { claimForSend } from '@aiployee/core';
-import { dispatchEmail } from '@aiployee/core';
+import { queueEmail } from '../../send/pipeline.js';
+import { claimForSend } from '../../repos/emails.js';
+import { dispatchEmail } from '../../send/dispatch.js';
 
 function escapeHtml(s: string): string {
   return s

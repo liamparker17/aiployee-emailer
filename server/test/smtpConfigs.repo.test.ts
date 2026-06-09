@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
-import { createSmtpConfig, listSmtpConfigs, getSmtpConfigWithPassword } from '@aiployee/core';
+import { createSmtpConfig, listSmtpConfigs, getSmtpConfigWithPassword } from '../src/repos/smtpConfigs.js';
 
 const KEY = Buffer.alloc(32, 9);
 const pool = makePool();

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
-import { insertEmail } from '@aiployee/core';
+import { insertEmail } from '../src/repos/emails.js';
 import { upsertGoal } from '../src/repos/agentGoals.js';
 import { insertPlay } from '../src/repos/agentPlays.js';
 

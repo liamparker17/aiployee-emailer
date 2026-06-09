@@ -1,15 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireTenantCtx } from '@aiployee/core';
-import { sendError, AppError } from '@aiployee/core';
+import { requireTenantCtx } from '../auth/ctx.js';
+import { sendError, AppError } from '../util/errors.js';
 import {
   listSegments,
   getSegment,
   createSegment,
   deleteSegment,
   previewSegment,
-} from '@aiployee/core';
-import type { SegmentFilter } from '@aiployee/core';
+} from '../repos/segments.js';
+import type { SegmentFilter } from '../repos/segments.js';
 
 const ruleSchema = z.object({
   field: z.string().min(1),

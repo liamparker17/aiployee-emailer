@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Sparkles, Mail, Clock, CheckCircle, XCircle, Zap, Bot } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { Skeleton } from '@aiployee/ui';
-import { EmptyState } from '@aiployee/ui';
-import { api } from '@aiployee/ui';
+import { Skeleton } from '../Skeleton';
+import { EmptyState } from '../EmptyState';
+import { api } from '../../api';
 import type { AbeFeedEntry } from '../../lib/abe';
 
 function kindIcon(kind: string): LucideIcon {

@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Settings2 } from 'lucide-react';
-import { Card } from '@aiployee/ui';
-import { Button } from '@aiployee/ui';
-import { Skeleton } from '@aiployee/ui';
-import { useToast } from '@aiployee/ui';
-import { useAuth } from '@aiployee/ui';
+import { Card } from '../Card';
+import { Button } from '../Button';
+import { Skeleton } from '../Skeleton';
+import { useToast } from '../Toast';
+import { useAuth } from '../../auth';
 import { getLineSettings, putLineSettings } from '../../lib/abe';
 import type { LineReportConfig } from '../../lib/abe';
 

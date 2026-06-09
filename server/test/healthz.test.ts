@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { loadConfig } from '@aiployee/core';
+import { loadConfig } from '../src/config.js';
 
 const cfg = loadConfig({
   NODE_ENV: 'test',

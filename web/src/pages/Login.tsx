@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@aiployee/ui';
-import { Button } from '@aiployee/ui';
-import { Input, Field } from '@aiployee/ui';
-import { Logo } from '@aiployee/ui';
+import { useAuth } from '../auth';
+import { Button } from '../components/Button';
+import { Input, Field } from '../components/Input';
+import { Logo } from '../components/Logo';
 
 export default function Login() {
   const { login } = useAuth();

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { loadConfig } from '@aiployee/core';
+import { loadConfig } from '../src/config.js';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
 import { createAgent } from '../src/repos/callAgents.js';

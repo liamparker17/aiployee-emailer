@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { loadConfig } from '@aiployee/core';
+import { loadConfig } from '../src/config.js';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
-import { insertApiKey } from '@aiployee/core';
-import { generateApiKey, hashApiKey, prefixOf } from '@aiployee/core';
+import { insertApiKey } from '../src/repos/apiKeys.js';
+import { generateApiKey, hashApiKey, prefixOf } from '../src/auth/apiKey.js';
 import { createAgent } from '../src/repos/callAgents.js';
 import { createCampaign, addRecipientsFromCsv, approveCampaign, listRecipients } from '../src/repos/callCampaigns.js';
 

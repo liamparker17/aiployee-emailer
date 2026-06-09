@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import { encrypt, decrypt } from '@aiployee/core';
+import { encrypt, decrypt } from '../crypto/enc.js';
 
 export interface McpServerRow {
   id: string; tenant_id: string; name: string; url: string; enabled: boolean; has_auth: boolean; created_at: Date;

@@ -53,16 +53,6 @@ this codebase along clean boundaries.
    frontend), rather than one mega-package. Existing `@aiployee/shared` (types) is kept.
 9. **Migrations:** `core` owns backbone-table migrations; each app owns its own table
    migrations; all run against the single shared Neon DB.
-10. **Command Centre URL:** new Vercel project `aiployee-command-centre` →
-    `aiployee-command-centre.vercel.app`.
-11. **Cross-app login = token-handoff SSO, built in Phase 1.** Because both apps share the one
-    `tenants`+`users` table, the *same account* already authenticates on both. To avoid a second
-    login, a user navigating emailer↔dashboard carries a short-lived signed handoff token
-    (HMAC over user+tenant+expiry, keyed by the shared `SESSION_SECRET`); the receiving app
-    verifies it against the shared DB and mints its own session. This works on the current
-    `*.vercel.app` subdomains (which cannot share a cookie — `vercel.app` is on the Public Suffix
-    List). Shared-cookie SSO under a common `*.aiployee.co.za` parent is the eventual Phase 4
-    replacement once custom domains exist.
 
 ## 3. Program Decomposition (the whole road)
 
@@ -96,8 +86,9 @@ Each phase gets its own spec → plan → build cycle. **This spec covers Phase 
 - No new features, no UI redesign, no new dashboard.
 - No data migration / table restructuring (same shared DB, same tables).
 - No WhatsApp/Jobix federation work.
-- No *shared-cookie* SSO / custom domains (Phase 4). Phase 1 **does** include **token-handoff
-  SSO** (decision #11) so a logged-in tenant moves emailer↔dashboard without re-authenticating.
+- No SSO across apps (deferred to Phase 4; until then each app authenticates against the shared
+  user table independently — same credentials, separate sessions, acceptable because `.vercel.app`
+  subdomains cannot share a cookie).
 
 ## 5. Target Repository Layout
 
@@ -257,8 +248,6 @@ Approach:
 4. The command-centre app deploys to its own URL against the same Neon DB, with its crons.
 5. Full test suite green.
 6. The four OPEN allocations have explicit, recorded resolutions.
-7. A tenant logged into the emailer can open the dashboard already authenticated (and vice
-   versa) via token-handoff SSO; forged/expired/replayed tokens are rejected.
 
 ## 14. Open Questions Carried Into Planning
 

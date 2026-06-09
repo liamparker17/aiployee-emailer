@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { loadConfig } from '@aiployee/core';
+import { loadConfig } from '../src/config.js';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createUser, createTenant } from './helpers/factories.js';
 import { csrfFor, login } from './helpers/auth.js';
-import { insertApiKey } from '@aiployee/core';
-import { generateApiKey, hashApiKey, prefixOf } from '@aiployee/core';
+import { insertApiKey } from '../src/repos/apiKeys.js';
+import { generateApiKey, hashApiKey, prefixOf } from '../src/auth/apiKey.js';
 
 const cfg = loadConfig({
   NODE_ENV: 'test', PORT: '0',

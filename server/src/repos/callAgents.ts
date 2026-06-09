@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import { encrypt, decrypt } from '@aiployee/core';
+import { encrypt, decrypt } from '../crypto/enc.js';
 
 export interface ValuesField { key: string; label: string; required: boolean; type?: string }
 

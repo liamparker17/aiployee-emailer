@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireTenantCtx } from '@aiployee/core';
-import { AppError, sendError } from '@aiployee/core';
+import { requireTenantCtx } from '../auth/ctx.js';
+import { AppError, sendError } from '../util/errors.js';
 import { listCalls, listCallsForExport, getCall, breakdownByCategory, callsPerDay, callAnalyticsSummary, breakdownBy, crosstabDeptCategory } from '../repos/callAnalytics.js';
 import { getLineReportConfig, upsertLineReportConfig } from '../repos/lineReportConfigs.js';
 import { suggestCategories } from '../agent/abe/categorySuggest.js';

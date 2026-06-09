@@ -3,7 +3,7 @@ import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
 import { upsertGoal } from '../src/repos/agentGoals.js';
 import { insertPlay } from '../src/repos/agentPlays.js';
-import { getDefaultSender } from '@aiployee/core';
+import { getDefaultSender } from '../src/repos/senders.js';
 import { queuePlayTouch } from '../src/agent/abe/execute.js';
 
 const pool = makePool();

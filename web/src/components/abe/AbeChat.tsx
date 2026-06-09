@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, Bot } from 'lucide-react';
-import { Card } from '@aiployee/ui';
-import { Button } from '@aiployee/ui';
-import { Input } from '@aiployee/ui';
-import { useToast } from '@aiployee/ui';
-import { Skeleton } from '@aiployee/ui';
-import { useAuth } from '@aiployee/ui';
-import { api } from '@aiployee/ui';
+import { Card } from '../Card';
+import { Button } from '../Button';
+import { Input } from '../Input';
+import { useToast } from '../Toast';
+import { Skeleton } from '../Skeleton';
+import { useAuth } from '../../auth';
+import { api } from '../../api';
 
 function describeError(err: unknown): string {
   const e = err as { message?: string; details?: Array<{ path?: (string | number)[]; message?: string }> };

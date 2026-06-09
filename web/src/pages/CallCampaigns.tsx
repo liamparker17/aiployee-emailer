@@ -7,14 +7,14 @@ import {
   approveCampaign, pauseCampaign, resumeCampaign, cancelCampaign,
   type CallAgent, type CallCampaign, type Recipient, type ValuesField,
 } from '../lib/callCampaigns';
-import { Table, Th, Td } from '@aiployee/ui';
-import { Button } from '@aiployee/ui';
-import { Input, Field } from '@aiployee/ui';
-import { Card } from '@aiployee/ui';
-import { PageHeader } from '@aiployee/ui';
-import { EmptyState } from '@aiployee/ui';
-import { Skeleton } from '@aiployee/ui';
-import { useToast } from '@aiployee/ui';
+import { Table, Th, Td } from '../components/Table';
+import { Button } from '../components/Button';
+import { Input, Field } from '../components/Input';
+import { Card } from '../components/Card';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
+import { Skeleton } from '../components/Skeleton';
+import { useToast } from '../components/Toast';
 
 // ── CSV parser ────────────────────────────────────────────────────────────────
 function parseCsv(text: string): Record<string, string>[] {

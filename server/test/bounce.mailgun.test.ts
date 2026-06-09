@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { verifyMailgun, parseMailgunEvent } from '../src/webhooks/mailgun.js';
-import { loadConfig } from '@aiployee/core';
+import { loadConfig } from '../src/config.js';
 
 const cfg = loadConfig({
   NODE_ENV: 'test', PORT: '0',

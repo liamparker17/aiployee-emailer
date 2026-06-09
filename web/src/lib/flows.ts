@@ -1,4 +1,4 @@
-import { api } from '@aiployee/ui';
+import { api } from '../api';
 
 export type FlowStatus = 'draft' | 'active' | 'paused' | 'archived';
 export type StepKind = 'wait' | 'jobix_call' | 'condition';

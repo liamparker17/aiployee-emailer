@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
-import { createSmtpConfig } from '@aiployee/core';
-import { createSender } from '@aiployee/core';
-import { createTemplate } from '@aiployee/core';
-import { addSuppression } from '@aiployee/core';
-import { queueEmail } from '@aiployee/core';
+import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
+import { createSender } from '../src/repos/senders.js';
+import { createTemplate } from '../src/repos/templates.js';
+import { addSuppression } from '../src/repos/suppressions.js';
+import { queueEmail } from '../src/send/pipeline.js';
 
 const KEY = Buffer.alloc(32, 1);
 const pool = makePool();

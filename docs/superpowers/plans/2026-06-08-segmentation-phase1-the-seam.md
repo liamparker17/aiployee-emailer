@@ -1,33 +1,5 @@
 # Segmentation Phase 1 — "The Seam" Implementation Plan
 
-> ## ⚠️ STATUS / WHAT WAS ACTUALLY BUILT (2026-06-09) — read this first
->
-> **The approach below changed during execution.** The original plan split the *backend* into
-> `apps/email` + `apps/command-centre`. Two discoveries forced a revision:
-> 1. **Abe (command-centre) sends mail through the same pipeline as email campaigns** — so the
->    outbound-email transport is a *shared* primitive (it went into `@aiployee/core`, "Slice E").
-> 2. **~40 backend tests are entangled in one shared `server/test`** — splitting the backend
->    would mean splitting all of them, high-risk and slow.
->
-> **Revised architecture actually built (on branch `feat/segmentation`):**
-> - **One shared backend** (`server/`, now built on `@aiployee/core`) serves BOTH products.
-> - **Email** stays at repo root (`web/` + `server/`) → existing Vercel project, **URL unchanged**.
-> - **Command Centre** = a new *frontend* app `apps/command-centre/web` (own Vercel project, root
->   dir `apps/command-centre`, its `api/index.ts` reuses `server`'s `buildApp`, **no crons** — crons
->   run only on the root project to avoid double-firing).
-> - **Cross-app SSO** via token handoff (`/auth/handoff` + `/auth/handoff/accept`, migration 034).
->
-> **Done & verified** (all committed on `feat/segmentation`, `npm run build` green, 136/136 test
-> files green): the backbone + UI extraction into `packages/{core,ui,shared}` (Slices A–E + Task 4),
-> the CC frontend app, the SSO (10/10 tests), cross-app nav links.
-> **Remaining = production cutover** (needs your authorization + Vercel login): see
-> **`docs/superpowers/DEPLOY-segmentation.md`**.
->
-> Tasks 1–4 below (the `packages/core` + `ui` extraction) were executed essentially as written.
-> Tasks 5–6 (the backend split) were **superseded** by the shared-backend approach above. Task 10
-> (SSO) was built. Tasks 7–9 were re-scoped (migrations stay centralized; deploy is frontend-only +
-> shared backend). The detailed steps below are kept for history.
-
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Restructure the overgrown emailer repo into `packages/core` + `packages/ui` + `packages/shared` + `apps/email` + `apps/command-centre`, with hard import boundaries, while the email app keeps deploying unchanged to `aiployee-emailer.vercel.app`.
@@ -44,16 +16,8 @@ This is a **restructure**, not greenfield. Two conventions make the steps concre
 
 1. **Move-lists, not file bodies.** When a step says "move X → Y", the file content is unchanged; only its path and import specifiers change. The exact source→dest paths ARE the concrete content.
 2. **Compiler-as-oracle for imports.** After any move, the verification is `npm run build` (tsc). Every unresolved-import error is fixed by repointing that import to its new home (`@aiployee/core`, `@aiployee/ui`, `@aiployee/shared`, or a sibling within the same app). Repeat build→fix until green. This is a deterministic procedure, not a placeholder.
-   - ⚠️ **`tsc` does NOT cover `server/test/**`** (vitest transforms those, not the build). After moving a module, you MUST also rewrite test-file imports of it (tests reference source as `../src/<module>.js`). Run the same sed over `server/test`. A clean `npm run build` with broken test imports is a false green.
-   - ⚠️ **Never read a test result through `| tail`** — the pipe makes the shell report `tail`'s exit code (always 0), masking a failed suite. Run the suite unpiped (or `echo ${PIPESTATUS[0]}`) and confirm `VITEST EXIT: 0` plus the `Test Files … passed` summary.
 
-**Definition of "green" used throughout:** `npm run build` exits 0 **and** the server tests pass. Tests are DB-backed integration tests that read **`TEST_DATABASE_URL`** (NOT `DATABASE_URL`) and **must** run serially. The canonical command is:
-
-```bash
-TEST_DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm -w server test -- --no-file-parallelism
-```
-
-There is **no local Postgres** on this machine — Neon's `test` branch is the only DB. If `TEST_DATABASE_URL` is unset the harness falls back to `localhost:5433` and every test fails with `ECONNREFUSED`. Never run two suites concurrently on the shared `test` branch. After the app split, the workspace flag changes (e.g. `-w @aiployee/email-server`) but the env var and `--no-file-parallelism` stay.
+**Definition of "green" used throughout:** `npm run build` exits 0 **and** `npm test` (Vitest, serial, against the Neon `test` branch) exits 0. Never run two test suites concurrently on the shared Neon branch.
 
 **Authoritative module allocation:** see the spec §6, `docs/superpowers/specs/2026-06-08-aiployee-segmentation-design.md`. The current route set is the `register*Routes` list in `server/src/app.ts` (lines ~8–102).
 
@@ -74,7 +38,7 @@ git checkout -b feat/segmentation
 ```bash
 npm install
 npm run build
-TEST_DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm -w server test -- --no-file-parallelism
+DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm test
 ```
 
 Expected: build exits 0; Vitest all-pass. Record the pass count — every later task must match or exceed it.
@@ -216,7 +180,7 @@ export {}; // populated in Task 4
 ```bash
 npm install
 npm run build
-TEST_DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm -w server test -- --no-file-parallelism
+DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm test
 ```
 
 Expected: green. Nothing functional changed; this only added empty packages and relocated `shared`.
@@ -266,7 +230,7 @@ Then run the **compiler-as-oracle** loop:
 npm run build   # fix every "Cannot find module './util/...'" in server/* by importing from '@aiployee/core'
 ```
 
-Repeat build→fix until green, then run the test command (see "green" definition above).
+Repeat build→fix until green, then `npm test`.
 
 - [ ] **Step 2: Commit Slice A**
 
@@ -385,7 +349,7 @@ Repeat until the Vite build succeeds.
 
 ```bash
 npm run build
-TEST_DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm -w server test -- --no-file-parallelism
+DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm test
 git add -A && git commit -m "refactor(ui): move shared design-system + auth/api client into @aiployee/ui"
 ```
 
@@ -559,7 +523,7 @@ git mv web/src/pages/onboarding apps/email/web/src/pages/onboarding
 ```bash
 npm install
 npm -w @aiployee/email-server run build || npm run build
-TEST_DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm -w server test -- --no-file-parallelism
+DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm test
 ```
 
 Run the compiler-as-oracle loop until green.
@@ -641,7 +605,7 @@ git rm -r web server 2>/dev/null || true
 ```bash
 npm install
 npm run build     # root build must build core, ui, both apps
-TEST_DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm -w server test -- --no-file-parallelism
+DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm test
 ```
 
 - [ ] **Step 8: Update root `package.json` scripts** to build/deploy both apps:
@@ -653,11 +617,7 @@ TEST_DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm -w server te
 }
 ```
 
-> Adjust workspace names to match the `name` fields you set. Email and CC test runs are **sequential** (`&&`, never `&`) because they share the one Neon `test` branch. Bake `--no-file-parallelism` into each app by setting `fileParallelism: false` in that app's `vitest.config.ts` (so the serial requirement can't be forgotten), and provide `TEST_DATABASE_URL` at invocation:
->
-> ```bash
-> TEST_DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm test
-> ```
+> Adjust workspace names to match the `name` fields you set. Email and CC test runs are **sequential** (shared Neon branch).
 
 - [ ] **Step 9: Commit**
 
@@ -775,144 +735,9 @@ git tag segmentation-phase1-complete && git push --tags
 
 ---
 
-## Task 10: Cross-app token-handoff SSO (spec decision #11)
-
-Lets a logged-in tenant move emailer↔dashboard without re-authenticating, on the current
-`*.vercel.app` URLs. The handoff helper lives in `@aiployee/core/auth` so **both** apps share one
-implementation; each app exposes the two routes. **This is new auth code — TDD applies, and run
-the `security-review` skill before merging (Task 9).**
-
-**Design:** a short-lived (60s) HMAC token over `userId.tenantId.exp.jti`, keyed by the shared
-`SESSION_SECRET`. Issuing app redirects to the destination app's accept route with the token; the
-destination verifies (signature + expiry + single-use `jti`), loads the user from the shared DB,
-mints its own session, and 302-redirects home so the token never lingers in a landing URL.
-
-**Files:**
-- Create: `packages/core/src/auth/handoff.ts`
-- Test: `packages/core/test/handoff.test.ts` (or `apps/*/server/test` if core has no test runner yet)
-- Create: a `handoff_used_jti` table migration in `packages/core/migrations` (replay guard)
-- Modify: each app's `app.ts` to register the two handoff routes
-- Modify: each app's web shell to add the cross-app link
-
-- [ ] **Step 1: Write the failing unit test** for the token helper
-
-```ts
-import { describe, it, expect } from 'vitest';
-import { issueHandoffToken, verifyHandoffToken } from '../src/auth/handoff.js';
-
-describe('handoff token', () => {
-  const secret = 'test-secret-please-change';
-  it('round-trips a valid token', () => {
-    const tok = issueHandoffToken({ userId: 'u1', tenantId: 't1' }, secret, 60);
-    const out = verifyHandoffToken(tok, secret);
-    expect(out).toMatchObject({ userId: 'u1', tenantId: 't1' });
-  });
-  it('rejects a tampered token', () => {
-    const tok = issueHandoffToken({ userId: 'u1', tenantId: 't1' }, secret, 60);
-    expect(() => verifyHandoffToken(tok.slice(0, -2) + 'xx', secret)).toThrow();
-  });
-  it('rejects an expired token', () => {
-    const tok = issueHandoffToken({ userId: 'u1', tenantId: 't1' }, secret, -1);
-    expect(() => verifyHandoffToken(tok, secret)).toThrow(/expired/);
-  });
-  it('rejects a token signed with a different secret', () => {
-    const tok = issueHandoffToken({ userId: 'u1', tenantId: 't1' }, secret, 60);
-    expect(() => verifyHandoffToken(tok, 'other-secret')).toThrow();
-  });
-});
-```
-
-- [ ] **Step 2: Run it — expect FAIL** (module not found)
-
-```bash
-TEST_DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm -w server test -- handoff --no-file-parallelism
-```
-
-- [ ] **Step 3: Implement `packages/core/src/auth/handoff.ts`**
-
-```ts
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-
-export interface HandoffClaims { userId: string; tenantId: string; }
-interface Payload extends HandoffClaims { exp: number; jti: string; }
-
-const b64url = (b: Buffer) => b.toString('base64url');
-
-function sign(body: string, secret: string): string {
-  return b64url(createHmac('sha256', secret).update(body).digest());
-}
-
-export function issueHandoffToken(claims: HandoffClaims, secret: string, ttlSeconds = 60): string {
-  const payload: Payload = {
-    ...claims,
-    exp: Math.floor(Date.now() / 1000) + ttlSeconds,
-    jti: randomUUID(),
-  };
-  const body = b64url(Buffer.from(JSON.stringify(payload)));
-  return `${body}.${sign(body, secret)}`;
-}
-
-export function verifyHandoffToken(token: string, secret: string): Payload {
-  const [body, mac] = token.split('.');
-  if (!body || !mac) throw new Error('malformed handoff token');
-  const expected = sign(body, secret);
-  const a = Buffer.from(mac); const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) throw new Error('bad signature');
-  const payload = JSON.parse(Buffer.from(body, 'base64url').toString()) as Payload;
-  if (payload.exp < Math.floor(Date.now() / 1000)) throw new Error('expired handoff token');
-  return payload;
-}
-```
-
-- [ ] **Step 4: Run the test — expect PASS**
-
-```bash
-TEST_DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm -w server test -- handoff --no-file-parallelism
-```
-
-- [ ] **Step 5: Add the replay-guard migration** `packages/core/migrations/..._handoff_used_jti.cjs`
-
-```js
-exports.up = (pgm) => {
-  pgm.createTable('handoff_used_jti', {
-    jti: { type: 'uuid', primaryKey: true },
-    used_at: { type: 'timestamptz', notNull: true, default: pgm.func('now()') },
-  });
-  pgm.sql("CREATE INDEX handoff_used_jti_used_at_idx ON handoff_used_jti (used_at)");
-};
-exports.down = (pgm) => pgm.dropTable('handoff_used_jti');
-```
-
-Apply to the test branch: `DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm run migrate`.
-
-- [ ] **Step 6: Register routes in each app's `app.ts`** — `GET /auth/handoff` (authenticated; issues token, validates `?to=` against an **allowlist** of the two known app origins, 302s to `<to>/auth/handoff/accept?token=`), and `GET /auth/handoff/accept` (verifies token, rejects+deletes-on-use via `handoff_used_jti` insert that fails on duplicate, loads user, establishes session, 302 home). Allowlist constant:
-
-```ts
-const APP_ORIGINS = [
-  'https://aiployee-emailer.vercel.app',
-  'https://aiployee-command-centre.vercel.app',
-];
-```
-
-Write a route-level integration test (Fastify `app.inject`) asserting: unauthenticated `/auth/handoff` → 401; a forged/expired token at `/auth/handoff/accept` → 401 and no session; a valid token → 302 + session cookie; replaying the same token → 401.
-
-- [ ] **Step 7: Add the cross-app link in each web shell** — emailer `AppShell` gets "Open Command Centre" → `/auth/handoff?to=https://aiployee-command-centre.vercel.app`; CC `AppShell` gets "Open Email" → `/auth/handoff?to=https://aiployee-emailer.vercel.app`.
-
-- [ ] **Step 8: Build + full test green + commit**
-
-```bash
-npm run build
-TEST_DATABASE_URL="$(cat /c/Users/liamp/.aiployee-test-db-url)" npm -w server test -- --no-file-parallelism
-git add -A && git commit -m "feat(sso): cross-app token-handoff login between emailer and command-centre"
-```
-
-> **Verification (post-deploy, in Task 9):** log into the emailer, click "Open Command Centre" → land authenticated as the same tenant; reverse the direction; confirm a replayed/expired token is rejected.
-
----
-
 ## Self-Review (completed against spec)
 
-- **Spec coverage:** §5 layout → Tasks 1,4,5,6. §6 allocation → Tasks 2,5,6 + OPEN items Task 3. §7 enforcement → Task 8. §8 deploy/URL → Task 9. §9 migrations → Task 7. decision #11 cross-app SSO → Task 10. §10 sequencing → task order. §11 testing → "green" gate every task. §13 acceptance → Tasks 8 (boundary), 9 (URL + CC deploy), 10 (SSO), all (tests).
+- **Spec coverage:** §5 layout → Tasks 1,4,5,6. §6 allocation → Tasks 2,5,6 + OPEN items Task 3. §7 enforcement → Task 8. §8 deploy/URL → Task 9. §9 migrations → Task 7. §10 sequencing → task order. §11 testing → "green" gate every task. §13 acceptance → Tasks 8 (boundary), 9 (URL + CC deploy), all (tests).
 - **Open items** from spec §14 are each given an explicit decision step (Task 3) rather than deferred.
 - **Known unknowns the implementer must resolve via the compiler/grep** (honestly flagged, not placeholders): the exact internal-import fixups per move (compiler-as-oracle), the precise per-app dependency trimming, and whether `segments`/`emailEvents`/RAG land in core or app (Task 3 decision rules).
 ```

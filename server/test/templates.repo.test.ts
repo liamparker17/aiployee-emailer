@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
-import { createTemplate, updateTemplate, listTemplates } from '@aiployee/core';
+import { createTemplate, updateTemplate, listTemplates } from '../src/repos/templates.js';
 
 const pool = makePool();
 beforeEach(async () => { await truncateAll(pool); });

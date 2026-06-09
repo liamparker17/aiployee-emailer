@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronDown, ChevronRight, CheckCircle2, XCircle, Pencil } from 'lucide-react';
-import { Card } from '@aiployee/ui';
-import { Button } from '@aiployee/ui';
-import { Skeleton } from '@aiployee/ui';
-import { useToast } from '@aiployee/ui';
-import { useAuth } from '@aiployee/ui';
+import { Card } from '../Card';
+import { Button } from '../Button';
+import { Skeleton } from '../Skeleton';
+import { useToast } from '../Toast';
+import { useAuth } from '../../auth';
 import {
   getLineReports,
   approveLineReport,

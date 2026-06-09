@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-import { sendError, AppError } from '@aiployee/core';
+import { sendError, AppError } from '../util/errors.js';
 import { verifySnsMessage, parseSesNotification } from '../webhooks/ses.js';
 import { verifyMailgun, parseMailgunEvent } from '../webhooks/mailgun.js';
-import { findByMessageId, markStatus } from '@aiployee/core';
-import { addSuppression } from '@aiployee/core';
-import { deliverEmailEvent } from '@aiployee/core';
+import { findByMessageId, markStatus } from '../repos/emails.js';
+import { addSuppression } from '../repos/suppressions.js';
+import { deliverEmailEvent } from '../webhooks/eventDelivery.js';
 
 export async function registerV1WebhookRoutes(app: FastifyInstance) {
   app.post('/v1/webhooks/bounce/ses', async (req, reply) => {

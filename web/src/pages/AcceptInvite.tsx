@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api } from '@aiployee/ui';
-import { Button } from '@aiployee/ui';
-import { Input, Field } from '@aiployee/ui';
-import { Logo } from '@aiployee/ui';
+import { api } from '../api';
+import { Button } from '../components/Button';
+import { Input, Field } from '../components/Input';
+import { Logo } from '../components/Logo';
 
 export default function AcceptInvite() {
   const [params] = useSearchParams();
