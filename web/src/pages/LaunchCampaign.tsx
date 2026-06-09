@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { upload } from '@vercel/blob/client';
 import { Rocket } from 'lucide-react';
 import { api } from '@aiployee/ui';
@@ -115,6 +115,31 @@ export default function LaunchCampaign() {
     finally { setBusy(false); }
   }
 
+  // Merge fields available from the uploaded CSV: email + name (if present) + every extra column.
+  // These are the {{placeholders}} the user can drop into the subject/body for this campaign.
+  const mergeFields = useMemo(() => {
+    if (!rows.length) return [];
+    const keys = new Set<string>(['email']);
+    if (rows.some(r => r.name)) keys.add('name');
+    rows.forEach(r => Object.keys(r.attributes).forEach(k => k && keys.add(k)));
+    return [...keys];
+  }, [rows]);
+
+  function downloadTemplate() {
+    const csv = 'email,name,company,renewal_date\njane@example.com,Jane,Acme Corp,2026-07-01\nsam@example.com,Sam,Globex,2026-08-15\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = 'campaign-recipients-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function insertField(field: string) {
+    const token = `{{${field}}}`;
+    setForm(f => ({ ...f, bodyHtml: f.bodyHtml ? `${f.bodyHtml} ${token}` : token }));
+    toast.success(`Added ${token} to the email body`);
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader title="Launch a campaign" subtitle="Upload a recipient list, write your email, and send — in one step. Unsubscribed/suppressed contacts are skipped and an unsubscribe link is added automatically." />
@@ -122,12 +147,31 @@ export default function LaunchCampaign() {
       <form className="space-y-6" onSubmit={launch}>
         <Card>
           <h2 className="font-heading font-semibold text-ink mb-1">1. Upload recipients</h2>
-          <p className="text-sm text-ink-dim mb-4">CSV with an <code className="font-mono">email</code> column (a <code className="font-mono">name</code> column and any extra columns become merge fields like <code className="font-mono">{'{{'}name{'}}'}</code>).</p>
-          <div className="flex items-center gap-3">
+          <p className="text-sm text-ink-dim mb-2">One CSV — <strong>one row per recipient</strong>. It's both your contact list and each person's details for this campaign.</p>
+          <ul className="text-sm text-ink-dim mb-4 space-y-1 list-disc pl-5">
+            <li><code className="font-mono">email</code> — required; this is the address the campaign sends to.</li>
+            <li><code className="font-mono">name</code> — optional; available as <code className="font-mono">{'{{'}name{'}}'}</code>.</li>
+            <li>Any other columns (e.g. <code className="font-mono">company</code>) become per-recipient merge fields you can drop into the email as <code className="font-mono">{'{{'}company{'}}'}</code>.</li>
+          </ul>
+          <div className="flex flex-wrap items-center gap-3">
             <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onFile} />
             <Button type="button" variant="secondary" onClick={() => fileRef.current?.click()}>Choose CSV</Button>
+            <Button type="button" variant="ghost" onClick={downloadTemplate}>Download template</Button>
             <span className="text-sm text-ink-muted">{rows.length ? `${rows.length} recipients — ${fileName}` : 'No file chosen'}</span>
           </div>
+          {mergeFields.length > 0 && (
+            <div className="mt-4 rounded-lg border border-line-strong bg-surface-raised p-3">
+              <p className="text-sm text-ink-dim mb-2">Detected columns — click to add to your email body:</p>
+              <div className="flex flex-wrap gap-2">
+                {mergeFields.map(f => (
+                  <button key={f} type="button" onClick={() => insertField(f)}
+                    className="rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-xs text-ink hover:border-accent hover:text-accent">
+                    {`{{${f}}}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
 
         <Card>
