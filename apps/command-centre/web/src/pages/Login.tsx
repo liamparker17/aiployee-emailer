@@ -17,7 +17,7 @@ export default function Login() {
           <Logo size={36} />
           <span className="font-heading font-semibold text-xl text-ink">Aiployee</span>
         </div>
-        <h1 className="text-xl font-heading font-semibold text-ink">Sign in to Aiployee Emailer</h1>
+        <h1 className="text-xl font-heading font-semibold text-ink">Sign in to Aiployee Command Centre</h1>
         <Field label="Email"><Input type="email" required value={email} onChange={e => setEmail(e.target.value)} /></Field>
         <Field label="Password"><Input type="password" required value={pw} onChange={e => setPw(e.target.value)} /></Field>
         {err && <div className="text-sm text-error">{err}</div>}
