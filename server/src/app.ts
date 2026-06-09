@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
@@ -102,16 +103,21 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerCampaignRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
 
+  // Static SPA serving is only used for local `npm start`. On Vercel, static assets are
+  // served by the platform (outputDirectory) and the function only handles /api,/auth,/v1.
+  // The command-centre deployment reuses this same buildApp but has no server/public, so
+  // registration is skipped when the dir is absent (otherwise fastifyStatic throws at ready()).
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const publicDir = path.resolve(__dirname, '../public');
-  await app.register(fastifyStatic, { root: publicDir, prefix: '/', decorateReply: false, wildcard: false });
-
-  app.setNotFoundHandler(async (req, reply) => {
-    if (req.url.startsWith('/api/') || req.url.startsWith('/auth/') || req.url.startsWith('/v1/') || req.url === '/healthz') {
-      return reply.code(404).send({ error: { code: 'not_found', message: 'Not found' } });
-    }
-    return reply.type('text/html').sendFile('index.html');
-  });
+  if (existsSync(publicDir)) {
+    await app.register(fastifyStatic, { root: publicDir, prefix: '/', decorateReply: false, wildcard: false });
+    app.setNotFoundHandler(async (req, reply) => {
+      if (req.url.startsWith('/api/') || req.url.startsWith('/auth/') || req.url.startsWith('/v1/') || req.url === '/healthz') {
+        return reply.code(404).send({ error: { code: 'not_found', message: 'Not found' } });
+      }
+      return reply.type('text/html').sendFile('index.html');
+    });
+  }
 
   return app;
 }
