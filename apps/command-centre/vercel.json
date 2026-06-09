@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd ../.. && npm run build && npm -w @aiployee/cc-web run build",
+  "buildCommand": "cd ../.. && npm run build && npm -w @aiployee/cc-web run build && npx esbuild server/dist/app.js --bundle --platform=node --format=esm --target=node22 --outfile=apps/command-centre/api/_app.mjs",
   "outputDirectory": "public",
   "installCommand": "cd ../.. && npm install",
   "functions": { "api/cc.ts": { "maxDuration": 300 } },
