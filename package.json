@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "workspaces": ["packages/*", "server", "web"],
+  "workspaces": ["packages/*", "apps/*/*", "server", "web"],
   "scripts": {
     "dev": "npm -w server run dev",
     "dev:web": "npm -w web run dev",
