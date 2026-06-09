@@ -7,6 +7,17 @@ import { requireTenantCtx } from '@aiployee/core';
 const ALLOWED_CONTENT_TYPES = ['application/pdf'];
 const MAX_BYTES = 25 * 1024 * 1024; // 25 MB — typical mailbox attachment ceiling.
 
+// Resolve the Vercel Blob read-write token from the environment. The default name is
+// BLOB_READ_WRITE_TOKEN, but a store connected with a custom prefix exposes it as
+// <PREFIX>_READ_WRITE_TOKEN — so fall back to any var whose value is a blob rw token.
+function resolveBlobToken(): string | undefined {
+  if (process.env.BLOB_READ_WRITE_TOKEN) return process.env.BLOB_READ_WRITE_TOKEN;
+  for (const [k, v] of Object.entries(process.env)) {
+    if (k.endsWith('READ_WRITE_TOKEN') && typeof v === 'string' && v.startsWith('vercel_blob_rw_')) return v;
+  }
+  return undefined;
+}
+
 /**
  * Client-upload token endpoint for campaign attachments. The browser streams the file
  * straight to Vercel Blob (bypassing Vercel's ~4.5 MB function request-body limit); this
@@ -20,12 +31,16 @@ export async function registerBlobRoutes(app: FastifyInstance) {
     const body = req.body as HandleUploadBody;
     // Fail loudly (and legibly) if the Blob store isn't wired to this deployment, rather than
     // bubbling up the SDK's opaque "No blob credentials found" through a generic 400.
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      app.log.error('BLOB_READ_WRITE_TOKEN missing — connect a Vercel Blob store to this project');
+    const token = resolveBlobToken();
+    if (!token) {
+      // Log the candidate var NAMES (never values) so a misnamed token is obvious in the logs.
+      const candidates = Object.keys(process.env).filter(k => k.includes('BLOB') || k.endsWith('READ_WRITE_TOKEN'));
+      app.log.error({ candidates }, 'no Vercel Blob read-write token found in env');
       return reply.code(503).send({ error: { code: 'blob_not_configured', message: 'Attachment storage is not configured on the server yet.' } });
     }
     try {
       const jsonResponse = await handleUpload({
+        token,
         body,
         request: req.raw,
         onBeforeGenerateToken: async () => {
