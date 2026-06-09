@@ -18,6 +18,12 @@ const MAX_BYTES = 25 * 1024 * 1024; // 25 MB — typical mailbox attachment ceil
 export async function registerBlobRoutes(app: FastifyInstance) {
   app.post('/api/blob/upload', async (req, reply) => {
     const body = req.body as HandleUploadBody;
+    // Fail loudly (and legibly) if the Blob store isn't wired to this deployment, rather than
+    // bubbling up the SDK's opaque "No blob credentials found" through a generic 400.
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      app.log.error('BLOB_READ_WRITE_TOKEN missing — connect a Vercel Blob store to this project');
+      return reply.code(503).send({ error: { code: 'blob_not_configured', message: 'Attachment storage is not configured on the server yet.' } });
+    }
     try {
       const jsonResponse = await handleUpload({
         body,
@@ -31,11 +37,12 @@ export async function registerBlobRoutes(app: FastifyInstance) {
             tokenPayload: JSON.stringify({ tenantId: ctx.tenantId }),
           };
         },
-        // The client receives the blob URL directly from upload(); nothing to persist here.
-        onUploadCompleted: async () => {},
+        // No onUploadCompleted: the client receives the blob URL directly from upload(),
+        // so we don't need Vercel's post-upload callback (and avoid registering a callbackUrl).
       });
       return reply.send(jsonResponse);
     } catch (e) {
+      app.log.error({ err: e }, 'blob upload token generation failed');
       // 400 lets the @vercel/blob client surface the message to the user.
       return reply.code(400).send({ error: { code: 'blob_upload_failed', message: (e as Error).message } });
     }
