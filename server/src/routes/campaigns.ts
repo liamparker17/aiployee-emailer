@@ -11,11 +11,16 @@ import { addSuppression } from '@aiployee/core';
 
 const attrs = z.record(z.string(), z.unknown());
 
-// File attachments carried by every email the campaign sends. `content` is base64.
-// Capped well under Vercel's ~4.5 MB request-body limit (base64 inflates raw size ~33%).
+// File attachments carried by every email the campaign sends. Files are uploaded straight
+// to Vercel Blob from the browser (see /api/blob/upload); we store only the resulting URL,
+// which nodemailer fetches at send time. The host is pinned to the Blob domain so an authed
+// user can't make the mailer fetch arbitrary URLs (SSRF).
+const isBlobUrl = (u: string) => {
+  try { return new URL(u).hostname.endsWith('.blob.vercel-storage.com'); } catch { return false; }
+};
 const attachment = z.object({
   filename: z.string().min(1).max(255),
-  content: z.string().min(1),            // base64-encoded file bytes
+  url: z.string().url().refine(isBlobUrl, 'Attachment URL must be a Vercel Blob URL'),
   content_type: z.string().max(255).optional(),
 });
 const attachments = z.array(attachment).max(10).optional();
@@ -43,18 +48,6 @@ const CreateBody = z.object({
   attachments,
 });
 
-// Reject oversized attachment payloads with a clear error rather than a generic body-limit 413.
-// 4 MB of base64 ≈ a 3 MB file. Kept under Vercel's ~4.5 MB request-body ceiling, which
-// also has to fit the recipient list — beyond this we'd need Blob storage + send-time fetch.
-const MAX_ATTACHMENTS_BYTES = 4 * 1024 * 1024; // ~4 MB of base64 across all files
-function assertAttachmentsFit(items?: Array<{ content: string }>): void {
-  if (!items?.length) return;
-  const bytes = items.reduce((n, a) => n + a.content.length, 0);
-  if (bytes > MAX_ATTACHMENTS_BYTES) {
-    throw new AppError('attachments_too_large', 413, 'Attachments are too large — keep the total under ~4 MB.');
-  }
-}
-
 export async function registerCampaignRoutes(app: FastifyInstance) {
   app.get('/api/campaigns', async (req, reply) => {
     try { const ctx = requireTenantCtx(req); return reply.send({ campaigns: await listCampaigns(app.pool, ctx.tenantId) }); }
@@ -65,7 +58,6 @@ export async function registerCampaignRoutes(app: FastifyInstance) {
     try {
       const ctx = requireTenantCtx(req);
       const b = CreateBody.parse(req.body);
-      assertAttachmentsFit(b.attachments);
       const campaign = await createCampaign(app.pool, {
         tenantId: ctx.tenantId, name: b.name, senderId: b.senderId, subject: b.subject, bodyHtml: b.bodyHtml,
         templateId: b.templateId ?? null, audienceType: b.audienceType, audienceId: b.audienceId, scheduledFor: b.scheduledFor ?? null,
@@ -80,7 +72,6 @@ export async function registerCampaignRoutes(app: FastifyInstance) {
     try {
       const ctx = requireTenantCtx(req);
       const b = LaunchBody.parse(req.body);
-      assertAttachmentsFit(b.attachments);
       const { imported } = await importContacts(app.pool, ctx.tenantId, b.contacts);
       const list = await createList(app.pool, ctx.tenantId, b.listName || `${b.name} recipients`);
       const ids = await getContactIdsByEmails(app.pool, ctx.tenantId, b.contacts.map(c => c.email));

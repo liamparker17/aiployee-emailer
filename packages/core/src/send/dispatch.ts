@@ -52,9 +52,14 @@ async function sendOne(
       subject: email.subject,
       html: injectTracking(email.body_html, { emailId: email.id, baseUrl }),
       text: email.body_text ?? undefined,
-      attachments: (email.attachments as Array<{ filename: string; content: string; content_type?: string }>).map(a => ({
-        filename: a.filename, content: Buffer.from(a.content, 'base64'), contentType: a.content_type,
-      })),
+      // Attachments are stored either inline as base64 (the /v1/emails API) or as a Vercel
+      // Blob URL (campaign attachments uploaded from the browser). nodemailer fetches `path`
+      // URLs itself, so large files never pass through our function's request body.
+      attachments: (email.attachments as Array<{ filename: string; content?: string; url?: string; content_type?: string }>).map(a =>
+        a.content != null
+          ? { filename: a.filename, content: Buffer.from(a.content, 'base64'), contentType: a.content_type }
+          : { filename: a.filename, path: a.url, contentType: a.content_type },
+      ),
       headers: email.list_unsubscribe
         ? { 'List-Unsubscribe': `<${email.list_unsubscribe}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }
         : undefined,

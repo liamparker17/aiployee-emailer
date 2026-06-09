@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { upload } from '@vercel/blob/client';
 import { Rocket } from 'lucide-react';
 import { api } from '@aiployee/ui';
 import { Button } from '@aiployee/ui';
@@ -9,23 +10,12 @@ import { useToast } from '@aiployee/ui';
 
 interface Sender { id: string; email: string; display_name: string }
 type Row = { email: string; name?: string; attributes: Record<string, string> };
-type Attachment = { filename: string; content: string; content_type?: string };
+type Attachment = { filename: string; url: string; content_type?: string };
 
 const selectCls = 'w-full rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:outline-none focus:border-accent';
 
-// Total base64 budget for all attachments — must stay under the server cap (~4 MB)
-// and Vercel's ~4.5 MB request-body limit (which also carries the recipient list).
-const MAX_ATTACH_BYTES = 4 * 1024 * 1024;
-
-// Read a File into base64 (no data-URL prefix), matching the API's attachment shape.
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(',', 2)[1] ?? '');
-    reader.onerror = () => reject(reader.error ?? new Error('read failed'));
-    reader.readAsDataURL(file);
-  });
-}
+// Per-file ceiling — matches the server token's maximumSizeInBytes (typical mailbox limit).
+const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
 function parseCsv(text: string): Row[] {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
@@ -59,6 +49,7 @@ export default function LaunchCampaign() {
   const [rows, setRows] = useState<Row[]>([]);
   const [fileName, setFileName] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ name: '', listName: '', senderId: '', subject: '', bodyHtml: '', scheduledFor: '' });
 
@@ -78,17 +69,24 @@ export default function LaunchCampaign() {
     const files = Array.from(e.target.files ?? []);
     if (e.target) e.target.value = ''; // allow re-selecting the same file
     if (!files.length) return;
-    const next: Attachment[] = [...attachments];
-    for (const file of files) {
-      if (next.some(a => a.filename === file.name)) continue; // de-dupe by name
-      next.push({ filename: file.name, content: await fileToBase64(file), content_type: file.type || undefined });
+    setUploading(true);
+    try {
+      for (const file of files) {
+        if (attachments.some(a => a.filename === file.name)) continue; // de-dupe by name
+        if (file.size > MAX_FILE_BYTES) { toast.error(`${file.name} is over 25 MB`); continue; }
+        // Stream the file straight to Vercel Blob; /api/blob/upload only mints the token.
+        const blob = await upload(file.name, file, {
+          access: 'public',
+          handleUploadUrl: '/api/blob/upload',
+          contentType: file.type || undefined,
+        });
+        setAttachments(prev => [...prev, { filename: file.name, url: blob.url, content_type: file.type || undefined }]);
+      }
+    } catch (err: unknown) {
+      toast.error('Upload failed: ' + (err as Error).message);
+    } finally {
+      setUploading(false);
     }
-    const totalBytes = next.reduce((n, a) => n + a.content.length, 0);
-    if (totalBytes > MAX_ATTACH_BYTES) {
-      toast.error('Attachments are too large — keep the total under ~4 MB.');
-      return;
-    }
-    setAttachments(next);
   }
 
   function removeAttachment(name: string) {
@@ -147,11 +145,11 @@ export default function LaunchCampaign() {
             <Field label="Email body (HTML)" hint="Use {{name}}, {{email}}, or any CSV column as a placeholder.">
               <textarea required className={`${selectCls} min-h-[180px] font-mono`} value={form.bodyHtml} onChange={e => setForm({ ...form, bodyHtml: e.target.value })} placeholder="<p>Hello {{name}},</p>" />
             </Field>
-            <Field label="Attachments (optional)" hint="PDFs or other files sent with every email. Keep the total under ~4 MB.">
+            <Field label="Attachments (optional)" hint="PDFs sent with every email — up to 25 MB each.">
               <input ref={attachRef} type="file" accept=".pdf,application/pdf" multiple className="hidden" onChange={onAttach} />
               <div className="flex items-center gap-3">
-                <Button type="button" variant="secondary" onClick={() => attachRef.current?.click()}>Attach files</Button>
-                {!attachments.length && <span className="text-sm text-ink-muted">No files attached</span>}
+                <Button type="button" variant="secondary" disabled={uploading} onClick={() => attachRef.current?.click()}>{uploading ? 'Uploading…' : 'Attach files'}</Button>
+                {!attachments.length && !uploading && <span className="text-sm text-ink-muted">No files attached</span>}
               </div>
               {attachments.length > 0 && (
                 <ul className="mt-3 space-y-1">
@@ -174,7 +172,7 @@ export default function LaunchCampaign() {
             <Field label="List name (optional)" hint="The uploaded recipients are saved as a reusable list."><Input value={form.listName} onChange={e => setForm({ ...form, listName: e.target.value })} placeholder="(defaults to the campaign name)" /></Field>
           </div>
           <div className="flex justify-end mt-4">
-            <Button type="submit" disabled={busy}>{busy ? 'Launching…' : (<span className="flex items-center gap-2"><Rocket size={16} /> Launch campaign</span>)}</Button>
+            <Button type="submit" disabled={busy || uploading}>{busy ? 'Launching…' : (<span className="flex items-center gap-2"><Rocket size={16} /> Launch campaign</span>)}</Button>
           </div>
         </Card>
       </form>

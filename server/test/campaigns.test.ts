@@ -56,7 +56,7 @@ describe('campaign send', () => {
     const c1 = await createContact(pool, { tenantId: t.id, email: 'one@x.com', name: 'One' });
     const list = await createList(pool, t.id, 'L');
     await addMembers(pool, t.id, list.id, [c1.id]);
-    const pdf = { filename: 'brochure.pdf', content: Buffer.from('%PDF-1.4 fake').toString('base64'), content_type: 'application/pdf' };
+    const pdf = { filename: 'brochure.pdf', url: 'https://store123.public.blob.vercel-storage.com/brochure-abc123.pdf', content_type: 'application/pdf' };
     const camp = await createCampaign(pool, { tenantId: t.id, name: 'C', senderId: s.id, subject: 'Hi', bodyHtml: '<p>Hello</p>', audienceType: 'list', audienceId: list.id, attachments: [pdf] });
 
     const r = await sendCampaign({ pool, encKey: KEY, baseUrl: 'https://app.test', tenantId: t.id, campaignId: camp.id });

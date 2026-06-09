@@ -41,6 +41,7 @@ import { registerAnalyticsRoutes } from './routes/analytics.js';
 import { registerMarketingRoutes } from './routes/marketing.js';
 import { registerSegmentRoutes } from './routes/segments.js';
 import { registerCampaignRoutes } from './routes/campaigns.js';
+import { registerBlobRoutes } from './routes/blob.js';
 import type { LlmFactory } from './agent/runner.js';
 import type { WebhookSender } from './agent/webhook.js';
 import type { McpProviderFactory } from './agent/mcp.js';
@@ -107,6 +108,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerMarketingRoutes(app);
   await registerSegmentRoutes(app);
   await registerCampaignRoutes(app);
+  await registerBlobRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
 
   // Static SPA serving is only used for local `npm start`. On Vercel, static assets are

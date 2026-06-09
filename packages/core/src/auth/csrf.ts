@@ -26,6 +26,10 @@ export function registerCsrf(app: FastifyInstance) {
     // an ambient session cookie — so CSRF double-submit adds no protection and would break
     // it when the emailed link is opened directly (the aip_csrf cookie isn't set yet).
     if (req.url.split('?')[0] === '/auth/invite/accept') return;
+    // Blob client-upload token endpoint: the @vercel/blob client posts here directly (not via
+    // our api() helper, so no CSRF header) and the upload-completed callback arrives from
+    // Vercel's servers. Auth is enforced inside the route's onBeforeGenerateToken instead.
+    if (req.url.split('?')[0] === '/api/blob/upload') return;
     const cookie = req.cookies[COOKIE];
     const header = req.headers[HEADER];
     const headerStr = Array.isArray(header) ? header[0] : header;
