@@ -2,7 +2,11 @@
 // All paths funnel here via vercel.json rewrites; Fastify does the actual routing.
 import 'dotenv/config';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { buildApp } from '../../../server/src/app.js';
+// Import the shared backend by its workspace package name (symlinked in node_modules) rather
+// than a relative cross-root path: Vercel's function compiler rewrites/clamps relative imports
+// that escape the Root Directory (apps/command-centre), but node_modules deps are traced and
+// bundled reliably. Consumes the COMPILED dist (server emits dist via `npm -w server run build`).
+import { buildApp } from '@aiployee/server/dist/app.js';
 
 let appPromise: ReturnType<typeof buildApp> | null = null;
 
