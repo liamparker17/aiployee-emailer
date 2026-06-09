@@ -3,12 +3,12 @@
   "buildCommand": "cd ../.. && npm run build && npm -w @aiployee/cc-web run build",
   "outputDirectory": "public",
   "installCommand": "cd ../.. && npm install",
-  "functions": { "api/index.ts": { "maxDuration": 300 } },
+  "functions": { "api/cc.ts": { "maxDuration": 300 } },
   "rewrites": [
-    { "source": "/healthz", "destination": "/api/index" },
-    { "source": "/auth/:path*", "destination": "/api/index" },
-    { "source": "/api/:path*", "destination": "/api/index" },
-    { "source": "/v1/:path*", "destination": "/api/index" },
+    { "source": "/healthz", "destination": "/api/cc" },
+    { "source": "/auth/:path*", "destination": "/api/cc" },
+    { "source": "/api/:path*", "destination": "/api/cc" },
+    { "source": "/v1/:path*", "destination": "/api/cc" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
