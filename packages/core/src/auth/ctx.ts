@@ -49,7 +49,7 @@ export function registerCtx(app: FastifyInstance) {
       if (!sess?.userId) {
         // Path-only check (req.url may carry a query string).
         const path = req.url.split('?')[0];
-        if (path === '/auth/login' || path === '/auth/invite/accept' || path === '/api/me') return;
+        if (path === '/auth/login' || path === '/auth/invite/accept' || path === '/api/me' || path === '/auth/handoff/accept') return;
         return reply.code(401).send({ error: { code: 'unauthorized', message: 'Not signed in' } });
       }
       const role = sess.role!;

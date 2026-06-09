@@ -7,6 +7,7 @@ import { logger } from '@aiployee/core';
 import { loadConfig, type Config } from '@aiployee/core';
 import { getPool } from '@aiployee/core';
 import { registerSessions } from '@aiployee/core';
+import { registerHandoffRoutes } from '@aiployee/core';
 import { registerCsrf } from '@aiployee/core';
 import { registerCtx } from '@aiployee/core';
 import { registerAuthRoutes } from '@aiployee/core';
@@ -84,6 +85,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerEmailRoutes(app);
   await registerUserRoutes(app);
   await registerSessionRoutes(app);
+  registerHandoffRoutes(app);
   await registerAgentRoutes(app);
   registerAbeRoutes(app);
   registerAgentChatRoutes(app);

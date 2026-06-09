@@ -12,6 +12,7 @@ export * from './auth/csrf.js';
 export * from './auth/ctx.js';
 export * from './auth/password.js';
 export * from './auth/apiKey.js';
+export * from './auth/handoff.js';
 // Slice C (backbone repos): tenants, users, api keys, contacts, lists, segments, suppressions.
 export * from './repos/tenants.js';
 export * from './repos/users.js';
@@ -28,6 +29,7 @@ export * from './routes/session.js';
 export * from './routes/users.js';
 export * from './routes/adminTenants.js';
 export * from './routes/apiKeys.js';
+export * from './routes/handoff.js';
 // Slice E (shared outbound-email primitives): both the email product and Abe (CC) send mail
 // through these, so the transport + its data live in core. NOTE: send/* and the send repos
 // import the @aiployee/core barrel internally; safe (used inside functions, not at top level).
