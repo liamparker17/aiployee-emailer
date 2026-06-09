@@ -10,6 +10,16 @@ import { createList, addMembers } from '@aiployee/core';
 import { addSuppression } from '@aiployee/core';
 
 const attrs = z.record(z.string(), z.unknown());
+
+// File attachments carried by every email the campaign sends. `content` is base64.
+// Capped well under Vercel's ~4.5 MB request-body limit (base64 inflates raw size ~33%).
+const attachment = z.object({
+  filename: z.string().min(1).max(255),
+  content: z.string().min(1),            // base64-encoded file bytes
+  content_type: z.string().max(255).optional(),
+});
+const attachments = z.array(attachment).max(10).optional();
+
 const LaunchBody = z.object({
   name: z.string().min(1),
   listName: z.string().optional(),
@@ -18,6 +28,7 @@ const LaunchBody = z.object({
   bodyHtml: z.string().min(1),
   contacts: z.array(z.object({ email: z.string(), name: z.string().nullable().optional(), attributes: attrs.optional() })).min(1).max(5000),
   scheduledFor: z.coerce.date().nullable().optional(),
+  attachments,
 });
 
 const CreateBody = z.object({
@@ -29,7 +40,18 @@ const CreateBody = z.object({
   audienceType: z.enum(['list', 'segment']),
   audienceId: z.string().uuid(),
   scheduledFor: z.coerce.date().nullable().optional(),
+  attachments,
 });
+
+// Reject oversized attachment payloads with a clear error rather than a generic body-limit 413.
+const MAX_ATTACHMENTS_BYTES = 3 * 1024 * 1024; // ~3 MB of base64 across all files
+function assertAttachmentsFit(items?: Array<{ content: string }>): void {
+  if (!items?.length) return;
+  const bytes = items.reduce((n, a) => n + a.content.length, 0);
+  if (bytes > MAX_ATTACHMENTS_BYTES) {
+    throw new AppError('attachments_too_large', 413, 'Attachments are too large — keep the total under ~3 MB.');
+  }
+}
 
 export async function registerCampaignRoutes(app: FastifyInstance) {
   app.get('/api/campaigns', async (req, reply) => {
@@ -41,9 +63,11 @@ export async function registerCampaignRoutes(app: FastifyInstance) {
     try {
       const ctx = requireTenantCtx(req);
       const b = CreateBody.parse(req.body);
+      assertAttachmentsFit(b.attachments);
       const campaign = await createCampaign(app.pool, {
         tenantId: ctx.tenantId, name: b.name, senderId: b.senderId, subject: b.subject, bodyHtml: b.bodyHtml,
         templateId: b.templateId ?? null, audienceType: b.audienceType, audienceId: b.audienceId, scheduledFor: b.scheduledFor ?? null,
+        attachments: b.attachments,
       });
       return reply.code(201).send({ campaign });
     } catch (e) { sendError(reply, e); }
@@ -54,6 +78,7 @@ export async function registerCampaignRoutes(app: FastifyInstance) {
     try {
       const ctx = requireTenantCtx(req);
       const b = LaunchBody.parse(req.body);
+      assertAttachmentsFit(b.attachments);
       const { imported } = await importContacts(app.pool, ctx.tenantId, b.contacts);
       const list = await createList(app.pool, ctx.tenantId, b.listName || `${b.name} recipients`);
       const ids = await getContactIdsByEmails(app.pool, ctx.tenantId, b.contacts.map(c => c.email));
@@ -61,6 +86,7 @@ export async function registerCampaignRoutes(app: FastifyInstance) {
       const campaign = await createCampaign(app.pool, {
         tenantId: ctx.tenantId, name: b.name, senderId: b.senderId, subject: b.subject, bodyHtml: b.bodyHtml,
         templateId: null, audienceType: 'list', audienceId: list.id, scheduledFor: b.scheduledFor ?? null,
+        attachments: b.attachments,
       });
       const result = await sendCampaign({ pool: app.pool, encKey: app.cfg.encKey, baseUrl: app.cfg.publicBaseUrl, tenantId: ctx.tenantId, campaignId: campaign.id });
       return reply.code(201).send({ campaignId: campaign.id, listId: list.id, imported, ...result });

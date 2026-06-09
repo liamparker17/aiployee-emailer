@@ -48,4 +48,21 @@ describe('campaign send', () => {
     expect(emails[0].body_html).toContain('/v1/unsubscribe/');
     expect(emails[0].status).toBe('queued');
   });
+
+  it('propagates campaign attachments onto every queued email', async () => {
+    const t = await createTenant(pool);
+    const sc = await createSmtpConfig(pool, KEY, { tenantId: t.id, name: 'l', host: 'h', port: 587, secure: false, username: 'u', password: 'p', fromDomain: 'x.com', isDefault: true });
+    const s = await createSender(pool, { tenantId: t.id, email: 'a@x.com', displayName: 'A', smtpConfigId: sc.id });
+    const c1 = await createContact(pool, { tenantId: t.id, email: 'one@x.com', name: 'One' });
+    const list = await createList(pool, t.id, 'L');
+    await addMembers(pool, t.id, list.id, [c1.id]);
+    const pdf = { filename: 'brochure.pdf', content: Buffer.from('%PDF-1.4 fake').toString('base64'), content_type: 'application/pdf' };
+    const camp = await createCampaign(pool, { tenantId: t.id, name: 'C', senderId: s.id, subject: 'Hi', bodyHtml: '<p>Hello</p>', audienceType: 'list', audienceId: list.id, attachments: [pdf] });
+
+    const r = await sendCampaign({ pool, encKey: KEY, baseUrl: 'https://app.test', tenantId: t.id, campaignId: camp.id });
+    expect(r.queued).toBe(1);
+
+    const emails = await listEmails(pool, t.id, {});
+    expect(emails[0].attachments).toEqual([pdf]);
+  });
 });

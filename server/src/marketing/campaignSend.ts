@@ -56,6 +56,7 @@ export async function sendCampaign(args: {
       tenantId, senderId: c.sender_id, toAddr: contact.email,
       subject, bodyHtml: body + footer, status: 'queued',
       scheduledFor: c.scheduled_for, campaignId: c.id, listUnsubscribe: unsubUrl,
+      attachments: c.attachments,
     });
     queued++;
   }

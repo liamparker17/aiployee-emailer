@@ -56,6 +56,9 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
     logger: cfg.env === 'production'
       ? { level: cfg.logLevel }
       : { level: cfg.logLevel, transport: { target: 'pino-pretty', options: { colorize: true } } },
+    // Default is 1 MB; raise it so campaign/email requests can carry base64 file
+    // attachments (PDFs). Stays under Vercel's ~4.5 MB platform request-body cap.
+    bodyLimit: 6 * 1024 * 1024,
   });
   void logger; // imported for back-compat in case other modules import it
   app.decorate('cfg', cfg);

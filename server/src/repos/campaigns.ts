@@ -14,12 +14,13 @@ export interface CampaignRow {
   audience_id: string;
   scheduled_for: Date | null;
   status: CampaignStatus;
+  attachments: unknown[];
   created_at: Date;
 }
 
 const SELECT = `
   id, tenant_id, name, sender_id, template_id, subject, body_html,
-  audience_type, audience_id, scheduled_for, status, created_at`;
+  audience_type, audience_id, scheduled_for, status, attachments, created_at`;
 
 export async function listCampaigns(pool: pg.Pool, tenantId: string): Promise<CampaignRow[]> {
   const r = await pool.query<CampaignRow>(
@@ -53,13 +54,14 @@ export async function createCampaign(
     audienceType: 'list' | 'segment';
     audienceId: string;
     scheduledFor?: Date | null;
+    attachments?: unknown[];
   },
 ): Promise<CampaignRow> {
   const r = await pool.query<CampaignRow>(
     `INSERT INTO campaigns
        (tenant_id, name, sender_id, template_id, subject, body_html,
-        audience_type, audience_id, scheduled_for)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        audience_type, audience_id, scheduled_for, attachments)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
      RETURNING ${SELECT}`,
     [
       input.tenantId,
@@ -71,6 +73,7 @@ export async function createCampaign(
       input.audienceType,
       input.audienceId,
       input.scheduledFor ?? null,
+      JSON.stringify(input.attachments ?? []),
     ],
   );
   return r.rows[0];

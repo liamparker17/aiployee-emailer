@@ -9,8 +9,23 @@ import { useToast } from '@aiployee/ui';
 
 interface Sender { id: string; email: string; display_name: string }
 type Row = { email: string; name?: string; attributes: Record<string, string> };
+type Attachment = { filename: string; content: string; content_type?: string };
 
 const selectCls = 'w-full rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:outline-none focus:border-accent';
+
+// Total base64 budget for all attachments — must stay under the server cap (~3 MB)
+// and Vercel's ~4.5 MB request-body limit.
+const MAX_ATTACH_BYTES = 3 * 1024 * 1024;
+
+// Read a File into base64 (no data-URL prefix), matching the API's attachment shape.
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',', 2)[1] ?? '');
+    reader.onerror = () => reject(reader.error ?? new Error('read failed'));
+    reader.readAsDataURL(file);
+  });
+}
 
 function parseCsv(text: string): Row[] {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
@@ -39,9 +54,11 @@ function parseCsv(text: string): Row[] {
 export default function LaunchCampaign() {
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
+  const attachRef = useRef<HTMLInputElement>(null);
   const [senders, setSenders] = useState<Sender[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [fileName, setFileName] = useState('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ name: '', listName: '', senderId: '', subject: '', bodyHtml: '', scheduledFor: '' });
 
@@ -57,6 +74,27 @@ export default function LaunchCampaign() {
     toast.success(`${parsed.length} recipients loaded from ${file.name}`);
   }
 
+  async function onAttach(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (e.target) e.target.value = ''; // allow re-selecting the same file
+    if (!files.length) return;
+    const next: Attachment[] = [...attachments];
+    for (const file of files) {
+      if (next.some(a => a.filename === file.name)) continue; // de-dupe by name
+      next.push({ filename: file.name, content: await fileToBase64(file), content_type: file.type || undefined });
+    }
+    const totalBytes = next.reduce((n, a) => n + a.content.length, 0);
+    if (totalBytes > MAX_ATTACH_BYTES) {
+      toast.error('Attachments are too large — keep the total under ~3 MB.');
+      return;
+    }
+    setAttachments(next);
+  }
+
+  function removeAttachment(name: string) {
+    setAttachments(a => a.filter(x => x.filename !== name));
+  }
+
   async function launch(e: React.FormEvent) {
     e.preventDefault();
     if (!rows.length) { toast.error('Upload a recipients CSV first'); return; }
@@ -69,9 +107,10 @@ export default function LaunchCampaign() {
         subject: form.subject, bodyHtml: form.bodyHtml, contacts: rows,
       };
       if (form.scheduledFor) payload.scheduledFor = new Date(form.scheduledFor).toISOString();
+      if (attachments.length) payload.attachments = attachments;
       const r = await api<{ imported: number; queued: number; skipped: number }>('/api/campaigns/launch', { method: 'POST', body: JSON.stringify(payload) });
       toast.success(`Launched: imported ${r.imported}, queued ${r.queued}, skipped ${r.skipped}`);
-      setRows([]); setFileName('');
+      setRows([]); setFileName(''); setAttachments([]);
       setForm(f => ({ ...f, name: '', listName: '', subject: '', bodyHtml: '', scheduledFor: '' }));
       if (fileRef.current) fileRef.current.value = '';
     } catch (err: unknown) { toast.error('Launch failed: ' + (err as Error).message); }
@@ -107,6 +146,23 @@ export default function LaunchCampaign() {
             <Field label="Subject"><Input required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} placeholder="Hi {{name}}, a quick update" /></Field>
             <Field label="Email body (HTML)" hint="Use {{name}}, {{email}}, or any CSV column as a placeholder.">
               <textarea required className={`${selectCls} min-h-[180px] font-mono`} value={form.bodyHtml} onChange={e => setForm({ ...form, bodyHtml: e.target.value })} placeholder="<p>Hello {{name}},</p>" />
+            </Field>
+            <Field label="Attachments (optional)" hint="PDFs or other files sent with every email. Keep the total under ~3 MB.">
+              <input ref={attachRef} type="file" accept=".pdf,application/pdf" multiple className="hidden" onChange={onAttach} />
+              <div className="flex items-center gap-3">
+                <Button type="button" variant="secondary" onClick={() => attachRef.current?.click()}>Attach files</Button>
+                {!attachments.length && <span className="text-sm text-ink-muted">No files attached</span>}
+              </div>
+              {attachments.length > 0 && (
+                <ul className="mt-3 space-y-1">
+                  {attachments.map(a => (
+                    <li key={a.filename} className="flex items-center justify-between rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-sm">
+                      <span className="truncate text-ink">{a.filename}</span>
+                      <button type="button" className="ml-3 shrink-0 text-ink-muted hover:text-accent" onClick={() => removeAttachment(a.filename)}>Remove</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Field>
           </div>
         </Card>
