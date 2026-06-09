@@ -13,9 +13,9 @@ type Attachment = { filename: string; content: string; content_type?: string };
 
 const selectCls = 'w-full rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:outline-none focus:border-accent';
 
-// Total base64 budget for all attachments — must stay under the server cap (~3 MB)
-// and Vercel's ~4.5 MB request-body limit.
-const MAX_ATTACH_BYTES = 3 * 1024 * 1024;
+// Total base64 budget for all attachments — must stay under the server cap (~4 MB)
+// and Vercel's ~4.5 MB request-body limit (which also carries the recipient list).
+const MAX_ATTACH_BYTES = 4 * 1024 * 1024;
 
 // Read a File into base64 (no data-URL prefix), matching the API's attachment shape.
 function fileToBase64(file: File): Promise<string> {
@@ -85,7 +85,7 @@ export default function LaunchCampaign() {
     }
     const totalBytes = next.reduce((n, a) => n + a.content.length, 0);
     if (totalBytes > MAX_ATTACH_BYTES) {
-      toast.error('Attachments are too large — keep the total under ~3 MB.');
+      toast.error('Attachments are too large — keep the total under ~4 MB.');
       return;
     }
     setAttachments(next);
@@ -147,7 +147,7 @@ export default function LaunchCampaign() {
             <Field label="Email body (HTML)" hint="Use {{name}}, {{email}}, or any CSV column as a placeholder.">
               <textarea required className={`${selectCls} min-h-[180px] font-mono`} value={form.bodyHtml} onChange={e => setForm({ ...form, bodyHtml: e.target.value })} placeholder="<p>Hello {{name}},</p>" />
             </Field>
-            <Field label="Attachments (optional)" hint="PDFs or other files sent with every email. Keep the total under ~3 MB.">
+            <Field label="Attachments (optional)" hint="PDFs or other files sent with every email. Keep the total under ~4 MB.">
               <input ref={attachRef} type="file" accept=".pdf,application/pdf" multiple className="hidden" onChange={onAttach} />
               <div className="flex items-center gap-3">
                 <Button type="button" variant="secondary" onClick={() => attachRef.current?.click()}>Attach files</Button>

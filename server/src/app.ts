@@ -57,8 +57,9 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
       ? { level: cfg.logLevel }
       : { level: cfg.logLevel, transport: { target: 'pino-pretty', options: { colorize: true } } },
     // Default is 1 MB; raise it so campaign/email requests can carry base64 file
-    // attachments (PDFs). Stays under Vercel's ~4.5 MB platform request-body cap.
-    bodyLimit: 6 * 1024 * 1024,
+    // attachments (PDFs). Vercel's ~4.5 MB platform request-body cap is the real
+    // ceiling; this is set above it so self-hosted runs aren't the bottleneck.
+    bodyLimit: 8 * 1024 * 1024,
   });
   void logger; // imported for back-compat in case other modules import it
   app.decorate('cfg', cfg);

@@ -44,12 +44,14 @@ const CreateBody = z.object({
 });
 
 // Reject oversized attachment payloads with a clear error rather than a generic body-limit 413.
-const MAX_ATTACHMENTS_BYTES = 3 * 1024 * 1024; // ~3 MB of base64 across all files
+// 4 MB of base64 ≈ a 3 MB file. Kept under Vercel's ~4.5 MB request-body ceiling, which
+// also has to fit the recipient list — beyond this we'd need Blob storage + send-time fetch.
+const MAX_ATTACHMENTS_BYTES = 4 * 1024 * 1024; // ~4 MB of base64 across all files
 function assertAttachmentsFit(items?: Array<{ content: string }>): void {
   if (!items?.length) return;
   const bytes = items.reduce((n, a) => n + a.content.length, 0);
   if (bytes > MAX_ATTACHMENTS_BYTES) {
-    throw new AppError('attachments_too_large', 413, 'Attachments are too large — keep the total under ~3 MB.');
+    throw new AppError('attachments_too_large', 413, 'Attachments are too large — keep the total under ~4 MB.');
   }
 }
 
