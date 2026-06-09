@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
-import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
-import { createSender } from '../src/repos/senders.js';
+import { createSmtpConfig } from '@aiployee/core';
+import { createSender } from '@aiployee/core';
 import { makeLineChatProvider } from '../src/agent/abe/lineChatTools.js';
 
 const KEY = Buffer.alloc(32, 1);

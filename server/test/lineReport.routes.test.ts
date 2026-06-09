@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '@aiployee/core';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant, createUser } from './helpers/factories.js';
 import { csrfFor, login } from './helpers/auth.js';
 import { startTestSmtp } from './helpers/smtp.js';
-import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
-import { createSender } from '../src/repos/senders.js';
+import { createSmtpConfig } from '@aiployee/core';
+import { createSender } from '@aiployee/core';
 import { upsertLineReportConfig } from '../src/repos/lineReportConfigs.js';
 import { insertReport } from '../src/repos/lineReports.js';
 

@@ -1,8 +1,8 @@
 import type pg from 'pg';
-import { getDefaultSender } from '../../repos/senders.js';
-import { queueEmail } from '../../send/pipeline.js';
-import { claimForSend, type EmailRow } from '../../repos/emails.js';
-import { dispatchEmail } from '../../send/dispatch.js';
+import { getDefaultSender } from '@aiployee/core';
+import { queueEmail } from '@aiployee/core';
+import { claimForSend, type EmailRow } from '@aiployee/core';
+import { dispatchEmail } from '@aiployee/core';
 import type { PlayRow } from '../../repos/agentPlays.js';
 import { signApprovalToken, hashToken } from './approvalToken.js';
 import { createApproval } from '../../repos/agentApprovals.js';

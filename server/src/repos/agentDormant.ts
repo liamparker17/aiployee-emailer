@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import type { ContactRow } from './contacts.js';
+import type { ContactRow } from '@aiployee/core';
 
 /** Contacts with no open/click engagement within `windowDays`, excluding suppressed and too-new contacts. */
 export async function findDormantContacts(

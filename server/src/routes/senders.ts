@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireTenantCtx } from '../auth/ctx.js';
-import { sendError, AppError } from '../util/errors.js';
-import { createSender, listSenders, deleteSender } from '../repos/senders.js';
+import { requireTenantCtx } from '@aiployee/core';
+import { sendError, AppError } from '@aiployee/core';
+import { createSender, listSenders, deleteSender } from '@aiployee/core';
 
 const CreateBody = z.object({
   email: z.string().email(),

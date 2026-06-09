@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '@aiployee/core';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createUser, createTenant } from './helpers/factories.js';
-import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
+import { createSmtpConfig } from '@aiployee/core';
 import { csrfFor, login } from './helpers/auth.js';
 
 const cfg = loadConfig({

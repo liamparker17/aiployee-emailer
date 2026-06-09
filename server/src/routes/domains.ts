@@ -1,15 +1,15 @@
 import { resolveTxt } from 'node:dns/promises';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireTenantCtx } from '../auth/ctx.js';
-import { sendError, AppError } from '../util/errors.js';
+import { requireTenantCtx } from '@aiployee/core';
+import { sendError, AppError } from '@aiployee/core';
 import {
   listSendingDomains,
   createSendingDomain,
   getSendingDomain,
   setDomainVerification,
   deleteSendingDomain,
-} from '../repos/sendingDomains.js';
+} from '@aiployee/core';
 
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
 

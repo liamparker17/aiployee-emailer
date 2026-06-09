@@ -1,27 +1,29 @@
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
-import { logger } from './util/logger.js';
-import { loadConfig, type Config } from './config.js';
-import { getPool } from './db/pool.js';
-import { registerSessions } from './auth/session.js';
-import { registerCsrf } from './auth/csrf.js';
-import { registerCtx } from './auth/ctx.js';
-import { registerAuthRoutes } from './routes/auth.js';
-import { registerAdminTenantRoutes } from './routes/adminTenants.js';
+import { logger } from '@aiployee/core';
+import { loadConfig, type Config } from '@aiployee/core';
+import { getPool } from '@aiployee/core';
+import { registerSessions } from '@aiployee/core';
+import { registerHandoffRoutes } from '@aiployee/core';
+import { registerCsrf } from '@aiployee/core';
+import { registerCtx } from '@aiployee/core';
+import { registerAuthRoutes } from '@aiployee/core';
+import { registerAdminTenantRoutes } from '@aiployee/core';
 import { registerSmtpConfigRoutes } from './routes/smtpConfigs.js';
 import { registerSenderRoutes } from './routes/senders.js';
 import { registerTemplateRoutes } from './routes/templates.js';
-import { registerApiKeyRoutes } from './routes/apiKeys.js';
+import { registerApiKeyRoutes } from '@aiployee/core';
 import { registerV1EmailRoutes } from './routes/v1Emails.js';
 import { registerV1JobixRoutes } from './routes/v1Jobix.js';
 import { registerCronRoutes } from './routes/cron.js';
 import { registerV1WebhookRoutes } from './routes/v1Webhooks.js';
 import { registerSuppressionRoutes } from './routes/suppressions.js';
 import { registerEmailRoutes } from './routes/emails.js';
-import { registerUserRoutes } from './routes/users.js';
-import { registerSessionRoutes } from './routes/session.js';
+import { registerUserRoutes } from '@aiployee/core';
+import { registerSessionRoutes } from '@aiployee/core';
 import { registerAgentRoutes } from './routes/agent.js';
 import { registerAbeRoutes } from './routes/abe.js';
 import { registerAgentChatRoutes } from './routes/agentChat.js';
@@ -83,6 +85,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerEmailRoutes(app);
   await registerUserRoutes(app);
   await registerSessionRoutes(app);
+  registerHandoffRoutes(app);
   await registerAgentRoutes(app);
   registerAbeRoutes(app);
   registerAgentChatRoutes(app);
@@ -102,24 +105,29 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerCampaignRoutes(app);
   app.get('/healthz', async () => ({ ok: true }));
 
+  // Static SPA serving is only used for local `npm start`. On Vercel, static assets are
+  // served by the platform (outputDirectory) and the function only handles /api,/auth,/v1.
+  // The command-centre deployment reuses this same buildApp but has no server/public, so
+  // registration is skipped when the dir is absent (otherwise fastifyStatic throws at ready()).
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const publicDir = path.resolve(__dirname, '../public');
-  await app.register(fastifyStatic, { root: publicDir, prefix: '/', decorateReply: false, wildcard: false });
-
-  app.setNotFoundHandler(async (req, reply) => {
-    if (req.url.startsWith('/api/') || req.url.startsWith('/auth/') || req.url.startsWith('/v1/') || req.url === '/healthz') {
-      return reply.code(404).send({ error: { code: 'not_found', message: 'Not found' } });
-    }
-    return reply.type('text/html').sendFile('index.html');
-  });
+  if (existsSync(publicDir)) {
+    await app.register(fastifyStatic, { root: publicDir, prefix: '/', decorateReply: false, wildcard: false });
+    app.setNotFoundHandler(async (req, reply) => {
+      if (req.url.startsWith('/api/') || req.url.startsWith('/auth/') || req.url.startsWith('/v1/') || req.url === '/healthz') {
+        return reply.code(404).send({ error: { code: 'not_found', message: 'Not found' } });
+      }
+      return reply.type('text/html').sendFile('index.html');
+    });
+  }
 
   return app;
 }
 
+// cfg/pool are augmented by @aiployee/core (fastifyAugment). These agent factories
+// are command-centre concerns and will move with the CC app.
 declare module 'fastify' {
   interface FastifyInstance {
-    cfg: Config;
-    pool: import('pg').Pool;
     agentLlmFactory?: import('./agent/runner.js').LlmFactory;
     agentWebhookSender?: import('./agent/webhook.js').WebhookSender;
     agentMcpProviderFactory?: import('./agent/mcp.js').McpProviderFactory;

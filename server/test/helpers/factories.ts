@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import { hashPassword } from '../../src/auth/password.js';
+import { hashPassword } from '@aiployee/core';
 
 export async function createTenant(pool: pg.Pool, name = 'Tenant ' + Math.random().toString(36).slice(2, 7)) {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');

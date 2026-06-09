@@ -1,14 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireTenantCtx } from '../auth/ctx.js';
-import { sendError, AppError } from '../util/errors.js';
+import { requireTenantCtx } from '@aiployee/core';
+import { sendError, AppError } from '@aiployee/core';
 import {
   createTemplate, updateTemplate, listTemplates, getTemplateById, deleteTemplate,
-} from '../repos/templates.js';
-import { render } from '../send/render.js';
-import { getDefaultSender } from '../repos/senders.js';
-import { insertEmail } from '../repos/emails.js';
-import { dispatchEmail } from '../send/dispatch.js';
+} from '@aiployee/core';
+import { render } from '@aiployee/core';
+import { getDefaultSender } from '@aiployee/core';
+import { insertEmail } from '@aiployee/core';
+import { dispatchEmail } from '@aiployee/core';
 
 function requireAdmin(ctx: ReturnType<typeof requireTenantCtx>): void {
   if (ctx.role !== 'tenant_admin' && ctx.role !== 'super_admin') {

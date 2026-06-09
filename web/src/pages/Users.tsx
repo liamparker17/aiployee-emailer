@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Users as UsersIcon } from 'lucide-react';
-import { api } from '../api';
-import { useAuth } from '../auth';
-import { Table, Th, Td } from '../components/Table';
-import { Button } from '../components/Button';
-import { Modal } from '../components/Modal';
-import { Input, Field } from '../components/Input';
-import { PageHeader } from '../components/PageHeader';
-import { EmptyState } from '../components/EmptyState';
-import { Skeleton } from '../components/Skeleton';
-import { useToast } from '../components/Toast';
+import { api } from '@aiployee/ui';
+import { useAuth } from '@aiployee/ui';
+import { Table, Th, Td } from '@aiployee/ui';
+import { Button } from '@aiployee/ui';
+import { Modal } from '@aiployee/ui';
+import { Input, Field } from '@aiployee/ui';
+import { PageHeader } from '@aiployee/ui';
+import { EmptyState } from '@aiployee/ui';
+import { Skeleton } from '@aiployee/ui';
+import { useToast } from '@aiployee/ui';
 
 interface U { id: string; email: string; role: string }
 

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { buildApp } from './app.js';
-import { logger } from './util/logger.js';
+import { logger } from '@aiployee/core';
 
 const port = Number(process.env.PORT ?? 3000);
 

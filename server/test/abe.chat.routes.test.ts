@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '@aiployee/core';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant, createUser } from './helpers/factories.js';
 import { csrfFor, login } from './helpers/auth.js';
-import { encrypt } from '../src/crypto/enc.js';
+import { encrypt } from '@aiployee/core';
 
 const EMAILER_ENC_KEY = Buffer.alloc(32, 1).toString('base64');
 

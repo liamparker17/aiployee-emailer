@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
-import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
-import { createSender } from '../src/repos/senders.js';
-import { insertEmail } from '../src/repos/emails.js';
+import { createSmtpConfig } from '@aiployee/core';
+import { createSender } from '@aiployee/core';
+import { insertEmail } from '@aiployee/core';
 
 const KEY = Buffer.alloc(32, 1);
 const pool = makePool();

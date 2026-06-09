@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireTenantCtx } from '../auth/ctx.js';
-import { AppError, sendError } from '../util/errors.js';
+import { requireTenantCtx } from '@aiployee/core';
+import { AppError, sendError } from '@aiployee/core';
 import { listHandovers, getHandover, setHandoverStatus, type HandoverStatus } from '../repos/callHandovers.js';
 import { forwardHandover } from '../agent/abe/handoverSend.js';
 

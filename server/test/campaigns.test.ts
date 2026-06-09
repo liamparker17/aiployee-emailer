@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant } from './helpers/factories.js';
-import { createSmtpConfig } from '../src/repos/smtpConfigs.js';
-import { createSender } from '../src/repos/senders.js';
-import { createContact } from '../src/repos/contacts.js';
-import { createList, addMembers } from '../src/repos/contactLists.js';
+import { createSmtpConfig } from '@aiployee/core';
+import { createSender } from '@aiployee/core';
+import { createContact } from '@aiployee/core';
+import { createList, addMembers } from '@aiployee/core';
 import { createCampaign } from '../src/repos/campaigns.js';
-import { addSuppression } from '../src/repos/suppressions.js';
+import { addSuppression } from '@aiployee/core';
 import { sendCampaign } from '../src/marketing/campaignSend.js';
-import { signUnsubToken, verifyUnsubToken } from '../src/marketing/unsubscribe.js';
-import { listEmails } from '../src/repos/emails.js';
+import { signUnsubToken, verifyUnsubToken } from '@aiployee/core';
+import { listEmails } from '@aiployee/core';
 
 const KEY = Buffer.alloc(32, 1);
 const pool = makePool();
