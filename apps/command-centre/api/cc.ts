@@ -1,23 +1,27 @@
-// Vercel Function entrypoint. Wraps the Fastify app as a serverless handler.
+// Vercel Function entrypoint. Wraps the shared Fastify app as a serverless handler.
 // All paths funnel here via vercel.json rewrites; Fastify does the actual routing.
 import 'dotenv/config';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-// Import the shared backend by its workspace package name (symlinked in node_modules) rather
-// than a relative cross-root path: Vercel clamps relative imports that escape the Root Directory
-// (apps/command-centre), but node_modules deps are traced and bundled reliably. Consumes the
-// COMPILED dist (server emits dist via `npm -w server run build`).
-//
-// Vercel transpiles the server's ESM dist to CommonJS when bundling this function, and an ESM
-// `import { buildApp }` doesn't reliably see a CJS module's named exports. Use a namespace import
-// and resolve buildApp across the possible ESM/CJS interop shapes.
-import * as serverApp from '@aiployee/server/dist/app.js';
-const buildApp: () => Promise<{ ready(): Promise<unknown>; server: { emit(ev: string, ...args: unknown[]): void } }> =
-  (serverApp as any).buildApp ?? (serverApp as any).default?.buildApp ?? (serverApp as any).default;
 
-let appPromise: ReturnType<typeof buildApp> | null = null;
+// The shared backend (@aiployee/server) is imported by workspace package name — Vercel clamps
+// relative imports that escape the Root Directory (apps/command-centre), but node_modules deps
+// are traced reliably. It is loaded via a RUNTIME dynamic import (not a static `import`) on
+// purpose: a static import of this ESM dep makes Vercel's bundler transpile it to CommonJS,
+// which then clashes with the repo's "type":"module" ("exports is not defined" / missing named
+// export). A dynamic import lets Node's own ESM loader resolve dist/app.js natively, so the
+// buildApp named export is available and the function entry itself stays ESM.
+type App = { ready(): Promise<unknown>; server: { emit(ev: string, ...args: unknown[]): void } };
 
-async function getApp() {
-  if (!appPromise) appPromise = buildApp();
+let appPromise: Promise<App> | null = null;
+
+async function getApp(): Promise<App> {
+  if (!appPromise) {
+    appPromise = (async () => {
+      const mod = (await import('@aiployee/server/dist/app.js')) as any;
+      const buildApp = mod.buildApp ?? mod.default?.buildApp ?? mod.default;
+      return (await buildApp()) as App;
+    })();
+  }
   const app = await appPromise;
   await app.ready();
   return app;
