@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { sendError, AppError } from '@aiployee/core';
 import { claimDueForSend, requeueFailedAndStuck } from '@aiployee/core';
 import { dispatchBatch } from '@aiployee/core';
+import { listAllEnabledImapConfigs, syncMailbox } from '@aiployee/core';
 import { listEnabledGoals, getGoal } from '../repos/agentGoals.js';
 import { runAbeShift } from '../agent/abe/shift.js';
 import { runLineReportShift } from '../agent/abe/lineShift.js';
@@ -46,6 +47,29 @@ export async function registerCronRoutes(app: FastifyInstance) {
       const sent = results.filter(r => r.ok).length;
       const failed = results.length - sent;
       return reply.send({ ok: true, claimed: claimed.length, sent, failed });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // /v1/cron/imap-fetch — pull new inbound mail for every enabled IMAP mailbox. ~every 5 minutes.
+  // Per-config failures are isolated so one broken mailbox doesn't block the rest.
+  cron('/v1/cron/imap-fetch', async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      requireCronAuth(req, app.cfg.cronSecret);
+      const configs = await listAllEnabledImapConfigs(app.pool);
+      let fetched = 0;
+      let inserted = 0;
+      let failed = 0;
+      for (const c of configs) {
+        try {
+          const r = await syncMailbox({ pool: app.pool, encKey: app.cfg.encKey, configId: c.id });
+          fetched += r.fetched;
+          inserted += r.inserted;
+        } catch (e) {
+          failed += 1;
+          app.log.error({ imapConfigId: c.id, err: (e as Error).message }, 'imap-fetch failed for config');
+        }
+      }
+      return reply.send({ ok: true, mailboxes: configs.length, fetched, inserted, failed });
     } catch (e) { sendError(reply, e); }
   });
 

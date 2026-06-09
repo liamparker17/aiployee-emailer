@@ -46,3 +46,6 @@ export * from './repos/templates.js';
 export * from './repos/eventWebhooks.js';
 export * from './webhooks/eventDelivery.js';
 export * from './marketing/unsubscribe.js';
+// Inbound email ingestion (Abe inbox Phase 1): IMAP config repo + mailbox sync.
+export * from './repos/imapConfigs.js';
+export * from './receive/imapFetch.js';
