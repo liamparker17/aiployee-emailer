@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { encrypt, decrypt } from '../src/crypto/enc.js';
+import { encrypt, decrypt } from '@aiployee/core';
 
 const KEY = Buffer.alloc(32, 7);
 

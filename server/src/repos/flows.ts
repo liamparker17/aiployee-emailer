@@ -1,6 +1,6 @@
 import type pg from 'pg';
 import { randomUUID } from 'node:crypto';
-import { AppError } from '../util/errors.js';
+import { AppError } from '@aiployee/core';
 
 export type FlowStatus = 'draft' | 'active' | 'paused' | 'archived';
 export type StepKind = 'wait' | 'jobix_call' | 'email' | 'condition';

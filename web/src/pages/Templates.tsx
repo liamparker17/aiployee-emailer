@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FileText } from 'lucide-react';
-import { api } from '../api';
-import { Table, Th, Td } from '../components/Table';
-import { Button } from '../components/Button';
-import { Input, Field } from '../components/Input';
-import { PageHeader } from '../components/PageHeader';
-import { EmptyState } from '../components/EmptyState';
-import { Skeleton } from '../components/Skeleton';
-import { useToast } from '../components/Toast';
-import { useAuth } from '../auth';
+import { api } from '@aiployee/ui';
+import { Table, Th, Td } from '@aiployee/ui';
+import { Button } from '@aiployee/ui';
+import { Input, Field } from '@aiployee/ui';
+import { PageHeader } from '@aiployee/ui';
+import { EmptyState } from '@aiployee/ui';
+import { Skeleton } from '@aiployee/ui';
+import { useToast } from '@aiployee/ui';
+import { useAuth } from '@aiployee/ui';
 import { testSendTemplate } from '../lib/templates';
 
 interface Tpl { id: string; name: string; subject: string; display_name: string | null; body_html: string; body_text: string | null; variables: string[] }

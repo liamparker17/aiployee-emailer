@@ -1,10 +1,10 @@
 import type pg from 'pg';
 import type { PlayRow } from '../../repos/agentPlays.js';
-import type { Sender } from '../../repos/senders.js';
-import { getDefaultSender } from '../../repos/senders.js';
-import { insertEmail } from '../../repos/emails.js';
+import type { Sender } from '@aiployee/core';
+import { getDefaultSender } from '@aiployee/core';
+import { insertEmail } from '@aiployee/core';
 import { findEligibleContacts } from '../../repos/agentEligible.js';
-import { signUnsubToken } from '../../marketing/unsubscribe.js';
+import { signUnsubToken } from '@aiployee/core';
 
 function unsubFooter(baseUrl: string, token: string): string {
   const base = baseUrl.replace(/\/+$/, '');

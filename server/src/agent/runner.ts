@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import { AppError } from '../util/errors.js';
+import { AppError } from '@aiployee/core';
 import {
   getAgentConfig, getAgentOpenAIKey, listThreadMessages, insertMessage, type MessageRow,
 } from '../repos/agent.js';

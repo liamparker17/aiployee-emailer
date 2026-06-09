@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import { AppError } from '../util/errors.js';
+import { AppError } from '@aiployee/core';
 import { getTriggerForFire, recordFire, touchLastFired, type FireSource } from '../repos/jobixTriggers.js';
 
 export interface FireResult {

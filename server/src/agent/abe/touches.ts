@@ -1,6 +1,6 @@
 import type pg from 'pg';
 import type { PlayRow } from '../../repos/agentPlays.js';
-import type { Sender } from '../../repos/senders.js';
+import type { Sender } from '@aiployee/core';
 import { queuePlayTouch } from './execute.js';
 
 // Advance ONE executing play to its next due touch. nextIndex = number of outcome rows already recorded.

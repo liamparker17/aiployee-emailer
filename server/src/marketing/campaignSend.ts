@@ -1,13 +1,13 @@
 import type pg from 'pg';
-import { AppError } from '../util/errors.js';
-import { render } from '../send/render.js';
-import { insertEmail } from '../repos/emails.js';
-import { isSuppressed } from '../repos/suppressions.js';
-import { getContactsByIds, type ContactRow } from '../repos/contacts.js';
-import { listMembers } from '../repos/contactLists.js';
-import { getSegment, listSegmentContactIds } from '../repos/segments.js';
+import { AppError } from '@aiployee/core';
+import { render } from '@aiployee/core';
+import { insertEmail } from '@aiployee/core';
+import { isSuppressed } from '@aiployee/core';
+import { getContactsByIds, type ContactRow } from '@aiployee/core';
+import { listMembers } from '@aiployee/core';
+import { getSegment, listSegmentContactIds } from '@aiployee/core';
 import { getCampaign, setCampaignStatus } from '../repos/campaigns.js';
-import { signUnsubToken } from './unsubscribe.js';
+import { signUnsubToken } from '@aiployee/core';
 
 function varsFor(c: ContactRow): Record<string, string> {
   const out: Record<string, string> = { email: c.email, name: c.name ?? '' };

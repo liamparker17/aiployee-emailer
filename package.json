@@ -3,11 +3,11 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "workspaces": ["shared", "server", "web"],
+  "workspaces": ["packages/*", "apps/*/*", "server", "web"],
   "scripts": {
     "dev": "npm -w server run dev",
     "dev:web": "npm -w web run dev",
-    "build": "npm -w shared run build && npm -w web run build && npm -w server run build",
+    "build": "npm -w @aiployee/shared run build && npm -w @aiployee/core run build && npm -w @aiployee/ui run build && npm -w web run build && npm -w @aiployee/cc-web run build && npm -w server run build",
     "test": "npm -w server run test",
     "migrate": "npm -w server run migrate"
   },

@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import type { ContactRow } from './contacts.js';
+import type { ContactRow } from '@aiployee/core';
 
 /** From `contactIds`, the contacts still subscribed, not suppressed, and (if reengagedSince set) with
  *  no open/click at/after that time. Pass reengagedSince=null to apply only suppression/subscription. */

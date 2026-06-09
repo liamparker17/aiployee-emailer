@@ -1,11 +1,11 @@
 import type pg from 'pg';
-import { getDefaultSender } from '../../repos/senders.js';
+import { getDefaultSender } from '@aiployee/core';
 import { getLineReportConfig } from '../../repos/lineReportConfigs.js';
 import { clientLabel } from './clientContext.js';
 import { getHandover, setHandoverStatus, type HandoverRow } from '../../repos/callHandovers.js';
-import { queueEmail } from '../../send/pipeline.js';
-import { claimForSend } from '../../repos/emails.js';
-import { dispatchEmail } from '../../send/dispatch.js';
+import { queueEmail } from '@aiployee/core';
+import { claimForSend } from '@aiployee/core';
+import { dispatchEmail } from '@aiployee/core';
 
 function esc(s: string): string {
   return s

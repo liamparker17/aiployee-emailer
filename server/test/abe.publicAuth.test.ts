@@ -1,7 +1,7 @@
 // server/test/abe.publicAuth.test.ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '@aiployee/core';
 import { makePool } from './helpers/db.js';
 
 const cfg = loadConfig({

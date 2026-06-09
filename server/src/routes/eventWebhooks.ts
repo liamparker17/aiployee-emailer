@@ -1,12 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireTenantCtx } from '../auth/ctx.js';
-import { sendError, AppError } from '../util/errors.js';
+import { requireTenantCtx } from '@aiployee/core';
+import { sendError, AppError } from '@aiployee/core';
 import {
   listEventWebhooks,
   createEventWebhook,
   deleteEventWebhook,
-} from '../repos/eventWebhooks.js';
+} from '@aiployee/core';
 
 const ALLOWED_EVENTS = ['sent', 'delivered', 'bounced', 'complained'] as const;
 

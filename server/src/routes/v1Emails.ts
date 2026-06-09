@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { sendError, AppError } from '../util/errors.js';
-import { queueEmail, SendInputShape } from '../send/pipeline.js';
-import { getEmail, listEmails, claimForSend, type EmailStatus } from '../repos/emails.js';
-import { dispatchEmail } from '../send/dispatch.js';
-import { requireCtx } from '../auth/ctx.js';
+import { sendError, AppError } from '@aiployee/core';
+import { queueEmail, SendInputShape } from '@aiployee/core';
+import { getEmail, listEmails, claimForSend, type EmailStatus } from '@aiployee/core';
+import { dispatchEmail } from '@aiployee/core';
+import { requireCtx } from '@aiployee/core';
 import { captureCallFromSend } from '../agent/abe/mirrorCall.js';
 
 const ApiSendBody = SendInputShape.omit({ tenantId: true, apiKeyId: true }).refine(
