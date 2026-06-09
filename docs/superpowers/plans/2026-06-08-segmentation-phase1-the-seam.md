@@ -1,5 +1,33 @@
 # Segmentation Phase 1 — "The Seam" Implementation Plan
 
+> ## ⚠️ STATUS / WHAT WAS ACTUALLY BUILT (2026-06-09) — read this first
+>
+> **The approach below changed during execution.** The original plan split the *backend* into
+> `apps/email` + `apps/command-centre`. Two discoveries forced a revision:
+> 1. **Abe (command-centre) sends mail through the same pipeline as email campaigns** — so the
+>    outbound-email transport is a *shared* primitive (it went into `@aiployee/core`, "Slice E").
+> 2. **~40 backend tests are entangled in one shared `server/test`** — splitting the backend
+>    would mean splitting all of them, high-risk and slow.
+>
+> **Revised architecture actually built (on branch `feat/segmentation`):**
+> - **One shared backend** (`server/`, now built on `@aiployee/core`) serves BOTH products.
+> - **Email** stays at repo root (`web/` + `server/`) → existing Vercel project, **URL unchanged**.
+> - **Command Centre** = a new *frontend* app `apps/command-centre/web` (own Vercel project, root
+>   dir `apps/command-centre`, its `api/index.ts` reuses `server`'s `buildApp`, **no crons** — crons
+>   run only on the root project to avoid double-firing).
+> - **Cross-app SSO** via token handoff (`/auth/handoff` + `/auth/handoff/accept`, migration 034).
+>
+> **Done & verified** (all committed on `feat/segmentation`, `npm run build` green, 136/136 test
+> files green): the backbone + UI extraction into `packages/{core,ui,shared}` (Slices A–E + Task 4),
+> the CC frontend app, the SSO (10/10 tests), cross-app nav links.
+> **Remaining = production cutover** (needs your authorization + Vercel login): see
+> **`docs/superpowers/DEPLOY-segmentation.md`**.
+>
+> Tasks 1–4 below (the `packages/core` + `ui` extraction) were executed essentially as written.
+> Tasks 5–6 (the backend split) were **superseded** by the shared-backend approach above. Task 10
+> (SSO) was built. Tasks 7–9 were re-scoped (migrations stay centralized; deploy is frontend-only +
+> shared backend). The detailed steps below are kept for history.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Restructure the overgrown emailer repo into `packages/core` + `packages/ui` + `packages/shared` + `apps/email` + `apps/command-centre`, with hard import boundaries, while the email app keeps deploying unchanged to `aiployee-emailer.vercel.app`.
