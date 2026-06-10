@@ -133,7 +133,9 @@ export async function registerImapConfigRoutes(app: FastifyInstance) {
         if (!smtp) throw new AppError('not_found', 404, 'SMTP config not found');
         username = smtp.username;
       }
-      const dc = await startDeviceCode();
+      const dc = await startDeviceCode().catch((e: Error) => {
+        throw new AppError('oauth_start_failed', 502, e.message);
+      });
       return reply.send({
         username,
         userCode: dc.userCode,

@@ -11,7 +11,10 @@
 
 export const DEFAULT_MS_CLIENT_ID = '9e5f94bc-e8a4-4e73-b8be-63364c29d753'; // Thunderbird (public client)
 export const DEFAULT_MS_TENANT = 'common';
-export const IMAP_SCOPE = 'https://outlook.office365.com/IMAP.AccessAsUser.All offline_access';
+// Resource URI must be outlook.office.com (what Thunderbird's app registration
+// grants) — outlook.office365.com is rejected with AADSTS70011 invalid_scope.
+// The token still works against the outlook.office365.com IMAP endpoint.
+export const IMAP_SCOPE = 'https://outlook.office.com/IMAP.AccessAsUser.All offline_access';
 
 type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string }) => Promise<{
   ok: boolean; status: number; json(): Promise<unknown>;
