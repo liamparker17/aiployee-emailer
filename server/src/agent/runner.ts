@@ -20,6 +20,17 @@ export function makeEmbed(apiKey: string) {
   };
 }
 
+/** Batched embeddings for bulk reply analysis — one API call per chunk of texts. */
+export function makeEmbedBatch(apiKey: string) {
+  return async (texts: string[]): Promise<number[][]> => {
+    if (texts.length === 0) return [];
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey });
+    const r = await client.embeddings.create({ model: 'text-embedding-3-small', input: texts });
+    return r.data.map(d => d.embedding);
+  };
+}
+
 export interface LlmTool { name: string; description: string; parameters: Record<string, unknown> }
 export interface LlmToolCall { id: string; name: string; arguments: string }
 export interface LlmMessage {

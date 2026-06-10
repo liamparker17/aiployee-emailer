@@ -8,6 +8,7 @@ import { getLineReportConfig } from '../../repos/lineReportConfigs.js';
 import { buildAbeSystemPrompt } from './prompt.js';
 import { makeAbeChatProvider } from './chatTools.js';
 import { makeLineChatProvider } from './lineChatTools.js';
+import { makeInboxChatProvider } from './inboxChatTools.js';
 
 export async function runAbeChat(args: {
   pool: pg.Pool; encKey: Buffer; tenantId: string; baseUrl: string; userMessage: string; llmFactory?: LlmFactory;
@@ -37,6 +38,7 @@ export async function runAbeChat(args: {
   const provider = compositeProvider([
     makeAbeChatProvider({ pool, encKey, tenantId, baseUrl, llmFactory }),
     makeLineChatProvider({ pool, tenantId, llm: llm as any, model }),
+    makeInboxChatProvider({ pool, encKey, baseUrl, tenantId, apiKey, llm }),
     ...(await assembleTenantProviders(pool, encKey, tenantId, apiKey)),
   ]);
   try {
