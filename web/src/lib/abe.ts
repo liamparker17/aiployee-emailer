@@ -6,6 +6,7 @@ export interface AbeGoal {
   max_touches: number; touch_spacing_days: number;
   line_manager_email: string | null; line_manager_verified_at: string | null;
   brand_voice: string | null;
+  persona: string | null;
 }
 export interface AbeTouch { index: number; subject: string; body_html: string; scheduled_offset_days: number }
 export type AbePlayStatus = 'proposed'|'pending_approval'|'approved'|'rejected'|'executing'|'done'|'archived';

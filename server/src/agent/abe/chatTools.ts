@@ -52,6 +52,7 @@ const TOOLS: AgentTool[] = [
         maxTouches: { type: 'number' },
         touchSpacingDays: { type: 'number' },
         brandVoice: { type: 'string' },
+        persona: { type: 'string', description: "Replaces Abe's default identity/role description (his hard safety rules always remain)" },
         lineManagerEmail: { type: 'string' },
       },
     },
@@ -124,6 +125,7 @@ export function makeAbeChatProvider(ctx: {
           if ('maxTouches' in a) patch.maxTouches = clamp(a.maxTouches, 1, 5, 3);
           if ('touchSpacingDays' in a) patch.touchSpacingDays = clamp(a.touchSpacingDays, 1, 60, 3);
           if (typeof a.brandVoice === 'string') patch.brandVoice = a.brandVoice.slice(0, 2000);
+          if (typeof a.persona === 'string') patch.persona = a.persona.slice(0, 12000);
           if (typeof a.lineManagerEmail === 'string') {
             const e = a.lineManagerEmail.trim().slice(0, 254);
             if (e === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) patch.lineManagerEmail = e || null;

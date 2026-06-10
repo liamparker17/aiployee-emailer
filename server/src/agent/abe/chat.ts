@@ -32,7 +32,7 @@ export async function runAbeChat(args: {
 
   const history = await listChatMessages(pool, tenantId); // includes the user msg we just inserted
   const messages: LlmMessage[] = [
-    { role: 'system', content: buildAbeSystemPrompt(goal?.brand_voice ?? null, lineCfg?.client_name, lineCfg?.client_context) },
+    { role: 'system', content: buildAbeSystemPrompt(goal?.brand_voice ?? null, lineCfg?.client_name, lineCfg?.client_context, goal?.persona ?? null) },
     ...history.map(m => ({ role: (m.role === 'abe' ? 'assistant' : 'user') as 'assistant' | 'user', content: m.content })),
   ];
 

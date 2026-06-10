@@ -5,6 +5,7 @@ import { Button } from '@aiployee/ui';
 import { Skeleton } from '@aiployee/ui';
 import { useToast } from '@aiployee/ui';
 import { useAuth } from '@aiployee/ui';
+import { api } from '@aiployee/ui';
 import { getLineSettings, putLineSettings } from '../../lib/abe';
 import type { LineReportConfig } from '../../lib/abe';
 
@@ -100,6 +101,7 @@ export default function LineReportingSettings() {
   const isAdmin = !loading && user?.role !== 'tenant_user';
 
   const [form, setForm] = useState<FormState | null>(null);
+  const [persona, setPersona] = useState('');
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
@@ -114,6 +116,10 @@ export default function LineReportingSettings() {
       .catch((err: unknown) => {
         setLoadErr(err instanceof Error ? err.message : 'Could not load settings.');
       });
+    // Persona lives on Abe's goal settings, not the line-report config.
+    api<{ goal: { persona: string | null } | null }>('/api/agent/goals')
+      .then(r => setPersona(r.goal?.persona ?? ''))
+      .catch(() => { /* non-fatal */ });
   }, []);
 
   useEffect(() => {
@@ -157,6 +163,8 @@ export default function LineReportingSettings() {
         clientName: form.clientName.trim() || null,
         clientContext: form.clientContext.trim() || null,
       });
+      // Empty string intentionally clears the persona (falls back to Abe's default).
+      await api('/api/agent/goals', { method: 'PUT', body: JSON.stringify({ persona }) });
       setSavedAt(new Date());
       toast.success('Line reporting settings saved.');
       // Reload to get server-normalised values
@@ -350,6 +358,17 @@ export default function LineReportingSettings() {
                   </FieldRow>
                 </div>
               </div>
+
+              {/* ── Persona ── */}
+              <FieldRow label="Abe persona (optional) — who Abe is for this business: role, responsibilities, priorities, drafting rules. Replaces his default analyst job description. His safety rules (human approval before anything sends, no invented facts, confidentiality) always apply and cannot be overridden.">
+                <textarea
+                  rows={10}
+                  value={persona}
+                  onChange={e => setPersona(e.target.value)}
+                  placeholder="e.g. You manage email for [name], Managing Director of [company]… Leave blank for Abe's default persona."
+                  className={`${inputCls} resize-y`}
+                />
+              </FieldRow>
 
               {/* ── Brand voice ── */}
               <FieldRow label="Brand voice instructions (optional)">

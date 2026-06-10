@@ -10,4 +10,16 @@ describe('abe prompt', () => {
     expect(buildAbeSystemPrompt('friendly, no jargon')).toContain('friendly, no jargon');
     expect(buildAbeSystemPrompt(null)).toBe(ABE_SYSTEM);
   });
+  it('persona replaces the identity but the hard rules and tool guidance survive', () => {
+    const persona = 'You manage email for Marcel Fourie, Managing Director of Mafadi Property Group.';
+    const p = buildAbeSystemPrompt('warm but direct', null, null, persona);
+    expect(p).toContain('Marcel Fourie');
+    expect(p).not.toContain('call-line analyst');           // default identity replaced
+    expect(p).toContain('Hard rules — never break');        // invariants kept
+    expect(p).toContain('analyze_campaign');                 // tool guidance kept
+    expect(p).toContain('warm but direct');                  // brand voice still appended
+  });
+  it('blank persona falls back to the default identity', () => {
+    expect(buildAbeSystemPrompt(null, null, null, '   ')).toBe(ABE_SYSTEM);
+  });
 });

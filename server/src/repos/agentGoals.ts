@@ -13,6 +13,7 @@ export interface GoalRow {
   line_manager_email: string | null;
   line_manager_verified_at: Date | null;
   brand_voice: string | null;
+  persona: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -31,6 +32,7 @@ export interface GoalPatch {
   touchSpacingDays?: number;
   lineManagerEmail?: string | null;
   brandVoice?: string | null;
+  persona?: string | null;
 }
 
 export async function getGoal(pool: pg.Pool, tenantId: string): Promise<GoalRow | null> {
@@ -53,10 +55,10 @@ export async function upsertGoal(pool: pg.Pool, tenantId: string, patch: GoalPat
   const r = await pool.query<GoalRow>(
     `INSERT INTO agent_goals
        (tenant_id, kind, enabled, dormant_window_days, auto_fire_max_audience,
-        max_touches, touch_spacing_days, line_manager_email, brand_voice)
+        max_touches, touch_spacing_days, line_manager_email, brand_voice, persona)
      VALUES ($1, 'reengage_dormant',
         COALESCE($2, false), COALESCE($3, 60), COALESCE($4, 0),
-        COALESCE($5, 3), COALESCE($6, 3), $7, $8)
+        COALESCE($5, 3), COALESCE($6, 3), $7, $8, $9)
      ON CONFLICT (tenant_id, kind) DO UPDATE SET
         enabled                = COALESCE($2, agent_goals.enabled),
         dormant_window_days    = COALESCE($3, agent_goals.dormant_window_days),
@@ -65,6 +67,7 @@ export async function upsertGoal(pool: pg.Pool, tenantId: string, patch: GoalPat
         touch_spacing_days     = COALESCE($6, agent_goals.touch_spacing_days),
         line_manager_email     = COALESCE($7, agent_goals.line_manager_email),
         brand_voice            = COALESCE($8, agent_goals.brand_voice),
+        persona                = COALESCE($9, agent_goals.persona),
         updated_at             = now()
      RETURNING *`,
     [
@@ -76,6 +79,7 @@ export async function upsertGoal(pool: pg.Pool, tenantId: string, patch: GoalPat
       patch.touchSpacingDays ?? null,
       patch.lineManagerEmail ?? null,
       patch.brandVoice ?? null,
+      patch.persona ?? null,
     ],
   );
   return r.rows[0];

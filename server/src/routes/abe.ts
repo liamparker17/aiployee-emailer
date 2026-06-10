@@ -19,6 +19,7 @@ const GoalBody = z.object({
   touchSpacingDays: z.number().int().min(1).max(60).optional(),
   lineManagerEmail: z.string().email().nullable().optional(),
   brandVoice: z.string().max(2000).nullable().optional(),
+  persona: z.string().max(12000).nullable().optional(),
 });
 
 export function registerAbeRoutes(app: FastifyInstance): void {

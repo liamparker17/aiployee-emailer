@@ -63,6 +63,7 @@ export default function ManageAbe({ open, onClose, goal, onSaved }: Props) {
   const [touchSpacingDays, setTouchSpacingDays] = useState(goal.touch_spacing_days);
   const [lineManagerEmail, setLineManagerEmail] = useState(goal.line_manager_email ?? '');
   const [brandVoice, setBrandVoice] = useState(goal.brand_voice ?? '');
+  const [persona, setPersona] = useState(goal.persona ?? '');
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
@@ -83,6 +84,7 @@ export default function ManageAbe({ open, onClose, goal, onSaved }: Props) {
           touchSpacingDays,
           lineManagerEmail: lineManagerEmail || null,
           brandVoice: brandVoice || null,
+          persona: persona || null,
         }),
       });
       if (openaiKey.trim()) {
@@ -204,6 +206,20 @@ export default function ManageAbe({ open, onClose, goal, onSaved }: Props) {
               />
             </Field>
           </div>
+        </section>
+
+        {/* ── Persona ── */}
+        <section>
+          <Field label="Persona" hint="Who Abe is for this business — role, responsibilities, priorities, drafting rules. Replaces his default job description. His safety rules (human approval before anything sends, no invented facts, confidentiality) always apply and cannot be overridden here.">
+            <textarea
+              rows={10}
+              value={persona}
+              disabled={!isAdmin}
+              onChange={e => setPersona(e.target.value)}
+              placeholder="e.g. You manage email for [name], Managing Director of [company]… Leave blank for Abe's default analyst persona."
+              className="w-full rounded-lg border border-line-strong bg-surface-raised text-ink placeholder:text-ink-dim px-3 py-2 text-sm transition focus:outline-none focus:border-accent focus:ring-2 focus:ring-magenta/40 resize-y disabled:opacity-60"
+            />
+          </Field>
         </section>
 
         {/* ── Brand voice ── */}
