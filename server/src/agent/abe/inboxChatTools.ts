@@ -2,7 +2,7 @@ import type pg from 'pg';
 import type { LlmClient } from '../runner.js';
 import { makeEmbedBatch } from '../runner.js';
 import type { McpToolProvider, AgentTool } from '../mcp.js';
-import { CALL_BATCH_MODEL } from './models.js';
+import { INBOX_BATCH_MODEL } from './models.js';
 import { analyzeCampaign, type BatchEmbed } from './campaignAnalysis.js';
 import { draftGroupResponse } from './draftGroupResponse.js';
 import {
@@ -88,7 +88,7 @@ export function makeInboxChatProvider(ctx: {
         case 'analyze_campaign': {
           const campaign = await resolveCampaign(String(args.campaign ?? ''));
           if (!campaign) return ok({ error: 'campaign not found or ambiguous — ask the user which campaign they mean' });
-          const r = await analyzeCampaign({ pool, tenantId, campaignId: campaign.id, embed, llm, model: CALL_BATCH_MODEL });
+          const r = await analyzeCampaign({ pool, tenantId, campaignId: campaign.id, embed, llm, model: INBOX_BATCH_MODEL });
           return ok({
             campaign: campaign.name, funnel: r.funnel,
             groups: r.groups.map(g => ({

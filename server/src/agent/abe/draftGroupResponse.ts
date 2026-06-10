@@ -1,6 +1,6 @@
 import type pg from 'pg';
 import type { LlmClient } from '../runner.js';
-import { CALL_BATCH_MODEL } from './models.js';
+import { INBOX_BATCH_MODEL } from './models.js';
 import { parseLlmJson } from './campaignAnalysis.js';
 import { getGoal } from '../../repos/agentGoals.js';
 import { insertPlay, setPlayStatus } from '../../repos/agentPlays.js';
@@ -64,7 +64,7 @@ export async function draftGroupResponse(args: {
   // individual mode
   const targets = withContact.slice(0, MAX_INDIVIDUAL_DRAFTS);
   const llm = args.llm;
-  const model = args.model ?? CALL_BATCH_MODEL;
+  const model = args.model ?? INBOX_BATCH_MODEL;
   const playIds: string[] = [];
   for (const m of targets) {
     const draft = llm ? await personalise(llm, model, { subject, bodyHtml }, m) : { subject, bodyHtml };

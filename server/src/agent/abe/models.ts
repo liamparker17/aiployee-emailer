@@ -3,3 +3,9 @@
 // (which stays on the tenant's configured model) so bulk work doesn't run on a premium model.
 // gpt-4o-mini is ~15-20x cheaper than gpt-4o and ample for classifying call summaries.
 export const CALL_BATCH_MODEL = 'gpt-4o-mini';
+
+// Inbox reply analysis (cluster labeling, hot-lead scan, draft personalisation).
+// Bulk reply text only ever touches embeddings; this chat model sees small
+// samples/snippets, so the cheapest tier is ample. gpt-4.1-nano is ~3x cheaper
+// than gpt-4o-mini.
+export const INBOX_BATCH_MODEL = 'gpt-4.1-nano';

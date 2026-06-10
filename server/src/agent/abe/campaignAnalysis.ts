@@ -1,6 +1,6 @@
 import type pg from 'pg';
 import type { LlmClient } from '../runner.js';
-import { CALL_BATCH_MODEL } from './models.js';
+import { INBOX_BATCH_MODEL } from './models.js';
 import {
   createAnalysis, finishAnalysis, insertReplyGroup, assignRepliesToGroup, setHotLeads,
   campaignFunnel, listCampaignReplies, setReplyEmbedding,
@@ -39,7 +39,7 @@ export async function analyzeCampaign(args: {
   model?: string;
 }): Promise<AnalyzeResult> {
   const { pool, tenantId, campaignId, embed, llm } = args;
-  const model = args.model ?? CALL_BATCH_MODEL;
+  const model = args.model ?? INBOX_BATCH_MODEL;
   const analysis = await createAnalysis(pool, tenantId, campaignId);
 
   try {
