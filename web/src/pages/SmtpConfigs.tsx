@@ -18,6 +18,7 @@ export default function SmtpConfigs() {
   const [imapItems, setImapItems] = useState<ImapCfg[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [m365For, setM365For] = useState<Cfg | null>(null);
   const toast = useToast();
   const refresh = () => Promise.all([
     api<{ configs: Cfg[] }>('/api/smtp-configs').then(r => setItems(r.configs)),
@@ -51,6 +52,9 @@ export default function SmtpConfigs() {
                   <TestBtn id={c.id} />
                   {monitoredUsers.has(c.username.toLowerCase()) ? (
                     <Button variant="ghost" disabled>Monitored</Button>
+                  ) : isM365Host(c.host) ? (
+                    // Microsoft killed password IMAP — M365 mailboxes connect via device-code OAuth.
+                    <Button variant="ghost" onClick={() => setM365For(c)}>Monitor inbox</Button>
                   ) : (
                     <Button variant="ghost" onClick={async () => {
                       try {
@@ -122,7 +126,79 @@ export default function SmtpConfigs() {
         )}
       </div>
       <AddModal open={open} onClose={() => { setOpen(false); refresh(); }} />
+      <M365ConnectModal cfg={m365For} onClose={() => { setM365For(null); refresh(); }} />
     </div>
+  );
+}
+
+function isM365Host(host: string): boolean {
+  const h = host.trim().toLowerCase();
+  return h === 'smtp.office365.com' || h === 'smtp-mail.outlook.com';
+}
+
+function M365ConnectModal({ cfg, onClose }: { cfg: Cfg | null; onClose: () => void }) {
+  const [code, setCode] = useState<{ userCode: string; verificationUri: string } | null>(null);
+  const [status, setStatus] = useState<'starting' | 'waiting' | 'done' | 'error'>('starting');
+  const [error, setError] = useState('');
+  const toast = useToast();
+
+  useEffect(() => {
+    if (!cfg) return;
+    setCode(null); setStatus('starting'); setError('');
+    let cancelled = false;
+    let timer: number | undefined;
+    interface StartRes { username: string; userCode: string; verificationUri: string; deviceCode: string; intervalSeconds: number }
+    api<StartRes>('/api/imap-configs/oauth/start', { method: 'POST', body: JSON.stringify({ smtpConfigId: cfg.id }) })
+      .then(r => {
+        if (cancelled) return;
+        setCode({ userCode: r.userCode, verificationUri: r.verificationUri });
+        setStatus('waiting');
+        const poll = async () => {
+          if (cancelled) return;
+          try {
+            const c = await api<{ pending?: boolean }>('/api/imap-configs/oauth/complete', {
+              method: 'POST',
+              body: JSON.stringify({ deviceCode: r.deviceCode, username: r.username }),
+            });
+            if (cancelled) return;
+            if (c.pending) { timer = window.setTimeout(poll, Math.max(2, r.intervalSeconds) * 1000); return; }
+            setStatus('done');
+            toast.success('Mailbox connected — replies will sync every few minutes.');
+          } catch (e: unknown) {
+            if (cancelled) return;
+            setStatus('error'); setError((e as Error).message);
+          }
+        };
+        timer = window.setTimeout(poll, Math.max(2, r.intervalSeconds) * 1000);
+      })
+      .catch((e: unknown) => { if (!cancelled) { setStatus('error'); setError((e as Error).message); } });
+    return () => { cancelled = true; if (timer) window.clearTimeout(timer); };
+  }, [cfg]);
+
+  return (
+    <Modal open={!!cfg} onClose={onClose} title="Connect Microsoft 365 inbox">
+      <div className="space-y-4 text-sm">
+        <p className="text-ink-muted">
+          Microsoft requires a one-time sign-in to allow inbox reading (passwords alone no longer work for IMAP).
+          Sign in as <strong>{cfg?.username}</strong>:
+        </p>
+        {status === 'starting' && <Skeleton className="h-16" />}
+        {code && status !== 'done' && (
+          <div className="rounded-md border border-line bg-surface-raised px-4 py-3 space-y-2">
+            <p>1. Open <a className="underline" href={code.verificationUri} target="_blank" rel="noreferrer">{code.verificationUri}</a></p>
+            <p>2. Enter this code:</p>
+            <p className="text-2xl font-mono font-bold tracking-widest text-center select-all">{code.userCode}</p>
+            <p className="text-xs text-ink-muted">3. Sign in with the mailbox's normal username and password. This page detects it automatically.</p>
+          </div>
+        )}
+        {status === 'waiting' && <p className="text-ink-muted">Waiting for you to finish signing in…</p>}
+        {status === 'done' && <p className="font-medium">✅ Connected. Replies are now syncing.</p>}
+        {status === 'error' && <p className="text-red-600">Failed: {error}</p>}
+        <div className="flex justify-end">
+          <Button variant="ghost" onClick={onClose}>{status === 'done' ? 'Close' : 'Cancel'}</Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

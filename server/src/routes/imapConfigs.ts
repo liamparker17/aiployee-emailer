@@ -3,9 +3,11 @@ import { z } from 'zod';
 import { requireTenantCtx } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
 import {
-  createImapConfig, listImapConfigs, getImapConfigWithPassword,
+  createImapConfig, createImapConfigOauth, listImapConfigs, getImapConfigWithPassword,
   setImapConfigEnabled, deleteImapConfig, suggestImapHost,
-  getSmtpConfigWithPassword, imapflowConnect,
+  getSmtpConfigWithPassword, imapflowConnect, resolveImapCreds,
+  startDeviceCode, pollDeviceCode,
+  DEFAULT_MS_CLIENT_ID, DEFAULT_MS_TENANT,
 } from '@aiployee/core';
 
 // Two ways to enable inbox monitoring:
@@ -31,6 +33,21 @@ const ManualBody = z.object({
 });
 
 const PatchBody = z.object({ enabled: z.boolean() });
+
+// Device-code OAuth (Microsoft 365): start returns a code the user enters at
+// microsoft.com/devicelogin; complete polls Microsoft once per call until the
+// sign-in lands, then stores the refresh token and enables monitoring.
+const OauthStartBody = z.object({
+  smtpConfigId: z.string().uuid().optional(),
+  username: z.string().min(3).optional(),
+}).refine(b => b.smtpConfigId || b.username, { message: 'smtpConfigId or username required' });
+
+const OauthCompleteBody = z.object({
+  deviceCode: z.string().min(1),
+  username: z.string().min(3),
+  host: z.string().min(1).default('outlook.office365.com'),
+  senderId: z.string().uuid().nullish(),
+});
 
 export async function registerImapConfigRoutes(app: FastifyInstance) {
   app.get('/api/imap-configs', async (req, reply) => {
@@ -89,23 +106,61 @@ export async function registerImapConfigRoutes(app: FastifyInstance) {
     } catch (e) { sendError(reply, e); }
   });
 
-  // Connect + open INBOX with the stored credential. Proves host/credential work
-  // before the cron quietly fails; mirrors the SMTP test-send endpoint.
+  // Connect + open INBOX with the stored credential (password or XOAUTH2).
+  // Proves host/credential work before the cron quietly fails; mirrors the SMTP test-send.
   app.post('/api/imap-configs/:id/test', async (req, reply) => {
     try {
       const ctx = requireTenantCtx(req);
       const { id } = req.params as { id: string };
       const cfg = await getImapConfigWithPassword(app.pool, app.cfg.encKey, id);
       if (!cfg || cfg.tenant_id !== ctx.tenantId) throw new AppError('not_found', 404, 'IMAP config not found');
-      const session = await imapflowConnect({
-        host: cfg.host, port: cfg.port, secure: cfg.secure, user: cfg.username, pass: cfg.password,
-      });
+      const session = await imapflowConnect(await resolveImapCreds(app.pool, app.cfg.encKey, cfg));
       try {
         return reply.send({ ok: true, uidValidity: session.uidValidity });
       } finally { await session.close(); }
     } catch (e) {
       sendError(reply, toImapTestError(e));
     }
+  });
+
+  app.post('/api/imap-configs/oauth/start', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      const body = OauthStartBody.parse(req.body);
+      let username = body.username ?? null;
+      if (body.smtpConfigId) {
+        const smtp = await getSmtpConfigWithPassword(app.pool, app.cfg.encKey, ctx.tenantId, body.smtpConfigId);
+        if (!smtp) throw new AppError('not_found', 404, 'SMTP config not found');
+        username = smtp.username;
+      }
+      const dc = await startDeviceCode();
+      return reply.send({
+        username,
+        userCode: dc.userCode,
+        verificationUri: dc.verificationUri,
+        deviceCode: dc.deviceCode,
+        intervalSeconds: dc.intervalSeconds,
+        expiresInSeconds: dc.expiresInSeconds,
+      });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  app.post('/api/imap-configs/oauth/complete', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      const body = OauthCompleteBody.parse(req.body);
+      const res = await pollDeviceCode({ deviceCode: body.deviceCode });
+      if (res.status === 'pending') return reply.code(202).send({ pending: true });
+      if (res.status === 'failed') throw new AppError('oauth_failed', 400, res.error);
+      if (!res.tokens.refreshToken) throw new AppError('oauth_failed', 400, 'Microsoft did not return a refresh token (offline_access missing?)');
+      const c = await createImapConfigOauth(app.pool, app.cfg.encKey, {
+        tenantId: ctx.tenantId, senderId: body.senderId ?? null,
+        host: body.host, port: 993, secure: true, username: body.username,
+        clientId: DEFAULT_MS_CLIENT_ID, oauthTenant: DEFAULT_MS_TENANT,
+        refreshToken: res.tokens.refreshToken, enabled: true,
+      });
+      return reply.code(201).send({ config: c });
+    } catch (e) { sendError(reply, e); }
   });
 }
 

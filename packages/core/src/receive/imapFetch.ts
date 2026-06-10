@@ -1,9 +1,10 @@
 import type pg from 'pg';
-import { getImapConfigWithPassword, setImapConfigError } from '../repos/imapConfigs.js';
+import { getImapConfigWithPassword, setImapConfigError, updateImapRefreshToken } from '../repos/imapConfigs.js';
 import { getSyncState, upsertSyncState } from '../repos/imapSyncState.js';
 import { insertInboundEmail } from '../repos/inboundEmails.js';
 import { parseRawEmail } from './parse.js';
 import { correlateReply } from './correlate.js';
+import { refreshAccessToken, DEFAULT_MS_CLIENT_ID, DEFAULT_MS_TENANT, type OauthTokens } from './msOauth.js';
 
 const FOLDER = 'INBOX';
 const MAX_PER_RUN = 200;
@@ -17,18 +18,46 @@ export interface ImapSession {
 }
 
 export interface ImapCreds {
-  host: string; port: number; secure: boolean; user: string; pass: string;
+  host: string; port: number; secure: boolean; user: string;
+  pass?: string;         // auth_type 'password'
+  accessToken?: string;  // auth_type 'xoauth2'
 }
 
 export type ImapConnect = (creds: ImapCreds) => Promise<ImapSession>;
+export type TokenRefresher = (args: { refreshToken: string; clientId?: string; tenant?: string }) => Promise<OauthTokens>;
 
 export interface SyncResult { fetched: number; inserted: number }
+
+/** Build connectable creds for a config, refreshing the OAuth token when needed.
+ *  Persists Microsoft's rotated refresh token so the chain never goes stale. */
+export async function resolveImapCreds(
+  pool: pg.Pool, encKey: Buffer,
+  cfg: NonNullable<Awaited<ReturnType<typeof getImapConfigWithPassword>>>,
+  refresh: TokenRefresher = refreshAccessToken,
+): Promise<ImapCreds> {
+  const base = { host: cfg.host, port: cfg.port, secure: cfg.secure, user: cfg.username };
+  if (cfg.auth_type === 'xoauth2') {
+    if (!cfg.refreshToken) throw new Error('xoauth2 config has no refresh token — reconnect the mailbox');
+    const tokens = await refresh({
+      refreshToken: cfg.refreshToken,
+      clientId: cfg.oauth_client_id ?? DEFAULT_MS_CLIENT_ID,
+      tenant: cfg.oauth_tenant ?? DEFAULT_MS_TENANT,
+    });
+    if (tokens.refreshToken && tokens.refreshToken !== cfg.refreshToken) {
+      await updateImapRefreshToken(pool, encKey, cfg.id, tokens.refreshToken);
+    }
+    return { ...base, accessToken: tokens.accessToken };
+  }
+  if (!cfg.password) throw new Error('password config has no stored password');
+  return { ...base, pass: cfg.password };
+}
 
 export async function syncMailbox(args: {
   pool: pg.Pool;
   encKey: Buffer;
   configId: string;
   connect?: ImapConnect;
+  refreshToken?: TokenRefresher;
 }): Promise<SyncResult> {
   const { pool, encKey, configId } = args;
   const connect = args.connect ?? imapflowConnect;
@@ -38,7 +67,7 @@ export async function syncMailbox(args: {
 
   let session: ImapSession | null = null;
   try {
-    session = await connect({ host: cfg.host, port: cfg.port, secure: cfg.secure, user: cfg.username, pass: cfg.password });
+    session = await connect(await resolveImapCreds(pool, encKey, cfg, args.refreshToken ?? refreshAccessToken));
 
     const state = await getSyncState(pool, configId, FOLDER);
     const storedValidity = state ? Number(state.uid_validity) : 0;
@@ -85,7 +114,9 @@ export const imapflowConnect: ImapConnect = async (creds) => {
   const { ImapFlow } = await import('imapflow');
   const client = new ImapFlow({
     host: creds.host, port: creds.port, secure: creds.secure,
-    auth: { user: creds.user, pass: creds.pass }, logger: false,
+    // ImapFlow speaks XOAUTH2 natively when accessToken is set instead of pass.
+    auth: creds.accessToken ? { user: creds.user, accessToken: creds.accessToken } : { user: creds.user, pass: creds.pass },
+    logger: false,
   });
   await client.connect();
   const lock = await client.getMailboxLock(FOLDER);

@@ -11,12 +11,15 @@ export interface ImapConfigRow {
   username: string;
   enabled: boolean;
   last_error: string | null;
+  auth_type: 'password' | 'xoauth2';
+  oauth_client_id: string | null;
+  oauth_tenant: string | null;
   created_at: string;
   updated_at: string;
 }
 
 const SELECT_COLS =
-  'id, tenant_id, sender_id, host, port, secure, username, enabled, last_error, created_at, updated_at';
+  'id, tenant_id, sender_id, host, port, secure, username, enabled, last_error, auth_type, oauth_client_id, oauth_tenant, created_at, updated_at';
 
 export async function createImapConfig(
   pool: pg.Pool,
@@ -55,15 +58,47 @@ export async function getImapConfigWithPassword(
   pool: pg.Pool,
   key: Buffer,
   id: string,
-): Promise<(ImapConfigRow & { password: string }) | null> {
-  const r = await pool.query<ImapConfigRow & { password_encrypted: Buffer }>(
-    `SELECT ${SELECT_COLS}, password_encrypted FROM imap_configs WHERE id = $1`,
+): Promise<(ImapConfigRow & { password: string | null; refreshToken: string | null }) | null> {
+  const r = await pool.query<ImapConfigRow & { password_encrypted: Buffer | null; oauth_refresh_token_encrypted: Buffer | null }>(
+    `SELECT ${SELECT_COLS}, password_encrypted, oauth_refresh_token_encrypted FROM imap_configs WHERE id = $1`,
     [id],
   );
   const row = r.rows[0];
   if (!row) return null;
-  const { password_encrypted, ...rest } = row;
-  return { ...(rest as ImapConfigRow), password: decrypt(password_encrypted, key) };
+  const { password_encrypted, oauth_refresh_token_encrypted, ...rest } = row;
+  return {
+    ...(rest as ImapConfigRow),
+    password: password_encrypted ? decrypt(password_encrypted, key) : null,
+    refreshToken: oauth_refresh_token_encrypted ? decrypt(oauth_refresh_token_encrypted, key) : null,
+  };
+}
+
+export async function createImapConfigOauth(
+  pool: pg.Pool,
+  key: Buffer,
+  input: {
+    tenantId: string; senderId: string | null; host: string; port: number; secure: boolean;
+    username: string; clientId: string; oauthTenant: string; refreshToken: string; enabled: boolean;
+  },
+): Promise<ImapConfigRow> {
+  const enc = encrypt(input.refreshToken, key);
+  const r = await pool.query<ImapConfigRow>(
+    `INSERT INTO imap_configs(tenant_id, sender_id, host, port, secure, username, enabled,
+                              auth_type, oauth_client_id, oauth_tenant, oauth_refresh_token_encrypted)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'xoauth2',$8,$9,$10)
+     RETURNING ${SELECT_COLS}`,
+    [input.tenantId, input.senderId, input.host, input.port, input.secure, input.username, input.enabled,
+     input.clientId, input.oauthTenant, enc],
+  );
+  return r.rows[0];
+}
+
+/** Microsoft rotates refresh tokens on use — persist the newest one after each sync. */
+export async function updateImapRefreshToken(pool: pg.Pool, key: Buffer, id: string, refreshToken: string): Promise<void> {
+  await pool.query(
+    `UPDATE imap_configs SET oauth_refresh_token_encrypted = $2, updated_at = now() WHERE id = $1`,
+    [id, encrypt(refreshToken, key)],
+  );
 }
 
 export async function listImapConfigs(pool: pg.Pool, tenantId: string): Promise<ImapConfigRow[]> {

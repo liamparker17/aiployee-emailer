@@ -49,3 +49,4 @@ export * from './marketing/unsubscribe.js';
 // Inbound email ingestion (Abe inbox Phase 1): IMAP config repo + mailbox sync.
 export * from './repos/imapConfigs.js';
 export * from './receive/imapFetch.js';
+export * from './receive/msOauth.js';
