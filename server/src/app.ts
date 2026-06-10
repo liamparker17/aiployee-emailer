@@ -13,6 +13,7 @@ import { registerCtx } from '@aiployee/core';
 import { registerAuthRoutes } from '@aiployee/core';
 import { registerAdminTenantRoutes } from '@aiployee/core';
 import { registerSmtpConfigRoutes } from './routes/smtpConfigs.js';
+import { registerImapConfigRoutes } from './routes/imapConfigs.js';
 import { registerSenderRoutes } from './routes/senders.js';
 import { registerTemplateRoutes } from './routes/templates.js';
 import { registerApiKeyRoutes } from '@aiployee/core';
@@ -79,6 +80,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerAuthRoutes(app);
   await registerAdminTenantRoutes(app);
   await registerSmtpConfigRoutes(app);
+  await registerImapConfigRoutes(app);
   await registerSenderRoutes(app);
   await registerTemplateRoutes(app);
   await registerApiKeyRoutes(app);
