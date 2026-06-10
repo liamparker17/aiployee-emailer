@@ -5,7 +5,7 @@ import { sendError, AppError } from '@aiployee/core';
 import {
   createSmtpConfig, listSmtpConfigs, getSmtpConfigWithPassword, deleteSmtpConfig,
 } from '@aiployee/core';
-import { buildTransport } from '@aiployee/core';
+import { buildTransport, getSenderForSmtpConfig } from '@aiployee/core';
 
 const CreateBody = z.object({
   name: z.string().min(1),
@@ -59,13 +59,16 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
       const cfg = await getSmtpConfigWithPassword(app.pool, app.cfg.encKey, ctx.tenantId, id);
       if (!cfg) throw new AppError('not_found', 404, 'SMTP config not found');
       const tx = buildTransport(cfg);
+      // Prefer the sender identity linked to this config: relay providers (Mimecast,
+      // SES) authenticate as a service account that is NOT the From address. Gmail/
+      // Outlook ignore or reject a mismatched From, so falling back to the username
+      // keeps the old behavior when no sender is linked.
+      const sender = await getSenderForSmtpConfig(app.pool, ctx.tenantId, id);
+      const fromAddr = sender?.email ?? cfg.username;
+      const fromName = sender?.display_name ?? 'Aiployee Emailer';
       try {
         const info = await tx.sendMail({
-          // Use the authenticated SMTP user as the From: address. Gmail (and most SMTP relays)
-          // reject submissions where From: doesn't belong to the authenticated user. For non-Gmail
-          // providers where `username` may not be an email (e.g. SES IAM-style usernames), this
-          // could need adjustment — but for Gmail/Outlook/most providers, username IS the email.
-          from: `Aiployee Emailer <${cfg.username}>`,
+          from: `${fromName} <${fromAddr}>`,
           to: body.to,
           subject: 'Aiployee Emailer SMTP test',
           text: 'If you can read this, your SMTP config works.',

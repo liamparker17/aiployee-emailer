@@ -48,6 +48,16 @@ export async function getDefaultSender(pool: pg.Pool, tenantId: string): Promise
   return r.rows[0] ?? null;
 }
 
+/** The sender identity tied to an SMTP config — for relay setups (e.g. Mimecast)
+ *  the From address must be this, not the relay's auth username. */
+export async function getSenderForSmtpConfig(pool: pg.Pool, tenantId: string, smtpConfigId: string): Promise<Sender | null> {
+  const r = await pool.query<Sender>(
+    `SELECT id, tenant_id, email, display_name, reply_to, smtp_config_id, is_default, created_at
+     FROM senders WHERE tenant_id = $1 AND smtp_config_id = $2 ORDER BY is_default DESC, created_at ASC LIMIT 1`,
+    [tenantId, smtpConfigId]);
+  return r.rows[0] ?? null;
+}
+
 export async function deleteSender(pool: pg.Pool, tenantId: string, id: string): Promise<boolean> {
   const r = await pool.query(`DELETE FROM senders WHERE tenant_id = $1 AND id = $2`, [tenantId, id]);
   return r.rowCount === 1;
