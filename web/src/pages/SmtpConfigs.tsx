@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Server } from 'lucide-react';
+import { Server, Inbox } from 'lucide-react';
 import { api } from '@aiployee/ui';
 import { Table, Th, Td } from '@aiployee/ui';
 import { Button } from '@aiployee/ui';
@@ -11,14 +11,21 @@ import { Skeleton } from '@aiployee/ui';
 import { useToast } from '@aiployee/ui';
 
 interface Cfg { id: string; name: string; host: string; port: number; secure: boolean; username: string; from_domain: string; is_default: boolean }
+interface ImapCfg { id: string; host: string; port: number; secure: boolean; username: string; enabled: boolean; last_error: string | null }
 
 export default function SmtpConfigs() {
   const [items, setItems] = useState<Cfg[]>([]);
+  const [imapItems, setImapItems] = useState<ImapCfg[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const toast = useToast();
-  const refresh = () => api<{ configs: Cfg[] }>('/api/smtp-configs').then(r => { setItems(r.configs); setLoading(false); });
+  const refresh = () => Promise.all([
+    api<{ configs: Cfg[] }>('/api/smtp-configs').then(r => setItems(r.configs)),
+    api<{ configs: ImapCfg[] }>('/api/imap-configs').then(r => setImapItems(r.configs)),
+  ]).then(() => setLoading(false));
   useEffect(() => { refresh(); }, []);
+
+  const monitoredUsers = new Set(imapItems.map(c => c.username.toLowerCase()));
 
   return (
     <div className="space-y-6">
@@ -42,6 +49,19 @@ export default function SmtpConfigs() {
               <Td>
                 <div className="flex gap-2 justify-end">
                   <TestBtn id={c.id} />
+                  {monitoredUsers.has(c.username.toLowerCase()) ? (
+                    <Button variant="ghost" disabled>Monitored</Button>
+                  ) : (
+                    <Button variant="ghost" onClick={async () => {
+                      try {
+                        await api('/api/imap-configs', { method: 'POST', body: JSON.stringify({ smtpConfigId: c.id }) });
+                        toast.success('Inbox monitoring enabled — replies will sync every few minutes.');
+                        refresh();
+                      } catch (e: unknown) {
+                        toast.error('Enable failed: ' + (e as Error).message);
+                      }
+                    }}>Monitor inbox</Button>
+                  )}
                   <Button variant="danger" onClick={async () => {
                     if (!confirm(`Delete ${c.name}?`)) return;
                     try {
@@ -58,9 +78,66 @@ export default function SmtpConfigs() {
           ))}</tbody>
         </Table>
       )}
+      <div className="space-y-3 pt-4">
+        <PageHeader
+          title="Inbox monitoring"
+          subtitle="Mailboxes read over IMAP so campaign replies flow into the system for Abe to analyze."
+        />
+        {!loading && imapItems.length === 0 ? (
+          <EmptyState icon={Inbox} title="No monitored inboxes" description="Use “Monitor inbox” on an SMTP config to start syncing its replies." />
+        ) : (
+          <Table>
+            <thead><tr><Th>Mailbox</Th><Th>IMAP host</Th><Th>Status</Th><Th>{''}</Th></tr></thead>
+            <tbody>{imapItems.map(c => (
+              <tr key={c.id}>
+                <Td>{c.username}</Td>
+                <Td>{c.host}</Td>
+                <Td>
+                  {c.last_error
+                    ? <span className="text-red-600 text-xs" title={c.last_error}>Error: {c.last_error.slice(0, 60)}</span>
+                    : c.enabled ? 'Syncing' : 'Paused'}
+                </Td>
+                <Td>
+                  <div className="flex gap-2 justify-end">
+                    <ImapTestBtn id={c.id} />
+                    <Button variant="ghost" onClick={async () => {
+                      try {
+                        await api(`/api/imap-configs/${c.id}`, { method: 'PATCH', body: JSON.stringify({ enabled: !c.enabled }) });
+                        refresh();
+                      } catch (e: unknown) { toast.error('Update failed: ' + (e as Error).message); }
+                    }}>{c.enabled ? 'Pause' : 'Resume'}</Button>
+                    <Button variant="danger" onClick={async () => {
+                      if (!confirm(`Stop monitoring ${c.username}?`)) return;
+                      try {
+                        await api(`/api/imap-configs/${c.id}`, { method: 'DELETE' });
+                        toast.success('Inbox monitoring removed.');
+                        refresh();
+                      } catch (e: unknown) { toast.error('Delete failed: ' + (e as Error).message); }
+                    }}>Remove</Button>
+                  </div>
+                </Td>
+              </tr>
+            ))}</tbody>
+          </Table>
+        )}
+      </div>
       <AddModal open={open} onClose={() => { setOpen(false); refresh(); }} />
     </div>
   );
+}
+
+function ImapTestBtn({ id }: { id: string }) {
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  return <Button variant="ghost" disabled={busy} onClick={async () => {
+    setBusy(true);
+    try {
+      await api(`/api/imap-configs/${id}/test`, { method: 'POST', body: JSON.stringify({}) });
+      toast.success('Connected — INBOX is reachable.');
+    }
+    catch (e: unknown) { toast.error('Failed: ' + (e as Error).message); }
+    finally { setBusy(false); }
+  }}>Test</Button>;
 }
 
 function TestBtn({ id }: { id: string }) {
