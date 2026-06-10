@@ -85,6 +85,27 @@ describe('xoauth2 imap configs', () => {
     expect(after.refreshToken).toBe('rt-rotated');
   });
 
+  it('first sync starts at a recent window when the session reports uidNext', async () => {
+    const t = await createTenant(pool);
+    const cfg = await createImapConfigOauth(pool, ENC, {
+      tenantId: t.id, senderId: null, host: 'outlook.office365.com', port: 993, secure: true,
+      username: 'marcel@x.com', clientId: 'c', oauthTenant: 'common', refreshToken: 'rt', enabled: true,
+    });
+    let fetchedSince = -1;
+    const session: ImapSession = {
+      uidValidity: 7,
+      uidNext: 10_000, // mailbox with ~10k historical messages
+      async *fetchSince(uid: number) { fetchedSince = uid; },
+      async close() {},
+    };
+    await syncMailbox({
+      pool, encKey: ENC, configId: cfg.id,
+      connect: async () => session,
+      refreshToken: async () => ({ accessToken: 'at', refreshToken: null, expiresInSeconds: 3600 }),
+    });
+    expect(fetchedSince).toBe(10_000 - 1 - 500); // recent window, not UID 0
+  });
+
   it('syncMailbox connects with an access token for xoauth2 configs', async () => {
     const t = await createTenant(pool);
     const cfg = await createImapConfigOauth(pool, ENC, {

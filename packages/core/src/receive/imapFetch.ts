@@ -8,11 +8,16 @@ import { refreshAccessToken, DEFAULT_MS_CLIENT_ID, DEFAULT_MS_TENANT, type Oauth
 
 const FOLDER = 'INBOX';
 const MAX_PER_RUN = 200;
+// First-ever sync (or post-UIDVALIDITY reset): only the most recent messages.
+// Walking a mailbox from UID 1 ingests years of history that predates any
+// campaign — wasteful, slow, and useless for reply correlation.
+const INITIAL_SYNC_WINDOW = 500;
 
 export interface RawMessage { uid: number; source: Buffer }
 
 export interface ImapSession {
   uidValidity: number;
+  uidNext?: number; // next UID the server will assign; bounds the initial window
   fetchSince(uid: number): AsyncIterable<RawMessage>;
   close(): Promise<void>;
 }
@@ -71,8 +76,10 @@ export async function syncMailbox(args: {
 
     const state = await getSyncState(pool, configId, FOLDER);
     const storedValidity = state ? Number(state.uid_validity) : 0;
-    // If UIDVALIDITY changed (or first run), reset the cursor to 0.
-    const lastSeen = state && storedValidity === session.uidValidity ? Number(state.last_seen_uid) : 0;
+    // If UIDVALIDITY changed (or first run), reset the cursor — to a recent
+    // window when the session reports uidNext, else to 0 (test stubs).
+    const freshCursor = session.uidNext ? Math.max(0, session.uidNext - 1 - INITIAL_SYNC_WINDOW) : 0;
+    const lastSeen = state && storedValidity === session.uidValidity ? Number(state.last_seen_uid) : freshCursor;
 
     let fetched = 0;
     let inserted = 0;
@@ -120,9 +127,12 @@ export const imapflowConnect: ImapConnect = async (creds) => {
   });
   await client.connect();
   const lock = await client.getMailboxLock(FOLDER);
-  const uidValidity = Number((client.mailbox && typeof client.mailbox === 'object' ? client.mailbox.uidValidity : 0) ?? 0);
+  const box = client.mailbox && typeof client.mailbox === 'object' ? client.mailbox : null;
+  const uidValidity = Number(box?.uidValidity ?? 0);
+  const uidNext = Number(box?.uidNext ?? 0) || undefined;
   return {
     uidValidity,
+    uidNext,
     async *fetchSince(uid: number): AsyncIterable<RawMessage> {
       // UID range: messages with uid greater than the cursor.
       for await (const m of client.fetch({ uid: `${uid + 1}:*` }, { uid: true, source: true })) {
