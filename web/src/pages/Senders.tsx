@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { Send } from 'lucide-react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Send, Inbox } from 'lucide-react';
 import { api } from '@aiployee/ui';
 import { Table, Th, Td } from '@aiployee/ui';
 import { Button } from '@aiployee/ui';
@@ -12,18 +12,27 @@ import { useToast } from '@aiployee/ui';
 
 interface Sender { id: string; email: string; display_name: string; reply_to: string | null; smtp_config_id: string; is_default: boolean }
 interface Cfg { id: string; name: string; from_domain: string }
+interface ImapCfg { id: string; sender_id: string | null; host: string; username: string; enabled: boolean; last_error: string | null; auth_type: 'password' | 'xoauth2' }
 
 export default function Senders() {
   const [items, setItems] = useState<Sender[]>([]);
   const [configs, setConfigs] = useState<Cfg[]>([]);
+  const [imapItems, setImapItems] = useState<ImapCfg[]>([]);
   const [open, setOpen] = useState(false);
+  const [connectFor, setConnectFor] = useState<{ email: string; senderId: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
   const refresh = () => Promise.all([
     api<{ senders: Sender[] }>('/api/senders').then(r => setItems(r.senders)),
     api<{ configs: Cfg[] }>('/api/smtp-configs').then(r => setConfigs(r.configs)),
+    api<{ configs: ImapCfg[] }>('/api/imap-configs').then(r => setImapItems(r.configs)),
   ]).then(() => setLoading(false));
   useEffect(() => { refresh(); }, []);
+
+  // A sender counts as monitored when an IMAP config is linked to it, or one
+  // watches the same address (legacy rows created before sender linking).
+  const isMonitored = (s: Sender) =>
+    imapItems.some(c => c.sender_id === s.id || c.username.toLowerCase() === s.email.toLowerCase());
 
   return (
     <div className="space-y-6">
@@ -47,7 +56,13 @@ export default function Senders() {
             <tr key={s.id}>
               <Td>{s.email}</Td><Td>{s.display_name}</Td><Td>{s.reply_to ?? '—'}</Td>
               <Td>{configs.find(c => c.id === s.smtp_config_id)?.name ?? s.smtp_config_id.slice(0,8)}</Td>
-              <Td><Button variant="danger" onClick={async () => {
+              <Td><div className="flex gap-2 justify-end">
+              {isMonitored(s) ? (
+                <Button variant="ghost" disabled>Monitored</Button>
+              ) : (
+                <Button variant="ghost" onClick={() => setConnectFor({ email: s.email, senderId: s.id })}>Monitor inbox</Button>
+              )}
+              <Button variant="danger" onClick={async () => {
                 if (!confirm(`Delete ${s.email}?`)) return;
                 try {
                   await api(`/api/senders/${s.id}`, { method: 'DELETE' });
@@ -56,14 +71,220 @@ export default function Senders() {
                 } catch (e) {
                   toast.error((e as Error).message);
                 }
-              }}>Delete</Button></Td>
+              }}>Delete</Button></div></Td>
             </tr>
           ))}</tbody>
         </Table>
       )}
+
+      <div className="space-y-3 pt-4">
+        <PageHeader
+          title="Inbox monitoring"
+          subtitle="Sender mailboxes read over IMAP so campaign replies flow into the system for Abe to analyze."
+          actions={<Button onClick={() => setConnectFor({ email: '', senderId: null })}>Connect mailbox</Button>}
+        />
+        {!loading && imapItems.length === 0 ? (
+          <EmptyState icon={Inbox} title="No monitored inboxes" description="Use “Monitor inbox” on a sender to start syncing its replies." />
+        ) : (
+          <Table>
+            <thead><tr><Th>Mailbox</Th><Th>Sender</Th><Th>Status</Th><Th>{''}</Th></tr></thead>
+            <tbody>{imapItems.map(c => (
+              <tr key={c.id}>
+                <Td>{c.username}{c.auth_type === 'xoauth2' ? ' (Microsoft sign-in)' : ''}</Td>
+                <Td>{items.find(s => s.id === c.sender_id)?.display_name ?? '—'}</Td>
+                <Td>
+                  {c.last_error
+                    ? <span className="text-red-600 text-xs" title={c.last_error}>Error: {c.last_error.slice(0, 60)}</span>
+                    : c.enabled ? 'Syncing' : 'Paused'}
+                </Td>
+                <Td>
+                  <div className="flex gap-2 justify-end">
+                    <ImapTestBtn id={c.id} />
+                    <Button variant="ghost" onClick={async () => {
+                      try {
+                        await api(`/api/imap-configs/${c.id}`, { method: 'PATCH', body: JSON.stringify({ enabled: !c.enabled }) });
+                        refresh();
+                      } catch (e: unknown) { toast.error('Update failed: ' + (e as Error).message); }
+                    }}>{c.enabled ? 'Pause' : 'Resume'}</Button>
+                    <Button variant="danger" onClick={async () => {
+                      if (!confirm(`Stop monitoring ${c.username}?`)) return;
+                      try {
+                        await api(`/api/imap-configs/${c.id}`, { method: 'DELETE' });
+                        toast.success('Inbox monitoring removed.');
+                        refresh();
+                      } catch (e: unknown) { toast.error('Delete failed: ' + (e as Error).message); }
+                    }}>Remove</Button>
+                  </div>
+                </Td>
+              </tr>
+            ))}</tbody>
+          </Table>
+        )}
+      </div>
+
       <AddModal open={open} onClose={() => { setOpen(false); refresh(); }} configs={configs} />
+      <ConnectMailboxModal target={connectFor} onClose={() => { setConnectFor(null); refresh(); }} />
     </div>
   );
+}
+
+type FlowStatus = 'idle' | 'starting' | 'waiting' | 'done' | 'error';
+interface DeviceCodeFlow { code: { userCode: string; verificationUri: string } | null; status: FlowStatus; error: string }
+
+// Drives the Microsoft device-code dance: start → show code → poll complete until
+// the sign-in lands. Pass null to stay idle; completeExtra is merged into the
+// complete call (e.g. the senderId to link the mailbox to).
+function useDeviceCodeFlow(startBody: Record<string, unknown> | null, completeExtra?: Record<string, unknown>): DeviceCodeFlow {
+  const [code, setCode] = useState<DeviceCodeFlow['code']>(null);
+  const [status, setStatus] = useState<FlowStatus>('idle');
+  const [error, setError] = useState('');
+  const toast = useToast();
+
+  useEffect(() => {
+    if (!startBody) { setCode(null); setStatus('idle'); setError(''); return; }
+    setCode(null); setStatus('starting'); setError('');
+    let cancelled = false;
+    let timer: number | undefined;
+    interface StartRes { username: string; userCode: string; verificationUri: string; deviceCode: string; intervalSeconds: number }
+    api<StartRes>('/api/imap-configs/oauth/start', { method: 'POST', body: JSON.stringify(startBody) })
+      .then(r => {
+        if (cancelled) return;
+        setCode({ userCode: r.userCode, verificationUri: r.verificationUri });
+        setStatus('waiting');
+        const poll = async () => {
+          if (cancelled) return;
+          try {
+            const c = await api<{ pending?: boolean }>('/api/imap-configs/oauth/complete', {
+              method: 'POST',
+              body: JSON.stringify({ deviceCode: r.deviceCode, username: r.username, ...completeExtra }),
+            });
+            if (cancelled) return;
+            if (c.pending) { timer = window.setTimeout(poll, Math.max(2, r.intervalSeconds) * 1000); return; }
+            setStatus('done');
+            toast.success('Mailbox connected — replies will sync every few minutes.');
+          } catch (e: unknown) {
+            if (cancelled) return;
+            setStatus('error'); setError((e as Error).message);
+          }
+        };
+        timer = window.setTimeout(poll, Math.max(2, r.intervalSeconds) * 1000);
+      })
+      .catch((e: unknown) => { if (!cancelled) { setStatus('error'); setError((e as Error).message); } });
+    return () => { cancelled = true; if (timer) window.clearTimeout(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startBody]);
+
+  return { code, status, error };
+}
+
+function DeviceCodePanel({ flow }: { flow: DeviceCodeFlow }) {
+  return (
+    <>
+      {flow.status === 'starting' && <Skeleton className="h-16" />}
+      {flow.code && flow.status !== 'done' && (
+        <div className="rounded-md border border-line bg-surface-raised px-4 py-3 space-y-2">
+          <p>1. Open <a className="underline" href={flow.code.verificationUri} target="_blank" rel="noreferrer">{flow.code.verificationUri}</a></p>
+          <p>2. Enter this code:</p>
+          <p className="text-2xl font-mono font-bold tracking-widest text-center select-all">{flow.code.userCode}</p>
+          <p className="text-xs text-ink-muted">3. Sign in with the mailbox's normal username and password. This page detects it automatically.</p>
+        </div>
+      )}
+      {flow.status === 'waiting' && <p className="text-ink-muted">Waiting for you to finish signing in…</p>}
+      {flow.status === 'done' && <p className="font-medium">✅ Connected. Replies are now syncing.</p>}
+      {flow.status === 'error' && <p className="text-red-600">Failed: {flow.error}</p>}
+    </>
+  );
+}
+
+// Connect a sender's mailbox: Microsoft 365 sign-in by default (Outlook mailboxes
+// behind relays like Mimecast can't do password IMAP), manual IMAP as fallback.
+function ConnectMailboxModal({ target, onClose }: { target: { email: string; senderId: string | null } | null; onClose: () => void }) {
+  const open = target !== null;
+  const [email, setEmail] = useState('');
+  const [method, setMethod] = useState<'m365' | 'password'>('m365');
+  const [manual, setManual] = useState({ host: '', port: 993, secure: true, password: '' });
+  const [oauthBody, setOauthBody] = useState<Record<string, unknown> | null>(null);
+  const toast = useToast();
+  const completeExtra = useMemo(
+    () => ({ senderId: target?.senderId ?? null }),
+    [target?.senderId], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const flow = useDeviceCodeFlow(oauthBody, completeExtra);
+
+  useEffect(() => {
+    if (open) {
+      setEmail(target?.email ?? '');
+      setMethod('m365'); setOauthBody(null);
+      setManual({ host: '', port: 993, secure: true, password: '' });
+    }
+  }, [open, target]);
+
+  const started = oauthBody !== null;
+  return (
+    <Modal open={open} onClose={onClose} title="Connect a mailbox">
+      <form className="space-y-3 text-sm" onSubmit={async e => {
+        e.preventDefault();
+        if (method === 'm365') { setOauthBody({ username: email.trim() }); return; }
+        try {
+          await api('/api/imap-configs', {
+            method: 'POST',
+            body: JSON.stringify({
+              host: manual.host, port: manual.port, secure: manual.secure,
+              username: email.trim(), password: manual.password, senderId: target?.senderId ?? null,
+            }),
+          });
+          toast.success('Inbox monitoring enabled — replies will sync every few minutes.');
+          onClose();
+        } catch (err: unknown) {
+          toast.error('Connect failed: ' + (err as Error).message);
+        }
+      }}>
+        <p className="text-ink-muted">Replies to your campaigns land in this mailbox — connect it so they flow into the system.</p>
+        <Field label="Mailbox address"><Input required type="email" value={email} disabled={started} onChange={e => setEmail(e.target.value)} /></Field>
+        <Field label="How does this mailbox authenticate?">
+          <div className="flex gap-4">
+            <label className="flex items-center gap-1.5">
+              <input type="radio" checked={method === 'm365'} disabled={started} onChange={() => setMethod('m365')} />
+              Microsoft 365 / Outlook (sign in)
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="radio" checked={method === 'password'} disabled={started} onChange={() => setMethod('password')} />
+              IMAP password
+            </label>
+          </div>
+        </Field>
+        {method === 'password' && (
+          <>
+            <Field label="IMAP host" hint="e.g. imap.gmail.com — for Gmail use an app password"><Input required value={manual.host} onChange={e => setManual({ ...manual, host: e.target.value })} /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Port"><Input type="number" required value={manual.port} onChange={e => setManual({ ...manual, port: Number(e.target.value) })} /></Field>
+              <Field label="Secure (TLS)"><input type="checkbox" checked={manual.secure} onChange={e => setManual({ ...manual, secure: e.target.checked })} /></Field>
+            </div>
+            <Field label="Password"><Input required type="password" value={manual.password} onChange={e => setManual({ ...manual, password: e.target.value })} /></Field>
+          </>
+        )}
+        {method === 'm365' && started && <DeviceCodePanel flow={flow} />}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" type="button" onClick={onClose}>{flow.status === 'done' ? 'Close' : 'Cancel'}</Button>
+          {!(method === 'm365' && started) && <Button type="submit">{method === 'm365' ? 'Start sign-in' : 'Connect'}</Button>}
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ImapTestBtn({ id }: { id: string }) {
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  return <Button variant="ghost" disabled={busy} onClick={async () => {
+    setBusy(true);
+    try {
+      await api(`/api/imap-configs/${id}/test`, { method: 'POST', body: JSON.stringify({}) });
+      toast.success('Connected — INBOX is reachable.');
+    }
+    catch (e: unknown) { toast.error('Failed: ' + (e as Error).message); }
+    finally { setBusy(false); }
+  }}>Test</Button>;
 }
 
 function AddModal({ open, onClose, configs }: { open: boolean; onClose: () => void; configs: Cfg[] }) {
