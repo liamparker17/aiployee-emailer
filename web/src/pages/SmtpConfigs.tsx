@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Server, Inbox } from 'lucide-react';
 import { api } from '@aiployee/ui';
 import { Table, Th, Td } from '@aiployee/ui';
@@ -19,6 +19,7 @@ export default function SmtpConfigs() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [m365For, setM365For] = useState<Cfg | null>(null);
+  const [connectPrefill, setConnectPrefill] = useState<string | null>(null); // non-null = modal open
   const toast = useToast();
   const refresh = () => Promise.all([
     api<{ configs: Cfg[] }>('/api/smtp-configs').then(r => setItems(r.configs)),
@@ -43,10 +44,10 @@ export default function SmtpConfigs() {
         <EmptyState icon={Server} title="No SMTP configs" description="Add an SMTP server to send mail." />
       ) : (
         <Table>
-          <thead><tr><Th>Name</Th><Th>Host</Th><Th>Port</Th><Th>From domain</Th><Th>{''}</Th></tr></thead>
+          <thead><tr><Th>Name</Th><Th>Username</Th><Th>Host</Th><Th>Port</Th><Th>From domain</Th><Th>{''}</Th></tr></thead>
           <tbody>{items.map(c => (
             <tr key={c.id}>
-              <Td>{c.name}</Td><Td>{c.host}</Td><Td>{c.port}</Td><Td>{c.from_domain}</Td>
+              <Td>{c.name}</Td><Td>{c.username}</Td><Td>{c.host}</Td><Td>{c.port}</Td><Td>{c.from_domain}</Td>
               <Td>
                 <div className="flex gap-2 justify-end">
                   <TestBtn id={c.id} />
@@ -55,7 +56,7 @@ export default function SmtpConfigs() {
                   ) : isM365Host(c.host) ? (
                     // Microsoft killed password IMAP — M365 mailboxes connect via device-code OAuth.
                     <Button variant="ghost" onClick={() => setM365For(c)}>Monitor inbox</Button>
-                  ) : (
+                  ) : c.host.trim().toLowerCase().startsWith('smtp.') ? (
                     <Button variant="ghost" onClick={async () => {
                       try {
                         await api('/api/imap-configs', { method: 'POST', body: JSON.stringify({ smtpConfigId: c.id }) });
@@ -65,6 +66,10 @@ export default function SmtpConfigs() {
                         toast.error('Enable failed: ' + (e as Error).message);
                       }
                     }}>Monitor inbox</Button>
+                  ) : (
+                    // Relay hosts (e.g. Mimecast) have no IMAP and their login user may not be
+                    // the sender's mailbox — connect the real mailbox explicitly instead.
+                    <Button variant="ghost" onClick={() => setConnectPrefill(c.username)}>Monitor inbox</Button>
                   )}
                   <Button variant="danger" onClick={async () => {
                     if (!confirm(`Delete ${c.name}?`)) return;
@@ -86,6 +91,7 @@ export default function SmtpConfigs() {
         <PageHeader
           title="Inbox monitoring"
           subtitle="Mailboxes read over IMAP so campaign replies flow into the system for Abe to analyze."
+          actions={<Button onClick={() => setConnectPrefill('')}>Connect mailbox</Button>}
         />
         {!loading && imapItems.length === 0 ? (
           <EmptyState icon={Inbox} title="No monitored inboxes" description="Use “Monitor inbox” on an SMTP config to start syncing its replies." />
@@ -127,6 +133,7 @@ export default function SmtpConfigs() {
       </div>
       <AddModal open={open} onClose={() => { setOpen(false); refresh(); }} />
       <M365ConnectModal cfg={m365For} onClose={() => { setM365For(null); refresh(); }} />
+      <ConnectMailboxModal prefill={connectPrefill} onClose={() => { setConnectPrefill(null); refresh(); }} />
     </div>
   );
 }
@@ -136,19 +143,24 @@ function isM365Host(host: string): boolean {
   return h === 'smtp.office365.com' || h === 'smtp-mail.outlook.com';
 }
 
-function M365ConnectModal({ cfg, onClose }: { cfg: Cfg | null; onClose: () => void }) {
-  const [code, setCode] = useState<{ userCode: string; verificationUri: string } | null>(null);
-  const [status, setStatus] = useState<'starting' | 'waiting' | 'done' | 'error'>('starting');
+type FlowStatus = 'idle' | 'starting' | 'waiting' | 'done' | 'error';
+interface DeviceCodeFlow { code: { userCode: string; verificationUri: string } | null; status: FlowStatus; error: string }
+
+// Drives the Microsoft device-code dance: start → show code → poll complete until
+// the sign-in lands. Pass null to stay idle; a stable startBody kicks it off.
+function useDeviceCodeFlow(startBody: Record<string, unknown> | null): DeviceCodeFlow {
+  const [code, setCode] = useState<DeviceCodeFlow['code']>(null);
+  const [status, setStatus] = useState<FlowStatus>('idle');
   const [error, setError] = useState('');
   const toast = useToast();
 
   useEffect(() => {
-    if (!cfg) return;
+    if (!startBody) { setCode(null); setStatus('idle'); setError(''); return; }
     setCode(null); setStatus('starting'); setError('');
     let cancelled = false;
     let timer: number | undefined;
     interface StartRes { username: string; userCode: string; verificationUri: string; deviceCode: string; intervalSeconds: number }
-    api<StartRes>('/api/imap-configs/oauth/start', { method: 'POST', body: JSON.stringify({ smtpConfigId: cfg.id }) })
+    api<StartRes>('/api/imap-configs/oauth/start', { method: 'POST', body: JSON.stringify(startBody) })
       .then(r => {
         if (cancelled) return;
         setCode({ userCode: r.userCode, verificationUri: r.verificationUri });
@@ -173,8 +185,34 @@ function M365ConnectModal({ cfg, onClose }: { cfg: Cfg | null; onClose: () => vo
       })
       .catch((e: unknown) => { if (!cancelled) { setStatus('error'); setError((e as Error).message); } });
     return () => { cancelled = true; if (timer) window.clearTimeout(timer); };
-  }, [cfg]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startBody]);
 
+  return { code, status, error };
+}
+
+function DeviceCodePanel({ flow }: { flow: DeviceCodeFlow }) {
+  return (
+    <>
+      {flow.status === 'starting' && <Skeleton className="h-16" />}
+      {flow.code && flow.status !== 'done' && (
+        <div className="rounded-md border border-line bg-surface-raised px-4 py-3 space-y-2">
+          <p>1. Open <a className="underline" href={flow.code.verificationUri} target="_blank" rel="noreferrer">{flow.code.verificationUri}</a></p>
+          <p>2. Enter this code:</p>
+          <p className="text-2xl font-mono font-bold tracking-widest text-center select-all">{flow.code.userCode}</p>
+          <p className="text-xs text-ink-muted">3. Sign in with the mailbox's normal username and password. This page detects it automatically.</p>
+        </div>
+      )}
+      {flow.status === 'waiting' && <p className="text-ink-muted">Waiting for you to finish signing in…</p>}
+      {flow.status === 'done' && <p className="font-medium">✅ Connected. Replies are now syncing.</p>}
+      {flow.status === 'error' && <p className="text-red-600">Failed: {flow.error}</p>}
+    </>
+  );
+}
+
+function M365ConnectModal({ cfg, onClose }: { cfg: Cfg | null; onClose: () => void }) {
+  const startBody = useMemo(() => (cfg ? { smtpConfigId: cfg.id } : null), [cfg?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const flow = useDeviceCodeFlow(startBody);
   return (
     <Modal open={!!cfg} onClose={onClose} title="Connect Microsoft 365 inbox">
       <div className="space-y-4 text-sm">
@@ -182,22 +220,81 @@ function M365ConnectModal({ cfg, onClose }: { cfg: Cfg | null; onClose: () => vo
           Microsoft requires a one-time sign-in to allow inbox reading (passwords alone no longer work for IMAP).
           Sign in as <strong>{cfg?.username}</strong>:
         </p>
-        {status === 'starting' && <Skeleton className="h-16" />}
-        {code && status !== 'done' && (
-          <div className="rounded-md border border-line bg-surface-raised px-4 py-3 space-y-2">
-            <p>1. Open <a className="underline" href={code.verificationUri} target="_blank" rel="noreferrer">{code.verificationUri}</a></p>
-            <p>2. Enter this code:</p>
-            <p className="text-2xl font-mono font-bold tracking-widest text-center select-all">{code.userCode}</p>
-            <p className="text-xs text-ink-muted">3. Sign in with the mailbox's normal username and password. This page detects it automatically.</p>
-          </div>
-        )}
-        {status === 'waiting' && <p className="text-ink-muted">Waiting for you to finish signing in…</p>}
-        {status === 'done' && <p className="font-medium">✅ Connected. Replies are now syncing.</p>}
-        {status === 'error' && <p className="text-red-600">Failed: {error}</p>}
+        <DeviceCodePanel flow={flow} />
         <div className="flex justify-end">
-          <Button variant="ghost" onClick={onClose}>{status === 'done' ? 'Close' : 'Cancel'}</Button>
+          <Button variant="ghost" onClick={onClose}>{flow.status === 'done' ? 'Close' : 'Cancel'}</Button>
         </div>
       </div>
+    </Modal>
+  );
+}
+
+// Connect any mailbox by address, independent of SMTP configs — the sending relay
+// (e.g. Mimecast) often has nothing to do with where the replies actually live.
+function ConnectMailboxModal({ prefill, onClose }: { prefill: string | null; onClose: () => void }) {
+  const open = prefill !== null;
+  const [email, setEmail] = useState('');
+  const [method, setMethod] = useState<'m365' | 'password'>('m365');
+  const [manual, setManual] = useState({ host: '', port: 993, secure: true, password: '' });
+  const [oauthBody, setOauthBody] = useState<Record<string, unknown> | null>(null);
+  const toast = useToast();
+  const flow = useDeviceCodeFlow(oauthBody);
+
+  useEffect(() => {
+    if (open) {
+      setEmail(prefill ?? '');
+      setMethod('m365'); setOauthBody(null);
+      setManual({ host: '', port: 993, secure: true, password: '' });
+    }
+  }, [open, prefill]);
+
+  const started = oauthBody !== null;
+  return (
+    <Modal open={open} onClose={onClose} title="Connect a mailbox">
+      <form className="space-y-3 text-sm" onSubmit={async e => {
+        e.preventDefault();
+        if (method === 'm365') { setOauthBody({ username: email.trim() }); return; }
+        try {
+          await api('/api/imap-configs', {
+            method: 'POST',
+            body: JSON.stringify({ host: manual.host, port: manual.port, secure: manual.secure, username: email.trim(), password: manual.password }),
+          });
+          toast.success('Inbox monitoring enabled — replies will sync every few minutes.');
+          onClose();
+        } catch (err: unknown) {
+          toast.error('Connect failed: ' + (err as Error).message);
+        }
+      }}>
+        <p className="text-ink-muted">The mailbox whose replies should flow into the system — this can differ from your SMTP login.</p>
+        <Field label="Mailbox address"><Input required type="email" value={email} disabled={started} onChange={e => setEmail(e.target.value)} /></Field>
+        <Field label="How does this mailbox authenticate?">
+          <div className="flex gap-4">
+            <label className="flex items-center gap-1.5">
+              <input type="radio" checked={method === 'm365'} disabled={started} onChange={() => setMethod('m365')} />
+              Microsoft 365 (sign in)
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="radio" checked={method === 'password'} disabled={started} onChange={() => setMethod('password')} />
+              IMAP password
+            </label>
+          </div>
+        </Field>
+        {method === 'password' && (
+          <>
+            <Field label="IMAP host" hint="e.g. imap.gmail.com — for Gmail use an app password"><Input required value={manual.host} onChange={e => setManual({ ...manual, host: e.target.value })} /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Port"><Input type="number" required value={manual.port} onChange={e => setManual({ ...manual, port: Number(e.target.value) })} /></Field>
+              <Field label="Secure (TLS)"><input type="checkbox" checked={manual.secure} onChange={e => setManual({ ...manual, secure: e.target.checked })} /></Field>
+            </div>
+            <Field label="Password"><Input required type="password" value={manual.password} onChange={e => setManual({ ...manual, password: e.target.value })} /></Field>
+          </>
+        )}
+        {method === 'm365' && started && <DeviceCodePanel flow={flow} />}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" type="button" onClick={onClose}>{flow.status === 'done' ? 'Close' : 'Cancel'}</Button>
+          {!(method === 'm365' && started) && <Button type="submit">{method === 'm365' ? 'Start sign-in' : 'Connect'}</Button>}
+        </div>
+      </form>
     </Modal>
   );
 }
