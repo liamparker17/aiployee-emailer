@@ -5,7 +5,8 @@ import { findDormantContacts } from '../../repos/agentDormant.js';
 import { insertPlay, getPlay, type PlayRow } from '../../repos/agentPlays.js';
 import { draftReengagePlay } from './draftPlay.js';
 import { scoreRisk, requiresApproval } from './risk.js';
-import { getAgentConfig, getAgentOpenAIKey } from '../../repos/agent.js';
+import { getAgentOpenAIKey } from '../../repos/agent.js';
+import { ABE_CHAT_MODEL } from './models.js';
 import { lastCompletedPlayOutcome } from '../../repos/agentOutcomes.js';
 import { startPlayExecution } from './execute.js';
 import { escalatePlay } from './escalate.js';
@@ -30,8 +31,7 @@ export async function runAbeShift(args: {
 
   const apiKey = await getAgentOpenAIKey(pool, encKey, tenantId);
   if (!apiKey) return { status: 'skipped', reason: 'no_openai_key' };
-  const cfg = await getAgentConfig(pool, tenantId);
-  const model = cfg?.model ?? 'gpt-4.1';
+  const model = ABE_CHAT_MODEL; // fixed per role; the legacy per-tenant model setting is ignored
 
   const dormant = await findDormantContacts(pool, tenantId, goal.dormant_window_days);
   if (dormant.length === 0) return { status: 'skipped', reason: 'no_dormant_contacts' };

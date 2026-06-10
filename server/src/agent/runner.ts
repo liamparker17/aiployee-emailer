@@ -9,6 +9,7 @@ import { countRagDocuments } from '../repos/ragDocuments.js';
 import { defaultMcpProviderFactory, compositeProvider, type McpProviderFactory, type McpToolProvider } from './mcp.js';
 import { ragSqlProvider } from './ragSqlProvider.js';
 import { ragVectorProvider } from './ragVectorProvider.js';
+import { ABE_CHAT_MODEL } from './abe/models.js';
 
 /** OpenAI embeddings (1536-dim) for the vector RAG tool, using the tenant's key. */
 export function makeEmbed(apiKey: string) {
@@ -161,7 +162,8 @@ export async function runAgentTurn(args: {
       ...history.filter(m => m.role !== 'system').map(m => ({
         role: (m.role === 'agent' ? 'assistant' : 'user') as 'assistant' | 'user', content: m.content })),
     ];
-    const finalText = await runToolLoop({ llm, model: cfg.model, messages, provider, maxIter: cfg.max_tool_iterations });
+    // Model is fixed per role (orchestration tier); cfg.model is legacy and ignored.
+    const finalText = await runToolLoop({ llm, model: ABE_CHAT_MODEL, messages, provider, maxIter: cfg.max_tool_iterations });
     const status = triggerSource === 'jobix' && cfg.auto_approve_jobix ? 'approved' : 'pending_approval';
     const message = await insertMessage(pool, { threadId, tenantId, role: 'agent', source: triggerSource, content: finalText, status });
     return { message };

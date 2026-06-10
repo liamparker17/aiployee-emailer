@@ -213,9 +213,14 @@ export default function AiResponses() {
                 <input type="checkbox" checked={form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} />
                 Enable the agent
               </label>
-              <Field label="Model" hint="Any OpenAI model id, e.g. gpt-4o.">
-                <Input value={form.model} onChange={e => setForm({ ...form, model: e.target.value })} />
-              </Field>
+              <div className="rounded-md border border-line bg-surface-raised px-3 py-2 text-xs text-ink-muted space-y-1">
+                <p className="font-medium text-ink">How your API key is used</p>
+                <p>Paste your OpenAI key once — the platform picks the right model for each job and spends as little as possible:</p>
+                <p>• Reading email into the system uses <strong>no AI at all</strong>.</p>
+                <p>• Bulk reply analysis uses <strong>embeddings</strong> (the cheapest tier); full email bodies never go through a chat model.</p>
+                <p>• Grouping, hot-lead scans and draft personalisation run on a <strong>nano</strong> model.</p>
+                <p>• Only Abe's reasoning — chat, planning, drafting decisions — runs on a premium model.</p>
+              </div>
               <Field label="System prompt" hint="Persona / instructions for the agent. Leave blank for a sensible default.">
                 <textarea className={`${selectCls} min-h-[100px]`} value={form.systemPrompt} onChange={e => setForm({ ...form, systemPrompt: e.target.value })} />
               </Field>

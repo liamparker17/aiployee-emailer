@@ -6,6 +6,7 @@ import { getGoal } from '../../repos/agentGoals.js';
 import { insertChatMessage, listChatMessages } from '../../repos/agentChat.js';
 import { getLineReportConfig } from '../../repos/lineReportConfigs.js';
 import { buildAbeSystemPrompt } from './prompt.js';
+import { ABE_CHAT_MODEL } from './models.js';
 import { makeAbeChatProvider } from './chatTools.js';
 import { makeLineChatProvider } from './lineChatTools.js';
 import { makeInboxChatProvider } from './inboxChatTools.js';
@@ -25,7 +26,7 @@ export async function runAbeChat(args: {
   const llmFactory = args.llmFactory ?? openAiFactory;
   const llm = llmFactory(apiKey);
   const cfg = await getAgentConfig(pool, tenantId);
-  const model = cfg?.model ?? 'gpt-4.1';
+  const model = ABE_CHAT_MODEL; // fixed per role; cfg.model is legacy and ignored
   const goal = await getGoal(pool, tenantId);
   const lineCfg = await getLineReportConfig(pool, tenantId);
 
