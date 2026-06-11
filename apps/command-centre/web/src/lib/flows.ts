@@ -1,7 +1,7 @@
 import { api } from '@aiployee/ui';
 
 export type FlowStatus = 'draft' | 'active' | 'paused' | 'archived';
-export type StepKind = 'wait' | 'jobix_call' | 'condition';
+export type StepKind = 'wait' | 'jobix_call' | 'condition' | 'whatsapp_send';
 export type EnrollmentStatus = 'active' | 'completed' | 'exited' | 'failed';
 
 export interface Flow { id: string; name: string; status: FlowStatus; created_at: string }

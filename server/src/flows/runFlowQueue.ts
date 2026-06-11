@@ -4,6 +4,8 @@ import {
   type EnrollmentRow, type EnrollmentStatus, type FlowStepRow,
 } from '../repos/flows.js';
 import { fireTrigger, type FireResult } from '../jobix/fireTrigger.js';
+import { getConnectionForSend, recordSendResult } from '../repos/whatsappConnections.js';
+import { waSendMessage } from '../whatsapp/client.js';
 
 // The flow step that fires a Jobix call reuses the fireTrigger primitive (jobix_triggers).
 // Injectable so tests never hit real HTTP.
@@ -12,8 +14,24 @@ export type FireFn = (
   args: { tenantId: string; triggerId: string; vars: Record<string, string>; source: 'event'; userId: string | null },
 ) => Promise<FireResult>;
 
+// The whatsapp_send step posts to the tenant's WhatsApp platform connection.
+// Also injectable for the same reason.
+export type WaSendFn = (
+  pool: pg.Pool, encKey: Buffer,
+  args: { tenantId: string; to: string; text: string; idempotencyKey: string },
+) => Promise<{ ok: boolean; error: string | null }>;
+
+export const sendWhatsappStep: WaSendFn = async (pool, encKey, args) => {
+  const conn = await getConnectionForSend(pool, encKey, args.tenantId);
+  if (!conn) return { ok: false, error: 'no_whatsapp_connection' };
+  if (!conn.active) return { ok: false, error: 'whatsapp_connection_inactive' };
+  const r = await waSendMessage(conn, { to: args.to, text: args.text, idempotencyKey: args.idempotencyKey });
+  await recordSendResult(pool, args.tenantId, r.ok, r.error);
+  return { ok: r.ok, error: r.error };
+};
+
 export interface FlowQueueOpts { batchSize: number; maxStepsPerTick: number }
-export interface FlowQueueSummary { claimed: number; advanced: number; completed: number; failed: number; exited: number; calls: number }
+export interface FlowQueueSummary { claimed: number; advanced: number; completed: number; failed: number; exited: number; calls: number; messages: number }
 
 function buildVars(e: EnrollmentRow): Record<string, string> {
   const out: Record<string, string> = {};
@@ -25,6 +43,10 @@ function buildVars(e: EnrollmentRow): Record<string, string> {
 function waitMs(config: Record<string, unknown>): number {
   const n = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
   return (n(config.days) * 86_400 + n(config.hours) * 3_600 + n(config.minutes) * 60) * 1000;
+}
+
+function renderText(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, key: string) => vars[key] ?? '');
 }
 
 function evalCondition(config: Record<string, unknown>, vars: Record<string, string>): boolean {
@@ -42,10 +64,10 @@ function evalCondition(config: Record<string, unknown>, vars: Record<string, str
 }
 
 export async function runFlowQueue(
-  pool: pg.Pool, encKey: Buffer, opts: FlowQueueOpts, fire: FireFn = fireTrigger,
+  pool: pg.Pool, encKey: Buffer, opts: FlowQueueOpts, fire: FireFn = fireTrigger, sendWa: WaSendFn = sendWhatsappStep,
 ): Promise<FlowQueueSummary> {
   const claimed = await claimDueEnrollments(pool, opts.batchSize);
-  const summary: FlowQueueSummary = { claimed: claimed.length, advanced: 0, completed: 0, failed: 0, exited: 0, calls: 0 };
+  const summary: FlowQueueSummary = { claimed: claimed.length, advanced: 0, completed: 0, failed: 0, exited: 0, calls: 0, messages: 0 };
   const stepsCache = new Map<string, FlowStepRow[]>();
 
   for (const e of claimed) {
@@ -78,6 +100,15 @@ export async function runFlowQueue(
         } catch (err) {
           status = 'failed'; lastError = err instanceof Error ? err.message : String(err); summary.failed++; break;
         }
+        pos += 1;
+      } else if (step.kind === 'whatsapp_send') {
+        const text = renderText(String(cfg.message ?? ''), vars).trim();
+        if (!text) { status = 'failed'; lastError = 'whatsapp_send step has an empty message'; summary.failed++; break; }
+        if (!e.phone) { status = 'failed'; lastError = 'enrollment has no phone number'; summary.failed++; break; }
+        // Key is stable per enrollment+step so a crashed tick can never double-send.
+        const r = await sendWa(pool, encKey, { tenantId: e.tenant_id, to: e.phone, text, idempotencyKey: `flow:${e.id}:${pos}` });
+        if (!r.ok) { status = 'failed'; lastError = r.error ?? 'whatsapp send failed'; summary.failed++; break; }
+        summary.messages++;
         pos += 1;
       } else if (step.kind === 'condition') {
         if (evalCondition(cfg, vars)) { pos += 1; }

@@ -15,13 +15,16 @@ function requireAdmin(ctx: ReturnType<typeof requireTenantCtx>): void {
   }
 }
 
-// v1 exposes wait / jobix_call / condition. ('email' exists in the schema for a later slice.)
+// v1 exposes wait / jobix_call / condition / whatsapp_send. ('email' exists in the schema for a later slice.)
 const stepSchema = z.object({
-  kind: z.enum(['wait', 'jobix_call', 'condition']),
+  kind: z.enum(['wait', 'jobix_call', 'condition', 'whatsapp_send']),
   config: z.record(z.unknown()).default({}),
 }).superRefine((s, ctx) => {
   if (s.kind === 'jobix_call' && !s.config.triggerId) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'jobix_call step requires config.triggerId' });
+  }
+  if (s.kind === 'whatsapp_send' && !(typeof s.config.message === 'string' && s.config.message.trim())) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'whatsapp_send step requires config.message' });
   }
 });
 

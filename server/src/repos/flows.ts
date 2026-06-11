@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '@aiployee/core';
 
 export type FlowStatus = 'draft' | 'active' | 'paused' | 'archived';
-export type StepKind = 'wait' | 'jobix_call' | 'email' | 'condition';
+export type StepKind = 'wait' | 'jobix_call' | 'email' | 'condition' | 'whatsapp_send';
 export type EnrollmentStatus = 'active' | 'completed' | 'exited' | 'failed';
 
 export interface FlowRow {

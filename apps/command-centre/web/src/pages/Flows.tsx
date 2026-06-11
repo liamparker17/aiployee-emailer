@@ -40,6 +40,18 @@ function StepEditor({ step, triggers, onChange }: { step: StepInput; triggers: J
       </Field>
     );
   }
+  if (step.kind === 'whatsapp_send') {
+    return (
+      <Field label="WhatsApp message" hint="Sent to the contact's phone via your WhatsApp connection. Merge fields: {{name}}, {{phone}} and any context field.">
+        <textarea
+          className={`${SELECT} w-full min-h-[80px]`}
+          value={String(c.message ?? '')}
+          placeholder="Hi {{name}}, …"
+          onChange={e => onChange({ ...c, message: e.target.value })}
+        />
+      </Field>
+    );
+  }
   // condition
   const op = String(c.op ?? 'exists');
   return (
@@ -101,7 +113,8 @@ export default function Flows() {
   }
 
   function addStep(kind: StepKind) {
-    const config: Record<string, unknown> = kind === 'wait' ? { days: 1 } : kind === 'condition' ? { op: 'exists', onFail: 'exit' } : {};
+    const config: Record<string, unknown> =
+      kind === 'wait' ? { days: 1 } : kind === 'condition' ? { op: 'exists', onFail: 'exit' } : kind === 'whatsapp_send' ? { message: '' } : {};
     setSteps(s => [...s, { kind, config }]);
   }
   const patchStep = (i: number, config: Record<string, unknown>) => setSteps(s => s.map((x, j) => j === i ? { ...x, config } : x));
@@ -188,12 +201,12 @@ export default function Flows() {
       {selectedFlow && (
         <Card>
           <h3>{selectedFlow.name} — steps</h3>
-          <p className="text-sm text-ink-muted mb-2">Steps run top to bottom for each enrolled contact. A <b>wait</b> pauses; a <b>call</b> fires a Jobix trigger; a <b>condition</b> can exit the flow.</p>
+          <p className="text-sm text-ink-muted mb-2">Steps run top to bottom for each enrolled contact. A <b>wait</b> pauses; a <b>call</b> fires a Jobix trigger; a <b>WhatsApp</b> step messages the contact; a <b>condition</b> can exit the flow.</p>
           <div className="space-y-2">
             {steps.map((s, i) => (
               <div key={i} className="rounded-card border border-line p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium">{i + 1}. {s.kind === 'jobix_call' ? 'Call (Jobix)' : s.kind === 'wait' ? 'Wait' : 'Condition'}</span>
+                  <span className="font-medium">{i + 1}. {s.kind === 'jobix_call' ? 'Call (Jobix)' : s.kind === 'wait' ? 'Wait' : s.kind === 'whatsapp_send' ? 'WhatsApp' : 'Condition'}</span>
                   <div className="flex gap-1">
                     <Button variant="ghost" onClick={() => moveStep(i, -1)}>↑</Button>
                     <Button variant="ghost" onClick={() => moveStep(i, 1)}>↓</Button>
@@ -206,6 +219,7 @@ export default function Flows() {
           </div>
           <div className="flex gap-2 mt-3 flex-wrap">
             <Button variant="secondary" onClick={() => addStep('jobix_call')}>+ Call</Button>
+            <Button variant="secondary" onClick={() => addStep('whatsapp_send')}>+ WhatsApp</Button>
             <Button variant="secondary" onClick={() => addStep('wait')}>+ Wait</Button>
             <Button variant="secondary" onClick={() => addStep('condition')}>+ Condition</Button>
             <Button onClick={persistSteps}>Save steps</Button>
