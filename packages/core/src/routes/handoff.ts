@@ -14,6 +14,12 @@ function isAllowed(to: string): boolean {
   return APP_ORIGINS.some((o) => to === o || to.startsWith(o + '/'));
 }
 
+// A deep-link landing path must be relative to the destination app: a single
+// leading slash, no protocol-relative ('//') or scheme tricks.
+function isSafePath(p: string): boolean {
+  return p.startsWith('/') && !p.startsWith('//') && !p.includes('\\') && !p.includes('://');
+}
+
 export function registerHandoffRoutes(app: FastifyInstance) {
   // Issue a single-use handoff token for the logged-in user and redirect to the
   // destination app's accept endpoint. The destination must be allowlisted.
@@ -22,7 +28,7 @@ export function registerHandoffRoutes(app: FastifyInstance) {
     if (!userId) {
       return reply.code(401).send({ error: { code: 'unauthorized', message: 'Login required' } });
     }
-    const to = (req.query as { to?: string }).to;
+    const { to, next } = req.query as { to?: string; next?: string };
     if (!to || !isAllowed(to)) {
       return reply.code(400).send({ error: { code: 'bad_request', message: 'Invalid handoff destination' } });
     }
@@ -33,6 +39,7 @@ export function registerHandoffRoutes(app: FastifyInstance) {
     );
     const dest = new URL('/auth/handoff/accept', to);
     dest.searchParams.set('token', token);
+    if (next && isSafePath(next)) dest.searchParams.set('next', next);
     return reply.redirect(dest.toString());
   });
 
@@ -63,6 +70,7 @@ export function registerHandoffRoutes(app: FastifyInstance) {
     req.session.role = user.role as never;
     req.session.activeTenantId = payload.tenantId ?? undefined;
     await req.session.save();
-    return reply.redirect('/');
+    const next = (req.query as { next?: string }).next;
+    return reply.redirect(next && isSafePath(next) ? next : '/');
   });
 }

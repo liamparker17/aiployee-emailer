@@ -75,4 +75,43 @@ describe('cross-app handoff SSO', () => {
     const r = await app.inject({ method: 'GET', url: `/auth/handoff/accept?token=not.avalidtoken` });
     expect(r.statusCode).toBe(401);
   });
+
+  it('carries a safe next path through issue and accept; drops unsafe ones', async () => {
+    const t = await createTenant(pool);
+    const h = await loginAdmin(t.id);
+    const next = `/t/${t.id}/abe`;
+
+    const issued = await app.inject({
+      method: 'GET',
+      url: `/auth/handoff?to=${encodeURIComponent(CC_ORIGIN)}&next=${encodeURIComponent(next)}`,
+      headers: { cookie: h.cookie },
+    });
+    expect(issued.statusCode).toBe(302);
+    const dest = new URL(issued.headers.location as string);
+    expect(dest.searchParams.get('next')).toBe(next);
+
+    const token = dest.searchParams.get('token')!;
+    const accepted = await app.inject({
+      method: 'GET',
+      url: `/auth/handoff/accept?token=${encodeURIComponent(token)}&next=${encodeURIComponent(next)}`,
+    });
+    expect(accepted.statusCode).toBe(302);
+    expect(accepted.headers.location).toBe(next);
+
+    // an absolute/protocol-relative next is dropped at issue and ignored at accept
+    const evil = await app.inject({
+      method: 'GET',
+      url: `/auth/handoff?to=${encodeURIComponent(CC_ORIGIN)}&next=${encodeURIComponent('https://evil.example.com/phish')}`,
+      headers: { cookie: h.cookie },
+    });
+    const evilDest = new URL(evil.headers.location as string);
+    expect(evilDest.searchParams.get('next')).toBeNull();
+    const token2 = evilDest.searchParams.get('token')!;
+    const accepted2 = await app.inject({
+      method: 'GET',
+      url: `/auth/handoff/accept?token=${encodeURIComponent(token2)}&next=${encodeURIComponent('//evil.example.com')}`,
+    });
+    expect(accepted2.statusCode).toBe(302);
+    expect(accepted2.headers.location).toBe('/');
+  });
 });

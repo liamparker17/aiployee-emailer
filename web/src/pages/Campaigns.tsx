@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { Megaphone } from 'lucide-react';
 import { api } from '@aiployee/ui';
 import { Table, Th, Td } from '@aiployee/ui';
@@ -15,14 +16,32 @@ import { useToast } from '@aiployee/ui';
 interface Campaign { id: string; name: string; status: string; audience_type: string; audience_id: string; scheduled_for: string | null; created_at: string }
 interface Sender { id: string; email: string; display_name: string }
 interface NamedRow { id: string; name: string }
-interface Stats { recipients: number; sent: number; opens: number; clicks: number; bounced: number; replies: number; repliers: number }
-interface Reply { id: string; from_addr: string; from_name: string | null; subject: string | null; snippet: string | null; received_at: string }
+interface Stats { recipients: number; sent: number; opens: number; clicks: number; bounced: number; replies: number; repliers: number; hot_leads: number }
+interface Reply {
+  id: string; from_addr: string; from_name: string | null; subject: string | null; snippet: string | null; received_at: string;
+  is_hot_lead: boolean; group_fit: string | null; group_label: string | null; group_kind: string | null;
+  draft_status: string | null; proposed_outline: string | null;
+}
+
+const CC_URL = 'https://aiployee-command-centre.vercel.app';
+
+// What the agent wants the user to do with this reply, in one line.
+function suggestedAction(r: Reply): string {
+  if (r.draft_status === 'drafted') return 'Abe has drafted a response — review and approve it.';
+  if (r.draft_status === 'queued') return 'Response approved — queued to send.';
+  if (r.draft_status === 'sent') return 'Response sent.';
+  if (r.is_hot_lead) return 'Hot lead — reply individually while it’s warm.';
+  if (r.proposed_outline) return `Suggested: ${r.proposed_outline}`;
+  return 'Awaiting analysis — ask Abe to analyse this campaign’s replies.';
+}
 
 const selectCls = 'w-full rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:outline-none focus:border-accent';
 const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
 
 export default function Campaigns() {
   const toast = useToast();
+  const { tenantId } = useParams<{ tenantId: string }>();
+  const reviewHref = `/auth/handoff?to=${CC_URL}&next=${encodeURIComponent(`/t/${tenantId}/abe`)}`;
   const [items, setItems] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [senders, setSenders] = useState<Sender[]>([]);
@@ -142,35 +161,66 @@ export default function Campaigns() {
       <Modal open={!!report} onClose={() => setReport(null)} title={report ? `Report — ${report.campaign.name}` : ''}>
         {report && (
           <div className="flex flex-col gap-4">
+            {/* Outcomes first: replies and qualified leads are the commercial signal. */}
             <div className="grid grid-cols-2 gap-3 text-sm">
-              {[
-                ['Recipients', report.stats.recipients, 'text-ink'],
-                ['Delivered', report.stats.sent, 'text-success'],
-                ['Opens', `${report.stats.opens} (${pct(report.stats.opens, report.stats.sent)}%)`, 'text-magenta'],
-                ['Clicks', `${report.stats.clicks} (${pct(report.stats.clicks, report.stats.sent)}%)`, 'text-accent'],
-                ['Bounced', report.stats.bounced, 'text-error'],
-                ['Replies', `${report.stats.replies} (${pct(report.stats.repliers, report.stats.sent)}%)`, 'text-success'],
-              ].map(([label, val, color]) => (
-                <div key={label as string} className="bg-surface-raised border border-line rounded-xl p-3">
-                  <div className="text-xs uppercase tracking-wide text-ink-dim">{label}</div>
-                  <div className={`text-2xl font-semibold mt-1 ${color}`}>{val}</div>
-                </div>
-              ))}
+              <div className="bg-surface-raised border border-line rounded-xl p-3">
+                <div className="text-xs uppercase tracking-wide text-ink-dim">Replies</div>
+                <div className="text-3xl font-semibold mt-1 text-success">{report.stats.replies}</div>
+                <div className="text-xs text-ink-dim mt-0.5">{pct(report.stats.repliers, report.stats.sent)}% of delivered replied</div>
+              </div>
+              <div className="bg-surface-raised border border-line rounded-xl p-3">
+                <div className="text-xs uppercase tracking-wide text-ink-dim">Hot leads</div>
+                <div className="text-3xl font-semibold mt-1 text-magenta">{report.stats.hot_leads}</div>
+                <div className="text-xs text-ink-dim mt-0.5">flagged by Abe for individual follow-up</div>
+              </div>
+            </div>
+            <div>
+              <div className="grid grid-cols-5 gap-2 text-sm">
+                {[
+                  ['Recipients', String(report.stats.recipients)],
+                  ['Delivered', String(report.stats.sent)],
+                  ['Clicks', `${report.stats.clicks} (${pct(report.stats.clicks, report.stats.sent)}%)`],
+                  ['Bounced', String(report.stats.bounced)],
+                  ['Opens', `${report.stats.opens} (${pct(report.stats.opens, report.stats.sent)}%)`],
+                ].map(([label, val]) => (
+                  <div key={label} className="bg-surface-raised/50 border border-line rounded-xl p-2">
+                    <div className="text-[10px] uppercase tracking-wide text-ink-dim">{label}</div>
+                    <div className="text-sm font-medium mt-0.5 text-ink-muted">{val}</div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-ink-dim mt-1.5">Opens are directional only — Apple Mail privacy and security scanners inflate them.</p>
             </div>
             {report.replies.length > 0 && (
               <div>
                 <div className="text-xs uppercase tracking-wide text-ink-dim mb-2">
                   Latest replies — {report.stats.repliers} {report.stats.repliers === 1 ? 'person' : 'people'} replied
                 </div>
-                <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+                <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
                   {report.replies.map(r => (
                     <div key={r.id} className="bg-surface-raised border border-line rounded-xl p-3 text-sm">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="font-medium text-ink truncate">{r.from_name || r.from_addr}</span>
-                        <span className="text-xs text-ink-dim shrink-0">{new Date(r.received_at).toLocaleString()}</span>
+                      <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                        {r.is_hot_lead && (
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-magenta/15 text-magenta border border-magenta/30">Hot lead</span>
+                        )}
+                        {r.group_label && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-surface border border-line text-ink-muted">{r.group_label}</span>
+                        )}
+                        {(r.group_fit === 'needs_review' || r.group_kind === 'needs_review') && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-error/10 text-error border border-error/30">Needs review</span>
+                        )}
+                        <span className="ml-auto text-xs text-ink-dim shrink-0">{new Date(r.received_at).toLocaleString()}</span>
                       </div>
+                      <span className="font-medium text-ink truncate block">{r.from_name || r.from_addr}</span>
                       {r.subject && <div className="text-ink-muted truncate">{r.subject}</div>}
                       {r.snippet && <p className="text-xs text-ink-dim mt-1 line-clamp-2">{r.snippet}</p>}
+                      <div className="flex items-center justify-between gap-3 mt-2 pt-2 border-t border-line">
+                        <span className="text-xs text-ink-muted line-clamp-1">{suggestedAction(r)}</span>
+                        <a href={reviewHref}
+                          className="shrink-0 inline-flex items-center justify-center gap-2 rounded-btn text-sm font-medium px-4 py-1.5 transition bg-brand text-white hover:shadow-glow hover:brightness-110">
+                          Review response
+                        </a>
+                      </div>
                     </div>
                   ))}
                 </div>

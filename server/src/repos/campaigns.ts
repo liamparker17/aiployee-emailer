@@ -112,6 +112,7 @@ export interface CampaignStats {
   bounced: number;
   replies: number;
   repliers: number;
+  hot_leads: number;
 }
 
 export async function campaignStats(
@@ -127,6 +128,7 @@ export async function campaignStats(
     clicks: string;
     replies: string;
     repliers: string;
+    hot_leads: string;
   }>(
     `SELECT
        (SELECT count(*)::int  FROM emails
@@ -150,7 +152,9 @@ export async function campaignStats(
        (SELECT count(*)::int FROM inbound_emails
         WHERE campaign_id = $2 AND tenant_id = $1) AS replies,
        (SELECT count(DISTINCT from_addr)::int FROM inbound_emails
-        WHERE campaign_id = $2 AND tenant_id = $1) AS repliers`,
+        WHERE campaign_id = $2 AND tenant_id = $1) AS repliers,
+       (SELECT count(*)::int FROM inbound_emails
+        WHERE campaign_id = $2 AND tenant_id = $1 AND is_hot_lead) AS hot_leads`,
     [tenantId, id],
   );
   const row = r.rows[0];
@@ -162,6 +166,7 @@ export async function campaignStats(
     bounced:    Number(row.bounced),
     replies:    Number(row.replies),
     repliers:   Number(row.repliers),
+    hot_leads:  Number(row.hot_leads),
   };
 }
 
@@ -172,9 +177,16 @@ export interface CampaignReply {
   subject: string | null;
   snippet: string | null;
   received_at: Date;
+  is_hot_lead: boolean;
+  group_fit: string | null;
+  group_label: string | null;
+  group_kind: string | null;
+  draft_status: string | null;
+  proposed_outline: string | null;
 }
 
-// Recent inbound replies correlated to the campaign by the inbox monitor.
+// Recent inbound replies correlated to the campaign by the inbox monitor,
+// enriched with Abe's analysis (reply group classification + drafted response state).
 export async function campaignReplies(
   pool: pg.Pool,
   tenantId: string,
@@ -182,10 +194,13 @@ export async function campaignReplies(
   limit = 20,
 ): Promise<CampaignReply[]> {
   const r = await pool.query<CampaignReply>(
-    `SELECT id, from_addr, from_name, subject, left(body_text, 240) AS snippet, received_at
-     FROM inbound_emails
-     WHERE tenant_id = $1 AND campaign_id = $2
-     ORDER BY received_at DESC
+    `SELECT ie.id, ie.from_addr, ie.from_name, ie.subject, left(ie.body_text, 240) AS snippet, ie.received_at,
+            ie.is_hot_lead, ie.group_fit,
+            rg.label AS group_label, rg.kind AS group_kind, rg.draft_status, rg.proposed_outline
+     FROM inbound_emails ie
+     LEFT JOIN reply_groups rg ON rg.id = ie.reply_group_id AND rg.tenant_id = ie.tenant_id
+     WHERE ie.tenant_id = $1 AND ie.campaign_id = $2
+     ORDER BY ie.is_hot_lead DESC, ie.received_at DESC
      LIMIT $3`,
     [tenantId, id, limit],
   );
