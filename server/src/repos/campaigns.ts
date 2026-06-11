@@ -110,6 +110,8 @@ export interface CampaignStats {
   opens: number;
   clicks: number;
   bounced: number;
+  replies: number;
+  repliers: number;
 }
 
 export async function campaignStats(
@@ -123,6 +125,8 @@ export async function campaignStats(
     bounced: string;
     opens: string;
     clicks: string;
+    replies: string;
+    repliers: string;
   }>(
     `SELECT
        (SELECT count(*)::int  FROM emails
@@ -142,7 +146,11 @@ export async function campaignStats(
         WHERE ee.type = 'click'
           AND ee.email_id IN (
             SELECT id FROM emails WHERE campaign_id = $2 AND tenant_id = $1
-          )) AS clicks`,
+          )) AS clicks,
+       (SELECT count(*)::int FROM inbound_emails
+        WHERE campaign_id = $2 AND tenant_id = $1) AS replies,
+       (SELECT count(DISTINCT from_addr)::int FROM inbound_emails
+        WHERE campaign_id = $2 AND tenant_id = $1) AS repliers`,
     [tenantId, id],
   );
   const row = r.rows[0];
@@ -152,5 +160,34 @@ export async function campaignStats(
     opens:      Number(row.opens),
     clicks:     Number(row.clicks),
     bounced:    Number(row.bounced),
+    replies:    Number(row.replies),
+    repliers:   Number(row.repliers),
   };
+}
+
+export interface CampaignReply {
+  id: string;
+  from_addr: string;
+  from_name: string | null;
+  subject: string | null;
+  snippet: string | null;
+  received_at: Date;
+}
+
+// Recent inbound replies correlated to the campaign by the inbox monitor.
+export async function campaignReplies(
+  pool: pg.Pool,
+  tenantId: string,
+  id: string,
+  limit = 20,
+): Promise<CampaignReply[]> {
+  const r = await pool.query<CampaignReply>(
+    `SELECT id, from_addr, from_name, subject, left(body_text, 240) AS snippet, received_at
+     FROM inbound_emails
+     WHERE tenant_id = $1 AND campaign_id = $2
+     ORDER BY received_at DESC
+     LIMIT $3`,
+    [tenantId, id, limit],
+  );
+  return r.rows;
 }

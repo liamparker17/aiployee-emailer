@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireTenantCtx } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
-import { listCampaigns, getCampaign, createCampaign, setCampaignStatus, deleteCampaign, campaignStats } from '../repos/campaigns.js';
+import { listCampaigns, getCampaign, createCampaign, setCampaignStatus, deleteCampaign, campaignStats, campaignReplies } from '../repos/campaigns.js';
 import { sendCampaign } from '../marketing/campaignSend.js';
 import { verifyUnsubToken } from '@aiployee/core';
 import { getContact, updateContact, importContacts, getContactIdsByEmails } from '@aiployee/core';
@@ -92,7 +92,11 @@ export async function registerCampaignRoutes(app: FastifyInstance) {
       const { id } = req.params as { id: string };
       const campaign = await getCampaign(app.pool, ctx.tenantId, id);
       if (!campaign) throw new AppError('not_found', 404, 'Campaign not found');
-      return reply.send({ campaign, stats: await campaignStats(app.pool, ctx.tenantId, id) });
+      return reply.send({
+        campaign,
+        stats: await campaignStats(app.pool, ctx.tenantId, id),
+        replies: await campaignReplies(app.pool, ctx.tenantId, id),
+      });
     } catch (e) { sendError(reply, e); }
   });
 

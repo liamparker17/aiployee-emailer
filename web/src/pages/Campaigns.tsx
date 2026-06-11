@@ -15,7 +15,8 @@ import { useToast } from '@aiployee/ui';
 interface Campaign { id: string; name: string; status: string; audience_type: string; audience_id: string; scheduled_for: string | null; created_at: string }
 interface Sender { id: string; email: string; display_name: string }
 interface NamedRow { id: string; name: string }
-interface Stats { recipients: number; sent: number; opens: number; clicks: number; bounced: number }
+interface Stats { recipients: number; sent: number; opens: number; clicks: number; bounced: number; replies: number; repliers: number }
+interface Reply { id: string; from_addr: string; from_name: string | null; subject: string | null; snippet: string | null; received_at: string }
 
 const selectCls = 'w-full rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:outline-none focus:border-accent';
 const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
@@ -27,7 +28,7 @@ export default function Campaigns() {
   const [senders, setSenders] = useState<Sender[]>([]);
   const [lists, setLists] = useState<NamedRow[]>([]);
   const [segments, setSegments] = useState<NamedRow[]>([]);
-  const [report, setReport] = useState<{ campaign: Campaign; stats: Stats } | null>(null);
+  const [report, setReport] = useState<{ campaign: Campaign; stats: Stats; replies: Reply[] } | null>(null);
   const [form, setForm] = useState({ name: '', senderId: '', subject: '', bodyHtml: '', audienceType: 'list', audienceId: '', scheduledFor: '' });
 
   const load = () => { setLoading(true); api<{ campaigns: Campaign[] }>('/api/campaigns').then(r => { setItems(r.campaigns); setLoading(false); }); };
@@ -70,7 +71,7 @@ export default function Campaigns() {
     catch (err: unknown) { toast.error((err as Error).message); }
   }
   async function openReport(c: Campaign) {
-    const r = await api<{ campaign: Campaign; stats: Stats }>(`/api/campaigns/${c.id}`);
+    const r = await api<{ campaign: Campaign; stats: Stats; replies: Reply[] }>(`/api/campaigns/${c.id}`);
     setReport(r);
   }
 
@@ -140,19 +141,41 @@ export default function Campaigns() {
 
       <Modal open={!!report} onClose={() => setReport(null)} title={report ? `Report — ${report.campaign.name}` : ''}>
         {report && (
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            {[
-              ['Recipients', report.stats.recipients, 'text-ink'],
-              ['Delivered', report.stats.sent, 'text-success'],
-              ['Opens', `${report.stats.opens} (${pct(report.stats.opens, report.stats.sent)}%)`, 'text-magenta'],
-              ['Clicks', `${report.stats.clicks} (${pct(report.stats.clicks, report.stats.sent)}%)`, 'text-accent'],
-              ['Bounced', report.stats.bounced, 'text-error'],
-            ].map(([label, val, color]) => (
-              <div key={label as string} className="bg-surface-raised border border-line rounded-xl p-3">
-                <div className="text-xs uppercase tracking-wide text-ink-dim">{label}</div>
-                <div className={`text-2xl font-semibold mt-1 ${color}`}>{val}</div>
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {[
+                ['Recipients', report.stats.recipients, 'text-ink'],
+                ['Delivered', report.stats.sent, 'text-success'],
+                ['Opens', `${report.stats.opens} (${pct(report.stats.opens, report.stats.sent)}%)`, 'text-magenta'],
+                ['Clicks', `${report.stats.clicks} (${pct(report.stats.clicks, report.stats.sent)}%)`, 'text-accent'],
+                ['Bounced', report.stats.bounced, 'text-error'],
+                ['Replies', `${report.stats.replies} (${pct(report.stats.repliers, report.stats.sent)}%)`, 'text-success'],
+              ].map(([label, val, color]) => (
+                <div key={label as string} className="bg-surface-raised border border-line rounded-xl p-3">
+                  <div className="text-xs uppercase tracking-wide text-ink-dim">{label}</div>
+                  <div className={`text-2xl font-semibold mt-1 ${color}`}>{val}</div>
+                </div>
+              ))}
+            </div>
+            {report.replies.length > 0 && (
+              <div>
+                <div className="text-xs uppercase tracking-wide text-ink-dim mb-2">
+                  Latest replies — {report.stats.repliers} {report.stats.repliers === 1 ? 'person' : 'people'} replied
+                </div>
+                <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+                  {report.replies.map(r => (
+                    <div key={r.id} className="bg-surface-raised border border-line rounded-xl p-3 text-sm">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="font-medium text-ink truncate">{r.from_name || r.from_addr}</span>
+                        <span className="text-xs text-ink-dim shrink-0">{new Date(r.received_at).toLocaleString()}</span>
+                      </div>
+                      {r.subject && <div className="text-ink-muted truncate">{r.subject}</div>}
+                      {r.snippet && <p className="text-xs text-ink-dim mt-1 line-clamp-2">{r.snippet}</p>}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
+            )}
           </div>
         )}
       </Modal>
