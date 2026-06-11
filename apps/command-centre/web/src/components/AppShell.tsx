@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useEffect } from 'react';
-import { LayoutDashboard, Bot, Phone, PhoneOutgoing, Workflow, Wand2, LogOut, Send } from 'lucide-react';
+import { LayoutDashboard, Bot, Phone, PhoneOutgoing, Workflow, Wand2, LogOut, Send, MessageCircle } from 'lucide-react';
 import { useAuth } from '@aiployee/ui';
 import { TenantSwitcher } from '@aiployee/ui';
 import { Logo } from '@aiployee/ui';
@@ -51,6 +51,9 @@ export default function AppShell() {
           )}
           {isAdmin && (
             <NavLink to={`${base}/jobix-builder`} className={link}><Wand2 size={16} />Jobix</NavLink>
+          )}
+          {isAdmin && (
+            <NavLink to={`${base}/whatsapp`} className={link}><MessageCircle size={16} />WhatsApp</NavLink>
           )}
           <NavLink to={`${base}/dashboard`} className={link}><LayoutDashboard size={16} />Dashboard</NavLink>
         </nav>

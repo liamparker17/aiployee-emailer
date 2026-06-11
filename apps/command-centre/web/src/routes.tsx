@@ -11,6 +11,7 @@ import Calls from './pages/Calls';
 import CallCampaigns from './pages/CallCampaigns';
 import Flows from './pages/Flows';
 import JobixBuilder from './pages/JobixBuilder';
+import WhatsApp from './pages/WhatsApp';
 
 function Authed({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -58,6 +59,7 @@ export const router = createBrowserRouter([
       { path: 'outbound-calls', element: <CallCampaigns /> },
       { path: 'flows', element: <Flows /> },
       { path: 'jobix-builder', element: <JobixBuilder /> },
+      { path: 'whatsapp', element: <WhatsApp /> },
     ],
   },
 
