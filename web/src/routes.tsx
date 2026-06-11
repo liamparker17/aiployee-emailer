@@ -15,7 +15,6 @@ import Users from './pages/Users';
 import AdminTenants from './pages/AdminTenants';
 import TenantPicker from './pages/TenantPicker';
 import Onboarding from './pages/Onboarding';
-import JobixBuilder from './pages/JobixBuilder';
 import AiResponses from './pages/AiResponses';
 import Domains from './pages/Domains';
 import EventWebhooks from './pages/EventWebhooks';
@@ -24,10 +23,6 @@ import Lists from './pages/Lists';
 import Segments from './pages/Segments';
 import Campaigns from './pages/Campaigns';
 import LaunchCampaign from './pages/LaunchCampaign';
-import Abe from './pages/Abe';
-import Calls from './pages/Calls';
-import CallCampaigns from './pages/CallCampaigns';
-import Flows from './pages/Flows';
 
 function Authed({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -70,8 +65,7 @@ export const router = createBrowserRouter([
     path: '/t/:tenantId',
     element: <AuthProvider><Authed><TenantGate><AppShell /></TenantGate></Authed></AuthProvider>,
     children: [
-      { path: 'abe', element: <Abe /> },
-      { index: true, element: <Navigate to="abe" replace /> }, // land on Abe, not the email dashboard
+      { index: true, element: <Navigate to="dashboard" replace /> },
       { path: 'dashboard', element: <Dashboard /> },
       { path: 'senders', element: <Senders /> },
       { path: 'domains', element: <Domains /> },
@@ -84,14 +78,10 @@ export const router = createBrowserRouter([
       { path: 'templates', element: <Templates /> },
       { path: 'smtp', element: <SmtpConfigs /> },
       { path: 'api-keys', element: <ApiKeys /> },
-      { path: 'jobix-builder', element: <JobixBuilder /> },
       { path: 'ai-responses', element: <AiResponses /> },
       { path: 'log', element: <EmailLog /> },
       { path: 'suppressions', element: <Suppressions /> },
       { path: 'users', element: <Users /> },
-      { path: 'calls', element: <Calls /> },
-      { path: 'outbound-calls', element: <CallCampaigns /> },
-      { path: 'flows', element: <Flows /> },
     ],
   },
 

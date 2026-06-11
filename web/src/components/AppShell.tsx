@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState, type ReactNode } from 'react';
-import { LayoutDashboard, Send, FileText, Server, ShieldCheck, KeyRound, Wand2, Bot, Webhook, ScrollText, ShieldBan, Users, UsersRound, ListChecks, Filter, Megaphone, Rocket, Building2, LogOut, Phone, PhoneOutgoing, Workflow, ChevronDown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Send, FileText, Server, ShieldCheck, KeyRound, Bot, Webhook, ScrollText, ShieldBan, Users, UsersRound, ListChecks, Filter, Megaphone, Rocket, Building2, LogOut, ChevronDown, ChevronRight } from 'lucide-react';
 import { useAuth } from '@aiployee/ui';
 import { TenantSwitcher } from '@aiployee/ui';
 import { Logo } from '@aiployee/ui';
@@ -12,11 +12,11 @@ const link = ({ isActive }: { isActive: boolean }) =>
       : 'text-ink-muted hover:text-white hover:bg-surface'
   }`;
 
-// Collapsible secondary nav group — collapsed by default, choice persisted per group.
+// Collapsible nav group — open by default, choice persisted per group.
 function NavGroup({ id, label, children }: { id: string; label: string; children: ReactNode }) {
   const key = `nav.${id}.open`;
   const [open, setOpen] = useState<boolean>(() => {
-    try { return localStorage.getItem(key) === '1'; } catch { return false; }
+    try { return localStorage.getItem(key) !== '0'; } catch { return true; }
   });
   const toggle = () => setOpen(o => {
     const next = !o;
@@ -56,30 +56,13 @@ export default function AppShell() {
           <Logo size={32} />
           <span className="font-heading font-semibold text-lg text-ink">Aiployee</span>
         </div>
-        <p className="text-[11px] text-ink-dim px-2 mb-4">Your AI call employee</p>
+        <p className="text-[11px] text-ink-dim px-2 mb-4">Your AI email employee</p>
         <TenantSwitcher />
         <a href="/auth/handoff?to=https://aiployee-command-centre.vercel.app"
           className="flex items-center gap-3 px-3 py-2 mt-2 rounded-lg text-sm text-magenta hover:bg-surface transition">
           <LayoutDashboard size={16} />Command Centre →
         </a>
         <nav className="flex flex-col gap-0.5 mt-2 overflow-y-auto">
-
-          {/* ── Hero: the agentic features ── */}
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-magenta px-3 pt-1 pb-1">
-            Your AI employee
-          </div>
-          <NavLink to={`${base}/abe`} className={link}><Bot size={16} />Abe</NavLink>
-          {isAdmin && (
-            <NavLink to={`${base}/calls`} className={link}><Phone size={16} />Calls</NavLink>
-          )}
-          {isAdmin && (
-            <NavLink to={`${base}/outbound-calls`} className={link}><PhoneOutgoing size={16} />Outbound Calls</NavLink>
-          )}
-          {isAdmin && (
-            <NavLink to={`${base}/flows`} className={link}><Workflow size={16} />Flows</NavLink>
-          )}
-
-          {/* ── Demoted: everything else, collapsed by default ── */}
           <NavGroup id="email" label="Email setup">
             <NavLink to={`${base}/senders`} className={link}><Send size={16} />Senders</NavLink>
             <NavLink to={`${base}/domains`} className={link}><ShieldCheck size={16} />Domains</NavLink>
@@ -100,7 +83,6 @@ export default function AppShell() {
 
           <NavGroup id="developers" label="Developers">
             <NavLink to={`${base}/api-keys`} className={link}><KeyRound size={16} />API keys</NavLink>
-            <NavLink to={`${base}/jobix-builder`} className={link}><Wand2 size={16} />Jobix builder</NavLink>
             <NavLink to={`${base}/ai-responses`} className={link}><Bot size={16} />AI responses</NavLink>
             <NavLink to={`${base}/event-webhooks`} className={link}><Webhook size={16} />Event webhooks</NavLink>
           </NavGroup>
