@@ -47,10 +47,12 @@ import { registerBlobRoutes } from './routes/blob.js';
 import type { LlmFactory } from './agent/runner.js';
 import type { WebhookSender } from './agent/webhook.js';
 import type { McpProviderFactory } from './agent/mcp.js';
+import type { BatchEmbed } from './agent/abe/campaignAnalysis.js';
 
 export interface AppDeps {
   cfg?: Config; agentLlmFactory?: LlmFactory; agentWebhookSender?: WebhookSender;
   agentMcpProviderFactory?: McpProviderFactory;
+  agentEmbedFactory?: (apiKey: string) => BatchEmbed;
 }
 
 export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
@@ -72,6 +74,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   app.decorate('agentLlmFactory', deps.agentLlmFactory);
   app.decorate('agentWebhookSender', deps.agentWebhookSender);
   app.decorate('agentMcpProviderFactory', deps.agentMcpProviderFactory);
+  app.decorate('agentEmbedFactory', deps.agentEmbedFactory);
   // No in-process worker / scheduler. Sending happens inline in POST /v1/emails for immediate
   // sends, and via POST /v1/cron/* endpoints driven by an external cron (e.g. cron-job.org)
   // for scheduled + retry. This keeps the app stateless so it runs on Vercel/anywhere.
@@ -141,5 +144,6 @@ declare module 'fastify' {
     agentLlmFactory?: import('./agent/runner.js').LlmFactory;
     agentWebhookSender?: import('./agent/webhook.js').WebhookSender;
     agentMcpProviderFactory?: import('./agent/mcp.js').McpProviderFactory;
+    agentEmbedFactory?: (apiKey: string) => import('./agent/abe/campaignAnalysis.js').BatchEmbed;
   }
 }

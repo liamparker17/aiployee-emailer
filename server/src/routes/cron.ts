@@ -8,10 +8,12 @@ import { listEnabledGoals, getGoal } from '../repos/agentGoals.js';
 import { runAbeShift } from '../agent/abe/shift.js';
 import { runLineReportShift } from '../agent/abe/lineShift.js';
 import { extractHandovers } from '../agent/abe/handoverExtract.js';
-import { openAiFactory } from '../agent/runner.js';
+import { openAiFactory, makeEmbedBatch } from '../agent/runner.js';
 import { listEnabledLineConfigs } from '../repos/lineReportConfigs.js';
 import { getAgentOpenAIKey } from '../repos/agent.js';
-import { CALL_BATCH_MODEL } from '../agent/abe/models.js';
+import { CALL_BATCH_MODEL, INBOX_BATCH_MODEL } from '../agent/abe/models.js';
+import { analyzeCampaign } from '../agent/abe/campaignAnalysis.js';
+import { listCampaignsNeedingAnalysis } from '../repos/campaignAnalyses.js';
 import { listExecutingPlays, listPlaysForOutcomeRollup } from '../repos/agentPlays.js';
 import { getDefaultSender } from '@aiployee/core';
 import { advancePlayTouches } from '../agent/abe/touches.js';
@@ -211,6 +213,37 @@ export async function registerCronRoutes(app: FastifyInstance) {
         }
       }
       return reply.send({ ok: true, plays: plays.length, updated, errors });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // /v1/cron/analyze-replies — every 15 min: run Abe's reply analysis for campaigns with
+  // correlated replies newer than their last run, so reply triage and hot-lead flagging
+  // happen automatically instead of waiting for someone to ask Abe in chat.
+  cron('/v1/cron/analyze-replies', async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      requireCronAuth(req, app.cfg.cronSecret);
+      const due = await listCampaignsNeedingAnalysis(app.pool);
+      let analyzed = 0;
+      const skipped: Array<{ campaignId: string; reason: string }> = [];
+      for (const d of due) {
+        try {
+          const key = await getAgentOpenAIKey(app.pool, app.cfg.encKey, d.tenant_id);
+          if (!key && !app.agentLlmFactory) {
+            skipped.push({ campaignId: d.campaign_id, reason: 'no_openai_key' });
+            continue;
+          }
+          const llm = (app.agentLlmFactory ?? openAiFactory)(key ?? '');
+          const embed = (app.agentEmbedFactory ?? makeEmbedBatch)(key ?? '');
+          await analyzeCampaign({
+            pool: app.pool, tenantId: d.tenant_id, campaignId: d.campaign_id,
+            embed, llm, model: INBOX_BATCH_MODEL,
+          });
+          analyzed += 1;
+        } catch (err) {
+          skipped.push({ campaignId: d.campaign_id, reason: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      return reply.send({ ok: true, due: due.length, analyzed, skipped });
     } catch (e) { sendError(reply, e); }
   });
 

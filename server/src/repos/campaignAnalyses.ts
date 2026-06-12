@@ -74,6 +74,26 @@ export async function latestAnalysis(
   return r.rows[0] ?? null;
 }
 
+// Cross-tenant: campaigns with at least one correlated reply newer than their latest
+// analysis run (or never analysed at all). Drives the analyze-replies cron.
+export async function listCampaignsNeedingAnalysis(
+  pool: pg.Pool,
+): Promise<Array<{ tenant_id: string; campaign_id: string }>> {
+  const r = await pool.query<{ tenant_id: string; campaign_id: string }>(
+    `SELECT c.tenant_id, c.id AS campaign_id
+       FROM campaigns c
+      WHERE EXISTS (
+        SELECT 1 FROM inbound_emails ie
+         WHERE ie.tenant_id = c.tenant_id AND ie.campaign_id = c.id
+           AND ie.received_at > COALESCE(
+             (SELECT max(a.run_at) FROM campaign_analyses a
+               WHERE a.tenant_id = c.tenant_id AND a.campaign_id = c.id),
+             '-infinity'::timestamptz))
+      ORDER BY c.created_at ASC`,
+  );
+  return r.rows;
+}
+
 export async function insertReplyGroup(
   pool: pg.Pool,
   input: {
