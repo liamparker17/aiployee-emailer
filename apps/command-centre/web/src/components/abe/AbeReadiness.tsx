@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Card } from '@aiployee/ui';
 import { api } from '@aiployee/ui';
 import { useAuth } from '@aiployee/ui';
+
+// Both setup pages live in the Emailer app, not the Command Centre — cross over
+// via the SSO handoff (same pattern as the "Email →" link in the sidebar).
+const EMAILER_URL = 'https://aiployee-emailer.vercel.app';
 
 interface Sender { id: string; is_default: boolean }
 
@@ -73,23 +77,23 @@ export default function AbeReadiness({ onReady, clientName }: Props) {
             {!hasKey && (
               <li className="flex flex-col gap-0.5 text-sm">
                 <span className="text-ink-muted">Connect an OpenAI key so Abe can think.</span>
-                <Link
-                  to={`${base}/ai-responses`}
+                <a
+                  href={`/auth/handoff?to=${EMAILER_URL}&next=${encodeURIComponent(`${base}/ai-responses`)}`}
                   className="text-magenta hover:underline font-medium w-fit"
                 >
                   Open AI settings
-                </Link>
+                </a>
               </li>
             )}
             {!hasDefaultSender && (
               <li className="flex flex-col gap-0.5 text-sm">
                 <span className="text-ink-muted">Set a default sender so Abe can send.</span>
-                <Link
-                  to={`${base}/senders`}
+                <a
+                  href={`/auth/handoff?to=${EMAILER_URL}&next=${encodeURIComponent(`${base}/senders`)}`}
                   className="text-magenta hover:underline font-medium w-fit"
                 >
                   Manage senders
-                </Link>
+                </a>
               </li>
             )}
           </ul>
