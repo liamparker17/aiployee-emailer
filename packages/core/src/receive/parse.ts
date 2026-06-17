@@ -33,7 +33,10 @@ export async function parseRawEmail(source: Buffer): Promise<ParsedInbound> {
     toAddr: toText ?? null,
     subject: m.subject ?? null,
     bodyText: m.text ?? null,
-    bodyHtml: typeof m.html === 'string' ? m.html : null,
+    // Intentionally NOT stored: full inbound HTML averages ~1.3MB/email (base64
+    // inline images) and nothing reads it — every consumer uses body_text. Storing
+    // it once blew the DB to 506MB / 96% of all data. See scripts/db-size-probe.cjs.
+    bodyHtml: null,
     receivedAt: m.date ?? new Date(),
   };
 }
