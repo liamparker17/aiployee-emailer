@@ -13,11 +13,18 @@ export function getPool(cfg: Config): pg.Pool {
     // connection string's sslmode in place.
     const isSupabase = /supabase\.(co|com)/i.test(cfg.databaseUrl);
 
+    // For Supabase, strip the URL's libpq ssl params (sslmode/sslrootcert/etc.)
+    // so the explicit `ssl` object below is authoritative. A leftover
+    // `sslmode=require` is otherwise parsed as verify-full against Node's
+    // default trust store and fails with SELF_SIGNED_CERT_IN_CHAIN, ignoring
+    // our pinned CA. (Supabase pooler URLs carry no other query params.)
+    const connectionString = isSupabase ? cfg.databaseUrl.split('?')[0] : cfg.databaseUrl;
+
     // max: 10 — connections fan in through Supabase's Supavisor transaction
     // pooler (serverless), so a large per-instance pool is pointless and risks
     // exhausting the upstream limit under cron load.
     pool = new pg.Pool({
-      connectionString: cfg.databaseUrl,
+      connectionString,
       max: 10,
       ...(isSupabase
         ? { ssl: { ca: SUPABASE_CA_CERT, rejectUnauthorized: true } }
