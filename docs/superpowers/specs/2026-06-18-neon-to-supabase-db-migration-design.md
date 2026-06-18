@@ -1,8 +1,16 @@
 # Neon → Supabase DB Migration — Design
 
 **Date:** 2026-06-18
-**Status:** Approved (design)
+**Status:** SHIPPED 2026-06-18 — prod cutover complete; both Vercel projects live on Supabase (eu-west-1), all crons returning 200.
 **Scope owner:** Liam
+
+> **Cutover note:** Neon was quota-blocked (compute exhausted) at migration time,
+> so the planned clean `pg_dump` was impossible. Data was instead rebuilt on
+> Supabase by running the 42 migrations to create the schema, then loading the
+> 2026-06-17 10:36 UTC JSON snapshot (`aiployee-neon-backup.json`, 4,113 rows)
+> via `scripts/supabase-load.cjs`. **~30h of data written after that snapshot
+> is not present** and could be recovered from Neon once its quota resets.
+> TLS uses the pinned Supabase Root 2021 CA (see `packages/core/src/db/`).
 
 ## Goal
 
