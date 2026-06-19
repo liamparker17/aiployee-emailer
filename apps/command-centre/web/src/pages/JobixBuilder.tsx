@@ -35,6 +35,7 @@ export default function JobixBuilder() {
   const [from, setFrom] = useState('');
   const [recipientMode, setRecipientMode] = useState<'llm' | 'fixed'>('llm');
   const [fixedTo, setFixedTo] = useState('');
+  const [cc, setCc] = useState('');
   const [nodeRef, setNodeRef] = useState('llm_node_X');
   const [extra, setExtra] = useState('');
 
@@ -70,18 +71,26 @@ export default function JobixBuilder() {
     return JSON.stringify(obj, null, 2);
   }, [fields, recipientMode]);
 
+  const ccList = useMemo(
+    () => cc.split(/[\s,]+/).map(s => s.trim()).filter(Boolean),
+    [cc],
+  );
+
   const payloadJson = useMemo(() => {
     const variables: Record<string, string> = {};
     for (const f of fields) variables[f] = anchor(f);
     const payload = {
       from: from || 'sender@yourdomain.com',
       to: recipientMode === 'llm' ? anchor('recipient_email') : (fixedTo || 'recipient@example.com'),
+      // cc is a fixed list of addresses copied on every email — emitted as a real JSON array
+      // (the /v1/emails API expects cc: string[]). Omitted entirely when no addresses are set.
+      ...(ccList.length ? { cc: ccList } : {}),
       template: template?.name ?? '',
       variables,
     };
     return JSON.stringify(payload, null, 2);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fields, from, recipientMode, fixedTo, template, ref]);
+  }, [fields, from, recipientMode, fixedTo, ccList, template, ref]);
 
   const configJson = useMemo(() => JSON.stringify({
     method: 'POST',
@@ -143,6 +152,9 @@ export default function JobixBuilder() {
         {recipientMode === 'fixed' && (
           <Field label="LLM node reference" hint='Used in the variable anchors, e.g. "llm_node_21".'><Input value={nodeRef} onChange={e => setNodeRef(e.target.value)} /></Field>
         )}
+        <Field label="CC (optional)" hint="Space/comma separated — these addresses are copied on every email sent by this call. Added to the payload as a JSON array.">
+          <Input value={cc} onChange={e => setCc(e.target.value)} placeholder="manager@yourcompany.com ops@yourcompany.com" />
+        </Field>
         <Field label="Extra fields (optional)" hint="Space/comma separated — added to the schema and payload beyond the template's variables.">
           <Input value={extra} onChange={e => setExtra(e.target.value)} placeholder="caller_phone id_number" />
         </Field>
