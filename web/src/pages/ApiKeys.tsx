@@ -82,7 +82,7 @@ function samplePayload(fromEmail: string) {
   return `{
   "from": "${fromEmail}",
   "to": "{{ llm_node_X.recipient_email }}",
-  "cc": ["manager@yourcompany.com"],
+  "cc": ["manager@yourcompany.com", "ops@yourcompany.com"],
   "template": "${SAMPLE_TEMPLATE_NAME}",
   "variables": {
     "caller_name": "{{ llm_node_X.caller_name }}",
@@ -255,11 +255,14 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
             </p>
             <p>
               <strong>4. The <Inline>cc</Inline> field is optional</strong> — it copies extra people on
-              every email. It's a JSON array, so keep the square brackets and comma-separate addresses:{' '}
-              <Inline>{`"cc": ["manager@x.com", "ops@x.com"]`}</Inline>. Replace the sample address with
-              real ones, or delete the whole <Inline>cc</Inline> line if you don't need it. (Want the LLM
-              to choose the CC per call instead? Add a <Inline>cc_email</Inline> field to the Step 2
-              schema and use <Inline>{`"cc": ["{{ llm_node_X.cc_email }}"]`}</Inline>.) A{' '}
+              every email. It's a JSON array. <strong>To CC several people, give each address its own
+              quotes and separate them with commas:</strong>{' '}
+              <Inline>{`"cc": ["manager@x.com", "ops@x.com", "director@x.com"]`}</Inline> — add as many as
+              you like. Do <em>not</em> put them all in one string (<Inline>{`"a@x.com, b@x.com"`}</Inline>{' '}
+              is rejected as a single invalid address). Replace the samples with real addresses, or delete
+              the whole <Inline>cc</Inline> line if you don't need it. (Want the LLM to choose a CC per
+              call? Add a <Inline>cc_email</Inline> field to the Step 2 schema and mix it in:{' '}
+              <Inline>{`"cc": ["manager@x.com", "{{ llm_node_X.cc_email }}"]`}</Inline>.) A{' '}
               <Inline>bcc</Inline> array works the same way for blind copies.
             </p>
           </div>
