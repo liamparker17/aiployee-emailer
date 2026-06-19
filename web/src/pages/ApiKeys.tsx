@@ -82,6 +82,7 @@ function samplePayload(fromEmail: string) {
   return `{
   "from": "${fromEmail}",
   "to": "{{ llm_node_X.recipient_email }}",
+  "cc": ["manager@yourcompany.com"],
   "template": "${SAMPLE_TEMPLATE_NAME}",
   "variables": {
     "caller_name": "{{ llm_node_X.caller_name }}",
@@ -251,6 +252,15 @@ function IntegrationGuide({ apiKey, fromEmail }: { apiKey: string; fromEmail: st
               <strong>3. The <Inline>from</Inline> field</strong> is pre-filled with this tenant's default
               sender (<Inline>{fromEmail || 'set up a sender first'}</Inline>). It must match a sender
               registered for this tenant — see sidebar → Senders.
+            </p>
+            <p>
+              <strong>4. The <Inline>cc</Inline> field is optional</strong> — it copies extra people on
+              every email. It's a JSON array, so keep the square brackets and comma-separate addresses:{' '}
+              <Inline>{`"cc": ["manager@x.com", "ops@x.com"]`}</Inline>. Replace the sample address with
+              real ones, or delete the whole <Inline>cc</Inline> line if you don't need it. (Want the LLM
+              to choose the CC per call instead? Add a <Inline>cc_email</Inline> field to the Step 2
+              schema and use <Inline>{`"cc": ["{{ llm_node_X.cc_email }}"]`}</Inline>.) A{' '}
+              <Inline>bcc</Inline> array works the same way for blind copies.
             </p>
           </div>
         </div>
