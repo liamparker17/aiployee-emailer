@@ -151,7 +151,7 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
 // Nodemailer errors carry structured fields (code, responseCode, response, command)
 // that are useful for diagnosis. Extract them and produce a friendly summary + details.
 // See: https://nodemailer.com/usage/#errors
-function toSmtpTestError(e: unknown, authType?: 'password' | 'xoauth2' | 'graph'): AppError {
+export function toSmtpTestError(e: unknown, authType?: 'password' | 'xoauth2' | 'graph'): AppError {
   const err = e as {
     message?: string;
     code?: string;

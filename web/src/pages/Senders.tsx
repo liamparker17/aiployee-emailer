@@ -9,6 +9,7 @@ import { PageHeader } from '@aiployee/ui';
 import { EmptyState } from '@aiployee/ui';
 import { Skeleton } from '@aiployee/ui';
 import { useToast } from '@aiployee/ui';
+import { useAuth } from '@aiployee/ui';
 
 interface Sender { id: string; email: string; display_name: string; reply_to: string | null; smtp_config_id: string; is_default: boolean }
 interface Cfg { id: string; name: string; from_domain: string }
@@ -62,7 +63,8 @@ export default function Senders() {
             <tr key={s.id}>
               <Td>{s.email}</Td><Td>{s.display_name}</Td><Td>{s.reply_to ?? '—'}</Td>
               <Td>{configs.find(c => c.id === s.smtp_config_id)?.name ?? s.smtp_config_id.slice(0,8)}</Td>
-              <Td><div className="flex gap-2 justify-end">
+              <Td><div className="flex gap-2 justify-end items-start">
+              <SenderTestBtn id={s.id} />
               {isMonitored(s) ? (
                 <Button variant="ghost" disabled>Monitored</Button>
               ) : (
@@ -131,6 +133,41 @@ export default function Senders() {
       <AddModal open={open} onClose={() => { setOpen(false); refresh(); }} configs={configs} />
       <ConnectMailboxModal target={connectFor} onClose={() => { setConnectFor(null); refresh(); }} />
       <GraphSendModal open={graphSendOpen} onClose={() => { setGraphSendOpen(false); refresh(); }} />
+    </div>
+  );
+}
+
+// Per-sender "Send test" button — exercises whichever send path (Graph or SMTP)
+// the sender currently uses and surfaces the full error inline on failure.
+function SenderTestBtn({ id }: { id: string }) {
+  const { user } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [testError, setTestError] = useState<string | null>(null);
+  const toast = useToast();
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button variant="ghost" disabled={busy} onClick={async () => {
+        const to = prompt('Send a test email to:', user?.email ?? '');
+        if (!to) return;
+        setBusy(true);
+        setTestError(null);
+        try {
+          const res = await api<{ ok: boolean; via: string }>(`/api/senders/${id}/test`, {
+            method: 'POST',
+            body: JSON.stringify({ to }),
+          });
+          toast.success('Test sent via ' + res.via.toUpperCase() + ' — check the inbox.');
+        } catch (e: unknown) {
+          const msg = (e as Error).message;
+          setTestError(msg);
+          toast.error('Send test failed — see details below the row.');
+        } finally { setBusy(false); }
+      }}>{busy ? 'Sending…' : 'Send test'}</Button>
+      {testError && (
+        <p className="max-w-xs text-xs text-red-600 whitespace-pre-wrap text-right leading-snug">
+          {testError}
+        </p>
+      )}
     </div>
   );
 }
