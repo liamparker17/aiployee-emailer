@@ -15,6 +15,7 @@ export const DEFAULT_MS_TENANT = 'common';
 // grants) — outlook.office365.com is rejected with AADSTS70011 invalid_scope.
 // The token still works against the outlook.office365.com IMAP endpoint.
 export const IMAP_SCOPE = 'https://outlook.office.com/IMAP.AccessAsUser.All offline_access';
+export const SMTP_SCOPE = 'https://outlook.office.com/SMTP.Send offline_access';
 
 type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string }) => Promise<{
   ok: boolean; status: number; json(): Promise<unknown>;
@@ -55,12 +56,13 @@ async function post(fetchImpl: FetchLike, url: string, data: Record<string, stri
 const loginBase = (tenant: string) => `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0`;
 
 export async function startDeviceCode(opts?: {
-  clientId?: string; tenant?: string; fetchImpl?: FetchLike;
+  clientId?: string; tenant?: string; fetchImpl?: FetchLike; scope?: string;
 }): Promise<DeviceCodeStart> {
   const clientId = opts?.clientId ?? DEFAULT_MS_CLIENT_ID;
   const tenant = opts?.tenant ?? DEFAULT_MS_TENANT;
   const fetchImpl = opts?.fetchImpl ?? (fetch as unknown as FetchLike);
-  const body = await post(fetchImpl, `${loginBase(tenant)}/devicecode`, { client_id: clientId, scope: IMAP_SCOPE });
+  const scope = opts?.scope ?? IMAP_SCOPE;
+  const body = await post(fetchImpl, `${loginBase(tenant)}/devicecode`, { client_id: clientId, scope });
   if (typeof body.device_code !== 'string') {
     throw new Error(`device code request failed: ${String(body.error_description ?? body.error ?? 'unknown')}`);
   }
@@ -103,16 +105,17 @@ export async function pollDeviceCode(opts: {
 
 /** Exchange a refresh token for a fresh access token (Microsoft also rotates the refresh token). */
 export async function refreshAccessToken(opts: {
-  refreshToken: string; clientId?: string; tenant?: string; fetchImpl?: FetchLike;
+  refreshToken: string; clientId?: string; tenant?: string; fetchImpl?: FetchLike; scope?: string;
 }): Promise<OauthTokens> {
   const clientId = opts.clientId ?? DEFAULT_MS_CLIENT_ID;
   const tenant = opts.tenant ?? DEFAULT_MS_TENANT;
   const fetchImpl = opts.fetchImpl ?? (fetch as unknown as FetchLike);
+  const scope = opts.scope ?? IMAP_SCOPE;
   const body = await post(fetchImpl, `${loginBase(tenant)}/token`, {
     grant_type: 'refresh_token',
     client_id: clientId,
     refresh_token: opts.refreshToken,
-    scope: IMAP_SCOPE,
+    scope,
   });
   if (typeof body.access_token !== 'string') {
     throw new Error(`token refresh failed: ${String(body.error_description ?? body.error ?? 'unknown')}`);

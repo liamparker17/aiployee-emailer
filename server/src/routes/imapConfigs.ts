@@ -65,6 +65,7 @@ export async function registerImapConfigRoutes(app: FastifyInstance) {
         const parsed = ReuseBody.parse(body);
         const smtp = await getSmtpConfigWithPassword(app.pool, app.cfg.encKey, ctx.tenantId, parsed.smtpConfigId);
         if (!smtp) throw new AppError('not_found', 404, 'SMTP config not found');
+        if (!smtp.password) throw new AppError('bad_request', 400, 'Selected SMTP config uses OAuth — enter IMAP credentials manually');
         input = {
           host: parsed.host ?? suggestImapHost(smtp.host),
           port: parsed.port, secure: parsed.secure,

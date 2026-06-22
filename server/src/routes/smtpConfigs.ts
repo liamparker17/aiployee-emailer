@@ -5,7 +5,7 @@ import { sendError, AppError } from '@aiployee/core';
 import {
   createSmtpConfig, listSmtpConfigs, getSmtpConfigWithPassword, deleteSmtpConfig,
 } from '@aiployee/core';
-import { buildTransport, getSenderForSmtpConfig } from '@aiployee/core';
+import { buildTransport, resolveSmtpCreds, getSenderForSmtpConfig } from '@aiployee/core';
 
 const CreateBody = z.object({
   name: z.string().min(1),
@@ -58,7 +58,8 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
       const body = TestBody.parse(req.body);
       const cfg = await getSmtpConfigWithPassword(app.pool, app.cfg.encKey, ctx.tenantId, id);
       if (!cfg) throw new AppError('not_found', 404, 'SMTP config not found');
-      const tx = buildTransport(cfg);
+      const creds = await resolveSmtpCreds(app.pool, app.cfg.encKey, cfg);
+      const tx = buildTransport(creds);
       // Prefer the sender identity linked to this config: relay providers (Mimecast,
       // SES) authenticate as a service account that is NOT the From address. Gmail/
       // Outlook ignore or reject a mismatched From, so falling back to the username

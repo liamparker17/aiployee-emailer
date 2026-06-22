@@ -6,6 +6,7 @@ import { markSent, markFailed, type EmailRow } from '../repos/emails.js';
 import { getSenderById, type Sender } from '../repos/senders.js';
 import { getSmtpConfigWithPassword, type SmtpConfigRow } from '../repos/smtpConfigs.js';
 import { deliverEmailEvent } from '../webhooks/eventDelivery.js';
+import { resolveSmtpCreds, type SmtpCreds } from './sender.js';
 import { injectTracking } from './tracking.js';
 
 /** Best-effort: notify tenant event webhooks that an email was sent. Never throws. */
@@ -20,15 +21,17 @@ export type DispatchOutcome =
   | { ok: true; emailId: string; messageId: string }
   | { ok: false; emailId: string; error: string };
 
-function buildPooledTransport(cfg: SmtpConfigRow & { password: string }): Transporter {
+function buildPooledTransport(creds: SmtpCreds): Transporter {
   // Pooled transport reuses TCP+TLS across many sends — the single biggest throughput win
   // when many emails share an SMTP config.
   const opts: SMTPPool.Options = {
     pool: true,
-    host: cfg.host,
-    port: cfg.port,
-    secure: cfg.secure,
-    auth: { user: cfg.username, pass: cfg.password },
+    host: creds.host,
+    port: creds.port,
+    secure: creds.secure,
+    auth: creds.accessToken
+      ? { type: 'OAuth2', user: creds.user, accessToken: creds.accessToken }
+      : { user: creds.user, pass: creds.pass! },
     maxConnections: 5,
     maxMessages: 100,
   };
@@ -87,7 +90,8 @@ export async function dispatchEmail(args: {
     if (!sender) throw new Error(`sender ${email.sender_id} not found`);
     const cfg = await getSmtpConfigWithPassword(pool, encKey, email.tenant_id, sender.smtp_config_id);
     if (!cfg) throw new Error(`smtp_config ${sender.smtp_config_id} not found`);
-    const tx = buildPooledTransport(cfg);
+    const creds = await resolveSmtpCreds(pool, encKey, cfg);
+    const tx = buildPooledTransport(creds);
     let outcome: DispatchOutcome;
     try { outcome = await sendOne(pool, tx, sender, email, baseUrl); }
     finally { tx.close(); }
@@ -116,7 +120,7 @@ export async function dispatchBatch(args: {
 
   // Look up all senders + configs in parallel up-front
   const senders = new Map<string, Sender>();
-  const configs = new Map<string, SmtpConfigRow & { password: string }>();
+  const configs = new Map<string, SmtpConfigRow & { password: string | null; refreshToken: string | null }>();
   await Promise.all(emails.map(async (e) => {
     if (!senders.has(e.sender_id)) {
       const s = await getSenderById(pool, e.tenant_id, e.sender_id);
@@ -150,7 +154,8 @@ export async function dispatchBatch(args: {
         return { ok: false, emailId: e.id, error: `smtp_config ${cfgId} not found` };
       }));
     }
-    const tx = buildPooledTransport(cfg);
+    const creds = await resolveSmtpCreds(pool, encKey, cfg);
+    const tx = buildPooledTransport(creds);
     try {
       return await Promise.all(groupEmails.map(async e => {
         const sender = senders.get(e.sender_id)!;
