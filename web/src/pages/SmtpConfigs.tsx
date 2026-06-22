@@ -45,7 +45,7 @@ export default function SmtpConfigs() {
                   : <span className="inline-flex items-center rounded-full bg-surface-raised px-2 py-0.5 text-xs font-medium text-ink-muted">Password</span>}
               </Td>
               <Td>
-                <div className="flex gap-2 justify-end">
+                <div className="flex gap-2 justify-end items-start">
                   <TestBtn id={c.id} />
                   <Button variant="danger" onClick={async () => {
                     if (!confirm(`Delete ${c.name}?`)) return;
@@ -71,18 +71,31 @@ export default function SmtpConfigs() {
 
 function TestBtn({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
+  const [testError, setTestError] = useState<string | null>(null);
   const toast = useToast();
-  return <Button variant="ghost" disabled={busy} onClick={async () => {
-    const to = prompt('Send a test email to:');
-    if (!to) return;
-    setBusy(true);
-    try {
-      await api(`/api/smtp-configs/${id}/test`, { method: 'POST', body: JSON.stringify({ to }) });
-      toast.success('Test email sent.');
-    }
-    catch (e: unknown) { toast.error('Failed: ' + (e as Error).message); }
-    finally { setBusy(false); }
-  }}>Test</Button>;
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button variant="ghost" disabled={busy} onClick={async () => {
+        const to = prompt('Send a test email to:');
+        if (!to) return;
+        setBusy(true);
+        setTestError(null);
+        try {
+          await api(`/api/smtp-configs/${id}/test`, { method: 'POST', body: JSON.stringify({ to }) });
+          toast.success('Test email sent.');
+        } catch (e: unknown) {
+          const msg = (e as Error).message;
+          setTestError(msg);
+          toast.error('SMTP test failed — see details below the row.');
+        } finally { setBusy(false); }
+      }}>Test</Button>
+      {testError && (
+        <p className="max-w-xs text-xs text-red-600 whitespace-pre-wrap text-right leading-snug">
+          {testError}
+        </p>
+      )}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -69,12 +69,14 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/smtp-configs/:id/test', async (req, reply) => {
+    let authType: 'password' | 'xoauth2' | undefined;
     try {
       const ctx = requireTenantCtx(req);
       const { id } = req.params as { id: string };
       const body = TestBody.parse(req.body);
       const cfg = await getSmtpConfigWithPassword(app.pool, app.cfg.encKey, ctx.tenantId, id);
       if (!cfg) throw new AppError('not_found', 404, 'SMTP config not found');
+      authType = cfg.auth_type as 'password' | 'xoauth2' | undefined;
       const creds = await resolveSmtpCreds(app.pool, app.cfg.encKey, cfg);
       const tx = buildTransport(creds);
       // Prefer the sender identity linked to this config: relay providers (Mimecast,
@@ -94,7 +96,7 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
         return reply.send({ ok: true, messageId: info.messageId });
       } finally { tx.close(); }
     } catch (e) {
-      sendError(reply, toSmtpTestError(e));
+      sendError(reply, toSmtpTestError(e, authType));
     }
   });
 
@@ -138,7 +140,7 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
 // Nodemailer errors carry structured fields (code, responseCode, response, command)
 // that are useful for diagnosis. Extract them and produce a friendly summary + details.
 // See: https://nodemailer.com/usage/#errors
-function toSmtpTestError(e: unknown): AppError {
+function toSmtpTestError(e: unknown, authType?: 'password' | 'xoauth2'): AppError {
   const err = e as {
     message?: string;
     code?: string;
@@ -150,26 +152,63 @@ function toSmtpTestError(e: unknown): AppError {
   const smtpResponse = typeof err.response === 'string' ? err.response : undefined;
   const command = typeof err.command === 'string' ? err.command : undefined;
   const nmCode = typeof err.code === 'string' ? err.code : undefined;
+  const rawResponse = smtpResponse ?? err.message;
 
-  let message: string;
+  // Auth-method prefix so the user knows which path ran.
+  const authPrefix = authType === 'xoauth2'
+    ? 'Authenticated via Microsoft OAuth.'
+    : authType === 'password'
+      ? 'Authenticated with username + password.'
+      : '';
+
+  let baseMessage: string;
   if (nmCode === 'EAUTH' || smtpCode === 535) {
-    message = 'Authentication rejected by SMTP server.';
+    baseMessage = 'Authentication rejected by SMTP server.';
   } else if (nmCode === 'ECONNECTION' || nmCode === 'ESOCKET') {
-    message = 'Could not connect to SMTP server.';
+    baseMessage = 'Could not connect to SMTP server.';
   } else if (nmCode === 'ETIMEDOUT') {
-    message = 'Connection timed out.';
+    baseMessage = 'Connection timed out.';
   } else if (nmCode === 'EDNS') {
-    message = 'DNS lookup failed for SMTP host.';
+    baseMessage = 'DNS lookup failed for SMTP host.';
   } else if (nmCode === 'EENVELOPE') {
-    message = 'SMTP server rejected the sender or recipient address.';
+    baseMessage = 'SMTP server rejected the sender or recipient address.';
   } else {
-    message = err.message ?? 'SMTP test failed.';
+    baseMessage = err.message ?? 'SMTP test failed.';
   }
 
+  // Append the raw server response so the user can see exactly what Microsoft/Gmail said.
+  const serverSaid = rawResponse && rawResponse !== baseMessage
+    ? ` Server said: "${rawResponse}"`
+    : '';
+
+  // Actionable hints keyed on well-known substrings in the raw response.
   let hint: string | undefined;
-  if (smtpCode === 535 || (smtpResponse && smtpResponse.includes('BadCredentials'))) {
-    hint = "Gmail rejected the login. Make sure 2-step verification is enabled and you're using a 16-character App Password (without spaces). Also confirm the from-address matches the authenticated user.";
+  const resp = (rawResponse ?? '').toLowerCase();
+
+  if (resp.includes('smtpclientauthentication is disabled')) {
+    hint = 'Microsoft has "Authenticated SMTP" turned OFF for this mailbox. SMTP send is blocked even with OAuth until an admin enables it (Exchange admin center → this user → Mail → Manage email apps → tick "Authenticated SMTP"), or this mailbox must use Microsoft Graph send instead.';
+  } else if (resp.includes('tenantattribution') || (resp.includes('tenant') && resp.includes('disabled'))) {
+    hint = 'Authenticated SMTP is disabled for the whole tenant — an admin must enable it (Set-TransportConfig -SmtpClientAuthenticationDisabled $false).';
+  } else if (resp.includes('must issue a starttls')) {
+    hint = 'Wrong TLS setting — use port 587 with TLS/secure OFF (STARTTLS).';
+  } else if (
+    resp.includes('invalid login') ||
+    resp.includes('username and password not accepted') ||
+    resp.includes('badcredentials')
+  ) {
+    if (authType === 'xoauth2') {
+      hint = 'The OAuth token was rejected — reconnect the mailbox (the consent may not include the sending scope).';
+    } else {
+      hint = "Gmail rejected the login. Make sure 2-step verification is enabled and you're using a 16-character App Password (without spaces). Also confirm the from-address matches the authenticated user.";
+    }
+  } else if (smtpCode === 535 || resp.includes('badcredentials')) {
+    if (authType !== 'xoauth2') {
+      hint = "Gmail rejected the login. Make sure 2-step verification is enabled and you're using a 16-character App Password (without spaces). Also confirm the from-address matches the authenticated user.";
+    }
   }
+
+  const parts = [authPrefix, baseMessage + serverSaid, hint].filter(Boolean);
+  const message = parts.join(' ');
 
   const details = { smtpCode, smtpResponse, command, hint };
   return new AppError(nmCode ?? 'smtp_test_failed', 400, message, details);
