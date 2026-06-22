@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState, type ReactNode } from 'react';
-import { LayoutDashboard, Send, FileText, Server, ShieldCheck, KeyRound, Bot, Webhook, ScrollText, ShieldBan, Users, UsersRound, ListChecks, Filter, Megaphone, Rocket, Building2, LogOut, ChevronDown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Send, FileText, Server, ShieldCheck, KeyRound, Bot, Webhook, ScrollText, ShieldBan, Users, UsersRound, ListChecks, Filter, Megaphone, Rocket, Building2, LogOut, ChevronDown, ChevronRight, CheckSquare, MessageCircle } from 'lucide-react';
 import { useAuth } from '@aiployee/ui';
 import { TenantSwitcher } from '@aiployee/ui';
 import { Logo } from '@aiployee/ui';
@@ -86,6 +86,13 @@ export default function AppShell() {
             <NavLink to={`${base}/ai-responses`} className={link}><Bot size={16} />AI responses</NavLink>
             <NavLink to={`${base}/event-webhooks`} className={link}><Webhook size={16} />Event webhooks</NavLink>
           </NavGroup>
+
+          {isAdmin && (
+            <NavGroup id="agent" label="Agent">
+              <NavLink to={`${base}/approvals`} className={link}><CheckSquare size={16} />Approvals</NavLink>
+              <NavLink to={`${base}/conversations`} className={link}><MessageCircle size={16} />Conversations</NavLink>
+            </NavGroup>
+          )}
 
           <NavGroup id="admin" label="Admin">
             <NavLink to={`${base}/users`} className={link}><Users size={16} />Users</NavLink>
