@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Send, Inbox, Mail } from 'lucide-react';
+import { Send, Inbox } from 'lucide-react';
 import { api } from '@aiployee/ui';
 import { Table, Th, Td } from '@aiployee/ui';
 import { Button } from '@aiployee/ui';
@@ -20,7 +20,6 @@ export default function Senders() {
   const [imapItems, setImapItems] = useState<ImapCfg[]>([]);
   const [open, setOpen] = useState(false);
   const [connectFor, setConnectFor] = useState<{ email: string; senderId: string | null } | null>(null);
-  const [m365Open, setM365Open] = useState(false);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
   const refresh = () => Promise.all([
@@ -40,15 +39,7 @@ export default function Senders() {
       <PageHeader
         title="Senders"
         subtitle="Verified sender addresses used to send emails."
-        actions={
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => setM365Open(true)}>
-              <Mail className="w-4 h-4 mr-1.5" />
-              Connect Microsoft 365
-            </Button>
-            <Button onClick={() => setOpen(true)}>Add sender</Button>
-          </div>
-        }
+        actions={<Button onClick={() => setOpen(true)}>Add sender</Button>}
       />
       {loading ? (
         <div className="space-y-2">
@@ -133,7 +124,6 @@ export default function Senders() {
 
       <AddModal open={open} onClose={() => { setOpen(false); refresh(); }} configs={configs} />
       <ConnectMailboxModal target={connectFor} onClose={() => { setConnectFor(null); refresh(); }} />
-      <M365ConnectModal open={m365Open} onClose={() => { setM365Open(false); refresh(); }} />
     </div>
   );
 }
@@ -206,35 +196,92 @@ function DeviceCodePanel({ flow }: { flow: DeviceCodeFlow }) {
   );
 }
 
-// Connect a sender's mailbox: Microsoft 365 sign-in by default (Outlook mailboxes
-// behind relays like Mimecast can't do password IMAP), manual IMAP as fallback.
+// Connect a sender's mailbox.
+//
+// Two paths depending on whether we already have a sender to attach to:
+//   • standalone (senderId === null): M365 runs the FULL unified flow
+//     (/api/m365/connect/*) — creates sender + SMTP + inbox in one sign-in.
+//     Password/IMAP path still available for non-M365 mailboxes.
+//   • attach (senderId is set): the sender already sends; we only wire inbox
+//     monitoring. M365 uses /api/imap-configs/oauth/* (imap-only). Unchanged.
 function ConnectMailboxModal({ target, onClose }: { target: { email: string; senderId: string | null } | null; onClose: () => void }) {
   const open = target !== null;
+  // Is this a standalone "new mailbox" flow (no existing sender)?
+  const isStandalone = target?.senderId === null || target?.senderId === undefined;
+
   const [email, setEmail] = useState('');
   const [method, setMethod] = useState<'m365' | 'password'>('m365');
   const [manual, setManual] = useState({ host: '', port: 993, secure: true, password: '' });
-  const [oauthBody, setOauthBody] = useState<Record<string, unknown> | null>(null);
   const toast = useToast();
-  const completeExtra = useMemo(
+
+  // ── State for standalone M365 unified flow ──
+  const [displayName, setDisplayName] = useState('');
+  const [fromDomain, setFromDomain] = useState('');
+  const [isDefault, setIsDefault] = useState(false);
+  const [unifiedStartBody, setUnifiedStartBody] = useState<Record<string, unknown> | null>(null);
+  const unifiedCompleteExtra = useMemo(() => ({
+    name: displayName.trim() || `${email.trim()} (M365)`,
+    fromDomain: fromDomain.trim(),
+    displayName: displayName.trim(),
+    isDefault,
+  }), [displayName, email, fromDomain, isDefault]);
+  // Auto-fill fromDomain from email
+  useEffect(() => {
+    const domain = email.split('@')[1] ?? '';
+    if (domain) setFromDomain(d => d || domain);
+  }, [email]);
+
+  // ── State for attach / imap-only flow ──
+  const [oauthBody, setOauthBody] = useState<Record<string, unknown> | null>(null);
+  const imapCompleteExtra = useMemo(
     () => ({ senderId: target?.senderId ?? null }),
     [target?.senderId], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const flow = useDeviceCodeFlow(oauthBody, completeExtra);
+
+  // Both hooks are always called (rules of hooks). Only the active path gets a non-null startBody.
+  const unifiedFlow = useM365ConnectFlow(
+    isStandalone && method === 'm365' ? unifiedStartBody : null,
+    unifiedCompleteExtra,
+    onClose,
+  );
+  const imapFlow = useDeviceCodeFlow(
+    !isStandalone && method === 'm365' ? oauthBody : null,
+    imapCompleteExtra,
+  );
 
   useEffect(() => {
     if (open) {
       setEmail(target?.email ?? '');
-      setMethod('m365'); setOauthBody(null);
+      setMethod('m365');
+      setUnifiedStartBody(null);
+      setOauthBody(null);
+      setDisplayName('');
+      setFromDomain('');
+      setIsDefault(false);
       setManual({ host: '', port: 993, secure: true, password: '' });
     }
   }, [open, target]);
 
-  const started = oauthBody !== null;
+  const unifiedStarted = unifiedStartBody !== null;
+  const imapStarted = oauthBody !== null;
+  const started = isStandalone ? unifiedStarted : imapStarted;
+  const activeFlow = isStandalone ? unifiedFlow : imapFlow;
+
+  const canStartUnified = isStandalone && email.trim() !== '' && displayName.trim() !== '' && fromDomain.trim() !== '' && !unifiedStarted;
+
   return (
     <Modal open={open} onClose={onClose} title="Connect a mailbox">
       <form className="space-y-3 text-sm" onSubmit={async e => {
         e.preventDefault();
-        if (method === 'm365') { setOauthBody({ username: email.trim() }); return; }
+        if (method === 'm365') {
+          if (isStandalone) {
+            setUnifiedStartBody({ username: email.trim() });
+          } else {
+            setOauthBody({ username: email.trim() });
+          }
+          return;
+        }
+        // Password / IMAP path — always imap-only
         try {
           await api('/api/imap-configs', {
             method: 'POST',
@@ -249,7 +296,13 @@ function ConnectMailboxModal({ target, onClose }: { target: { email: string; sen
           toast.error('Connect failed: ' + (err as Error).message);
         }
       }}>
-        <p className="text-ink-muted">Replies to your campaigns land in this mailbox — connect it so they flow into the system.</p>
+        {isStandalone && method === 'm365' ? (
+          <p className="text-ink-muted">
+            One sign-in connects this mailbox for <strong>sending</strong> AND <strong>reply sync</strong> — no app passwords needed.
+          </p>
+        ) : (
+          <p className="text-ink-muted">Replies to your campaigns land in this mailbox — connect it so they flow into the system.</p>
+        )}
         <Field label="Mailbox address"><Input required type="email" value={email} disabled={started} onChange={e => setEmail(e.target.value)} /></Field>
         <Field label="How does this mailbox authenticate?">
           <div className="flex gap-4">
@@ -263,6 +316,23 @@ function ConnectMailboxModal({ target, onClose }: { target: { email: string; sen
             </label>
           </div>
         </Field>
+
+        {/* Standalone M365: collect display name + from domain for full sender setup */}
+        {isStandalone && method === 'm365' && (
+          <>
+            <Field label="Display name" hint="The 'From' name shown in recipients' inboxes">
+              <Input required placeholder="Acme Sales" value={displayName} disabled={unifiedStarted} onChange={e => setDisplayName(e.target.value)} />
+            </Field>
+            <Field label="From domain" hint="Domain portion of the sending address (auto-filled from email)">
+              <Input required placeholder="yourcompany.com" value={fromDomain} disabled={unifiedStarted} onChange={e => setFromDomain(e.target.value)} />
+            </Field>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={isDefault} disabled={unifiedStarted} onChange={e => setIsDefault(e.target.checked)} />
+              <span>Set as default sender</span>
+            </label>
+          </>
+        )}
+
         {method === 'password' && (
           <>
             <Field label="IMAP host" hint="e.g. imap.gmail.com — for Gmail use an app password"><Input required value={manual.host} onChange={e => setManual({ ...manual, host: e.target.value })} /></Field>
@@ -273,10 +343,18 @@ function ConnectMailboxModal({ target, onClose }: { target: { email: string; sen
             <Field label="Password"><Input required type="password" value={manual.password} onChange={e => setManual({ ...manual, password: e.target.value })} /></Field>
           </>
         )}
-        {method === 'm365' && started && <DeviceCodePanel flow={flow} />}
+
+        {method === 'm365' && started && (
+          isStandalone ? <M365DeviceCodePanel flow={unifiedFlow} /> : <DeviceCodePanel flow={imapFlow} />
+        )}
+
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="ghost" type="button" onClick={onClose}>{flow.status === 'done' ? 'Close' : 'Cancel'}</Button>
-          {!(method === 'm365' && started) && <Button type="submit">{method === 'm365' ? 'Start sign-in' : 'Connect'}</Button>}
+          <Button variant="ghost" type="button" onClick={onClose}>{activeFlow.status === 'done' ? 'Close' : 'Cancel'}</Button>
+          {!(method === 'm365' && started) && (
+            <Button type="submit" disabled={isStandalone && method === 'm365' ? !canStartUnified : false}>
+              {method === 'm365' ? 'Start sign-in' : 'Connect'}
+            </Button>
+          )}
         </div>
       </form>
     </Modal>
@@ -380,109 +458,6 @@ function M365DeviceCodePanel({ flow }: { flow: M365FlowState }) {
       )}
       {flow.status === 'error' && <p className="text-error text-sm">Failed: {flow.error}</p>}
     </>
-  );
-}
-
-function M365ConnectModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [email, setEmail] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [fromDomain, setFromDomain] = useState('');
-  const [isDefault, setIsDefault] = useState(false);
-  const [startBody, setStartBody] = useState<Record<string, unknown> | null>(null);
-
-  const completeExtra = useMemo(() => ({
-    name: displayName.trim() || `${email.trim()} (M365)`,
-    fromDomain: fromDomain.trim(),
-    displayName: displayName.trim(),
-    isDefault,
-  }), [displayName, email, fromDomain, isDefault]);
-
-  const flow = useM365ConnectFlow(startBody, completeExtra, onClose);
-
-  // Reset when modal closes / re-opens
-  useEffect(() => {
-    if (!open) {
-      setEmail(''); setDisplayName(''); setFromDomain('');
-      setIsDefault(false); setStartBody(null);
-    }
-  }, [open]);
-
-  // Auto-fill fromDomain from email when it changes and field is still empty
-  useEffect(() => {
-    const domain = email.split('@')[1] ?? '';
-    if (domain) setFromDomain(d => d || domain);
-  }, [email]);
-
-  const started = startBody !== null;
-  const canStart = email.trim() !== '' && displayName.trim() !== '' && fromDomain.trim() !== '' && !started;
-
-  return (
-    <Modal open={open} onClose={onClose} title="Connect Microsoft 365">
-      <div className="space-y-4 text-sm">
-        <p className="text-ink-muted">
-          One sign-in sets up both <strong>inbox sync</strong> (replies flow into Abe) and{' '}
-          <strong>sending</strong> (campaigns go out via this address). No app passwords needed.
-        </p>
-
-        <Field label="M365 email address">
-          <Input
-            required
-            type="email"
-            placeholder="you@yourcompany.com"
-            value={email}
-            disabled={started}
-            onChange={e => setEmail(e.target.value)}
-          />
-        </Field>
-
-        <Field label="Display name" hint="The 'From' name shown in recipients' inboxes">
-          <Input
-            required
-            placeholder="Acme Sales"
-            value={displayName}
-            disabled={started}
-            onChange={e => setDisplayName(e.target.value)}
-          />
-        </Field>
-
-        <Field label="From domain" hint="Domain portion of the sending address (auto-filled from email)">
-          <Input
-            required
-            placeholder="yourcompany.com"
-            value={fromDomain}
-            disabled={started}
-            onChange={e => setFromDomain(e.target.value)}
-          />
-        </Field>
-
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={isDefault}
-            disabled={started}
-            onChange={e => setIsDefault(e.target.checked)}
-          />
-          <span>Set as default sender</span>
-        </label>
-
-        {started && <M365DeviceCodePanel flow={flow} />}
-
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="ghost" type="button" onClick={onClose}>
-            {flow.status === 'done' ? 'Close' : 'Cancel'}
-          </Button>
-          {!started && (
-            <Button
-              type="button"
-              disabled={!canStart}
-              onClick={() => setStartBody({ username: email.trim() })}
-            >
-              Connect Microsoft 365
-            </Button>
-          )}
-        </div>
-      </div>
-    </Modal>
   );
 }
 
