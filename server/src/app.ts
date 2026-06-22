@@ -27,6 +27,7 @@ import { registerUserRoutes } from '@aiployee/core';
 import { registerSessionRoutes } from '@aiployee/core';
 import { registerAgentRoutes } from './routes/agent.js';
 import { registerAbeRoutes } from './routes/abe.js';
+import { registerAgentInboxRoutes } from './routes/agentInbox.js';
 import { registerAgentChatRoutes } from './routes/agentChat.js';
 import { registerLineReportRoutes } from './routes/lineReports.js';
 import { registerCallAnalyticsRoutes } from './routes/callAnalytics.js';
@@ -99,6 +100,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   registerHandoffRoutes(app);
   await registerAgentRoutes(app);
   registerAbeRoutes(app);
+  registerAgentInboxRoutes(app);
   registerAgentChatRoutes(app);
   registerLineReportRoutes(app);
   registerCallAnalyticsRoutes(app);
