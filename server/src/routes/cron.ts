@@ -219,34 +219,36 @@ export async function registerCronRoutes(app: FastifyInstance) {
     } catch (e) { sendError(reply, e); }
   });
 
+  // Shared helper: run campaign reply analysis for all campaigns that are due.
+  // Called by both /v1/cron/analyze-replies and /v1/cron/analyze-threads so one
+  // cron job (analyze-threads) can cover both, saving a cron slot.
+  async function runCampaignReplyAnalysis(): Promise<{ due: number; analyzed: number; skipped: Array<{ campaignId: string; reason: string }> }> {
+    const due = await listCampaignsNeedingAnalysis(app.pool);
+    let analyzed = 0;
+    const skipped: Array<{ campaignId: string; reason: string }> = [];
+    for (const d of due) {
+      try {
+        const key = await getAgentOpenAIKey(app.pool, app.cfg.encKey, d.tenant_id);
+        if (!key && !app.agentLlmFactory) { skipped.push({ campaignId: d.campaign_id, reason: 'no_openai_key' }); continue; }
+        const llm = (app.agentLlmFactory ?? openAiFactory)(key ?? '');
+        const embed = (app.agentEmbedFactory ?? makeEmbedBatch)(key ?? '');
+        await analyzeCampaign({ pool: app.pool, tenantId: d.tenant_id, campaignId: d.campaign_id, embed, llm, model: INBOX_BATCH_MODEL });
+        analyzed += 1;
+      } catch (err) {
+        skipped.push({ campaignId: d.campaign_id, reason: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    return { due: due.length, analyzed, skipped };
+  }
+
   // /v1/cron/analyze-replies — every 15 min: run Abe's reply analysis for campaigns with
   // correlated replies newer than their last run, so reply triage and hot-lead flagging
   // happen automatically instead of waiting for someone to ask Abe in chat.
   cron('/v1/cron/analyze-replies', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       requireCronAuth(req, app.cfg.cronSecret);
-      const due = await listCampaignsNeedingAnalysis(app.pool);
-      let analyzed = 0;
-      const skipped: Array<{ campaignId: string; reason: string }> = [];
-      for (const d of due) {
-        try {
-          const key = await getAgentOpenAIKey(app.pool, app.cfg.encKey, d.tenant_id);
-          if (!key && !app.agentLlmFactory) {
-            skipped.push({ campaignId: d.campaign_id, reason: 'no_openai_key' });
-            continue;
-          }
-          const llm = (app.agentLlmFactory ?? openAiFactory)(key ?? '');
-          const embed = (app.agentEmbedFactory ?? makeEmbedBatch)(key ?? '');
-          await analyzeCampaign({
-            pool: app.pool, tenantId: d.tenant_id, campaignId: d.campaign_id,
-            embed, llm, model: INBOX_BATCH_MODEL,
-          });
-          analyzed += 1;
-        } catch (err) {
-          skipped.push({ campaignId: d.campaign_id, reason: err instanceof Error ? err.message : String(err) });
-        }
-      }
-      return reply.send({ ok: true, due: due.length, analyzed, skipped });
+      const r = await runCampaignReplyAnalysis();
+      return reply.send({ ok: true, ...r });
     } catch (e) { sendError(reply, e); }
   });
 
@@ -275,7 +277,8 @@ export async function registerCronRoutes(app: FastifyInstance) {
           skipped.push({ threadId: d.thread_id, reason: err instanceof Error ? err.message : String(err) });
         }
       }
-      return reply.send({ ok: true, upserted, due: due.length, analyzed, skipped });
+      const replies = await runCampaignReplyAnalysis();
+      return reply.send({ ok: true, upserted, due: due.length, analyzed, skipped, replies });
     } catch (e) { sendError(reply, e); }
   });
 
