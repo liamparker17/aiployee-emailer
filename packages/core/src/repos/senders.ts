@@ -58,6 +58,21 @@ export async function getSenderForSmtpConfig(pool: pg.Pool, tenantId: string, sm
   return r.rows[0] ?? null;
 }
 
+export async function updateSenderSmtpConfig(
+  pool: pg.Pool,
+  tenantId: string,
+  senderId: string,
+  smtpConfigId: string,
+): Promise<Sender> {
+  const r = await pool.query<Sender>(
+    `UPDATE senders SET smtp_config_id = $3
+     WHERE tenant_id = $1 AND id = $2
+     RETURNING id, tenant_id, email, display_name, reply_to, smtp_config_id, is_default, created_at`,
+    [tenantId, senderId, smtpConfigId],
+  );
+  return r.rows[0];
+}
+
 export async function deleteSender(pool: pg.Pool, tenantId: string, id: string): Promise<boolean> {
   const r = await pool.query(`DELETE FROM senders WHERE tenant_id = $1 AND id = $2`, [tenantId, id]);
   return r.rowCount === 1;

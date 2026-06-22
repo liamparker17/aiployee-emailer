@@ -149,3 +149,47 @@ export async function setImapConfigError(pool: pg.Pool, id: string, error: strin
     [id, error],
   );
 }
+
+export async function getImapConfigByUsername(
+  pool: pg.Pool,
+  tenantId: string,
+  username: string,
+): Promise<ImapConfigRow | null> {
+  const r = await pool.query<ImapConfigRow>(
+    `SELECT ${SELECT_COLS} FROM imap_configs WHERE tenant_id = $1 AND username = $2 LIMIT 1`,
+    [tenantId, username],
+  );
+  return r.rows[0] ?? null;
+}
+
+/** Upgrade an existing imap_config (any auth_type) to xoauth2 in-place.
+ * Preserves the row id so all FK references (inbound_emails etc.) remain valid.
+ * Clears password_encrypted and sets the new OAuth credentials. */
+export async function upgradeImapConfigToOauth(
+  pool: pg.Pool,
+  key: Buffer,
+  id: string,
+  input: {
+    senderId: string;
+    clientId: string;
+    oauthTenant: string;
+    refreshToken: string;
+  },
+): Promise<ImapConfigRow> {
+  const enc = encrypt(input.refreshToken, key);
+  const r = await pool.query<ImapConfigRow>(
+    `UPDATE imap_configs
+     SET sender_id = $2,
+         auth_type = 'xoauth2',
+         oauth_client_id = $3,
+         oauth_tenant = $4,
+         oauth_refresh_token_encrypted = $5,
+         password_encrypted = NULL,
+         enabled = true,
+         updated_at = now()
+     WHERE id = $1
+     RETURNING ${SELECT_COLS}`,
+    [id, input.senderId, input.clientId, input.oauthTenant, enc],
+  );
+  return r.rows[0];
+}
