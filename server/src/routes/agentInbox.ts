@@ -22,7 +22,7 @@ function requireAdmin(ctx: { role: string }): void {
 }
 
 export function registerAgentInboxRoutes(app: FastifyInstance): void {
-  app.get('/api/agent/threads', async (req, reply) => {
+  app.get('/api/agent/inbox/threads', async (req, reply) => {
     try {
       const ctx = requireTenantCtx(req);
       const q = req.query as Record<string, string | undefined>;
@@ -37,7 +37,7 @@ export function registerAgentInboxRoutes(app: FastifyInstance): void {
     } catch (e) { sendError(reply, e); }
   });
 
-  app.get('/api/agent/threads/:id', async (req, reply) => {
+  app.get('/api/agent/inbox/threads/:id', async (req, reply) => {
     try {
       const ctx = requireTenantCtx(req);
       const { id } = req.params as { id: string };
@@ -48,7 +48,7 @@ export function registerAgentInboxRoutes(app: FastifyInstance): void {
     } catch (e) { sendError(reply, e); }
   });
 
-  app.post('/api/agent/threads/:id/assign', async (req, reply) => {
+  app.post('/api/agent/inbox/threads/:id/assign', async (req, reply) => {
     try {
       const ctx = requireTenantCtx(req); requireAdmin(ctx);
       const { id } = req.params as { id: string };
@@ -58,7 +58,7 @@ export function registerAgentInboxRoutes(app: FastifyInstance): void {
     } catch (e) { sendError(reply, e); }
   });
 
-  app.get('/api/agent/actions', async (req, reply) => {
+  app.get('/api/agent/inbox/actions', async (req, reply) => {
     try {
       const ctx = requireTenantCtx(req);
       const q = req.query as Record<string, string | undefined>;
@@ -70,7 +70,7 @@ export function registerAgentInboxRoutes(app: FastifyInstance): void {
     } catch (e) { sendError(reply, e); }
   });
 
-  app.post('/api/agent/actions/:id/approve', async (req, reply) => {
+  app.post('/api/agent/inbox/actions/:id/approve', async (req, reply) => {
     try {
       const ctx = requireTenantCtx(req); requireAdmin(ctx);
       const { id } = req.params as { id: string };
@@ -83,7 +83,7 @@ export function registerAgentInboxRoutes(app: FastifyInstance): void {
     } catch (e) { sendError(reply, e); }
   });
 
-  app.post('/api/agent/actions/:id/reject', async (req, reply) => {
+  app.post('/api/agent/inbox/actions/:id/reject', async (req, reply) => {
     try {
       const ctx = requireTenantCtx(req); requireAdmin(ctx);
       const { id } = req.params as { id: string };
@@ -93,7 +93,7 @@ export function registerAgentInboxRoutes(app: FastifyInstance): void {
     } catch (e) { sendError(reply, e); }
   });
 
-  app.post('/api/agent/actions/:id/edit', async (req, reply) => {
+  app.post('/api/agent/inbox/actions/:id/edit', async (req, reply) => {
     try {
       const ctx = requireTenantCtx(req); requireAdmin(ctx);
       const { id } = req.params as { id: string };
@@ -103,7 +103,7 @@ export function registerAgentInboxRoutes(app: FastifyInstance): void {
     } catch (e) { sendError(reply, e); }
   });
 
-  app.post('/api/agent/actions/:id/assign', async (req, reply) => {
+  app.post('/api/agent/inbox/actions/:id/assign', async (req, reply) => {
     try {
       const ctx = requireTenantCtx(req); requireAdmin(ctx);
       const { id } = req.params as { id: string };
@@ -113,7 +113,7 @@ export function registerAgentInboxRoutes(app: FastifyInstance): void {
     } catch (e) { sendError(reply, e); }
   });
 
-  app.post('/api/agent/actions/:id/snooze', async (req, reply) => {
+  app.post('/api/agent/inbox/actions/:id/snooze', async (req, reply) => {
     try {
       const ctx = requireTenantCtx(req); requireAdmin(ctx);
       const { id } = req.params as { id: string };

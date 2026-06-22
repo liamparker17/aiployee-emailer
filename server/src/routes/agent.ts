@@ -6,7 +6,7 @@ import { runAgentTurn } from '../agent/runner.js';
 import { deliverThreadEvent } from '../agent/webhook.js';
 import {
   getAgentConfig, upsertAgentConfig, upsertThread, insertMessage, findMessageByRef,
-  getThread, getMessage, setMessageStatus, getAgentOpenAIKey,
+  listThreads, getThread, listThreadMessages, getMessage, setMessageStatus, getAgentOpenAIKey,
 } from '../repos/agent.js';
 import { listMcpServers, createMcpServer, deleteMcpServer } from '../repos/mcpServers.js';
 import { listRagSqlSources, createRagSqlSource, deleteRagSqlSource } from '../repos/ragSqlSources.js';
@@ -205,7 +205,23 @@ export async function registerAgentRoutes(app: FastifyInstance) {
     } catch (e) { sendError(reply, e); }
   });
 
-  // ── Session UI: threads + approval (moved to agentInbox.ts) ───────────────────
+  // ── Session UI: threads + approval ─────────────────────────────────────────────
+  app.get('/api/agent/threads', async (req, reply) => {
+    try {
+      const ctx = requireAdmin(req);
+      return reply.send({ threads: await listThreads(app.pool, ctx.tenantId) });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  app.get('/api/agent/threads/:id', async (req, reply) => {
+    try {
+      const ctx = requireAdmin(req);
+      const { id } = req.params as { id: string };
+      const thread = await getThread(app.pool, ctx.tenantId, id);
+      if (!thread) throw new AppError('not_found', 404, 'Thread not found');
+      return reply.send({ thread, messages: await listThreadMessages(app.pool, id) });
+    } catch (e) { sendError(reply, e); }
+  });
 
   app.post('/api/agent/messages/:id/approve', async (req, reply) => {
     try {
