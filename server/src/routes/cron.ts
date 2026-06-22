@@ -14,6 +14,9 @@ import { getAgentOpenAIKey } from '../repos/agent.js';
 import { CALL_BATCH_MODEL, INBOX_BATCH_MODEL } from '../agent/abe/models.js';
 import { analyzeCampaign } from '../agent/abe/campaignAnalysis.js';
 import { listCampaignsNeedingAnalysis } from '../repos/campaignAnalyses.js';
+import { upsertThreadsFromReplies, listThreadsNeedingAnalysis } from '../repos/agentThreads.js';
+import { analyzeThread } from '../agent/abe/threadAnalysis.js';
+import type { LlmClient } from '../agent/runner.js';
 import { listExecutingPlays, listPlaysForOutcomeRollup } from '../repos/agentPlays.js';
 import { getDefaultSender } from '@aiployee/core';
 import { advancePlayTouches } from '../agent/abe/touches.js';
@@ -244,6 +247,35 @@ export async function registerCronRoutes(app: FastifyInstance) {
         }
       }
       return reply.send({ ok: true, due: due.length, analyzed, skipped });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  // /v1/cron/analyze-threads — every ~15 min: upsert conversation threads from correlated
+  // inbound replies, then classify the ones whose latest reply is newer than their last
+  // analysis, writing thread state + a pending action per thread.
+  cron('/v1/cron/analyze-threads', async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      requireCronAuth(req, app.cfg.cronSecret);
+      const upserted = await upsertThreadsFromReplies(app.pool);
+      const due = await listThreadsNeedingAnalysis(app.pool, 200);
+      const llmByTenant = new Map<string, LlmClient | null>();
+      let analyzed = 0;
+      const skipped: Array<{ threadId: string; reason: string }> = [];
+      for (const d of due) {
+        try {
+          if (!llmByTenant.has(d.tenant_id)) {
+            const key = await getAgentOpenAIKey(app.pool, app.cfg.encKey, d.tenant_id);
+            llmByTenant.set(d.tenant_id, (key || app.agentLlmFactory) ? (app.agentLlmFactory ?? openAiFactory)(key ?? '') : null);
+          }
+          const llm = llmByTenant.get(d.tenant_id);
+          if (!llm) { skipped.push({ threadId: d.thread_id, reason: 'no_openai_key' }); continue; }
+          await analyzeThread({ pool: app.pool, tenantId: d.tenant_id, threadId: d.thread_id, llm, model: INBOX_BATCH_MODEL });
+          analyzed += 1;
+        } catch (err) {
+          skipped.push({ threadId: d.thread_id, reason: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      return reply.send({ ok: true, upserted, due: due.length, analyzed, skipped });
     } catch (e) { sendError(reply, e); }
   });
 
