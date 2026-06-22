@@ -87,8 +87,7 @@ export function registerAgentInboxRoutes(app: FastifyInstance): void {
     try {
       const ctx = requireTenantCtx(req); requireAdmin(ctx);
       const { id } = req.params as { id: string };
-      if (!ctx.userId) throw new AppError('unauthorized', 401, 'User context required');
-      await rejectAction(app.pool, ctx.tenantId, id, ctx.userId);
+      await rejectAction(app.pool, ctx.tenantId, id);
       return reply.send({ action: await getAction(app.pool, ctx.tenantId, id) });
     } catch (e) { sendError(reply, e); }
   });

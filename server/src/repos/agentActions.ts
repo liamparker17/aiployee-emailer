@@ -61,10 +61,10 @@ export async function approveAction(pool: pg.Pool, tenantId: string, id: string,
      WHERE tenant_id=$1 AND id=$2`, [tenantId, id, userId]);
 }
 
-export async function rejectAction(pool: pg.Pool, tenantId: string, id: string, userId: string): Promise<void> {
+export async function rejectAction(pool: pg.Pool, tenantId: string, id: string): Promise<void> {
   await pool.query(
-    `UPDATE agent_actions SET status='rejected', approved_by_user_id=$3, updated_at=now()
-     WHERE tenant_id=$1 AND id=$2`, [tenantId, id, userId]);
+    `UPDATE agent_actions SET status='rejected', updated_at=now() WHERE tenant_id=$1 AND id=$2`,
+    [tenantId, id]);
 }
 
 export async function editActionDraft(pool: pg.Pool, tenantId: string, id: string, payload: { subject?: string; body?: string }): Promise<void> {

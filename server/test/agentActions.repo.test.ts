@@ -56,7 +56,7 @@ describe('agentActions repo', () => {
     expect(done?.executed_at).not.toBeNull();
 
     const a2 = await anAction(t.id);
-    await rejectAction(pool, t.id, a2.id, u.id);
+    await rejectAction(pool, t.id, a2.id);
     expect((await getAction(pool, t.id, a2.id))?.status).toBe('rejected');
 
     const a3 = await anAction(t.id);
