@@ -3,9 +3,13 @@ import { z } from 'zod';
 import { requireTenantCtx } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
 import {
-  createSmtpConfig, listSmtpConfigs, getSmtpConfigWithPassword, deleteSmtpConfig,
+  createSmtpConfig, createSmtpConfigOauth, listSmtpConfigs, getSmtpConfigWithPassword, deleteSmtpConfig,
 } from '@aiployee/core';
 import { buildTransport, resolveSmtpCreds, getSenderForSmtpConfig } from '@aiployee/core';
+import {
+  startDeviceCode, pollDeviceCode,
+  SMTP_SCOPE, DEFAULT_MS_CLIENT_ID, DEFAULT_MS_TENANT,
+} from '@aiployee/core';
 
 const CreateBody = z.object({
   name: z.string().min(1),
@@ -19,6 +23,19 @@ const CreateBody = z.object({
 });
 
 const TestBody = z.object({ to: z.string().email() });
+
+const OauthStartBody = z.object({ username: z.string().min(3) });
+
+const OauthCompleteBody = z.object({
+  deviceCode: z.string().min(1),
+  username: z.string().min(3),
+  name: z.string().min(1),
+  fromDomain: z.string().min(1),
+  host: z.string().min(1).default('smtp.office365.com'),
+  port: z.number().int().default(587),
+  secure: z.boolean().default(false),
+  isDefault: z.boolean().default(false),
+});
 
 export async function registerSmtpConfigRoutes(app: FastifyInstance) {
   app.get('/api/smtp-configs', async (req, reply) => {
@@ -79,6 +96,42 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
     } catch (e) {
       sendError(reply, toSmtpTestError(e));
     }
+  });
+
+  app.post('/api/smtp-configs/oauth/start', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      const body = OauthStartBody.parse(req.body);
+      const dc = await startDeviceCode({ scope: SMTP_SCOPE }).catch((e: Error) => {
+        throw new AppError('oauth_start_failed', 502, e.message);
+      });
+      return reply.send({
+        username: body.username,
+        userCode: dc.userCode,
+        verificationUri: dc.verificationUri,
+        deviceCode: dc.deviceCode,
+        intervalSeconds: dc.intervalSeconds,
+        expiresInSeconds: dc.expiresInSeconds,
+      });
+    } catch (e) { sendError(reply, e); }
+  });
+
+  app.post('/api/smtp-configs/oauth/complete', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      const body = OauthCompleteBody.parse(req.body);
+      const res = await pollDeviceCode({ deviceCode: body.deviceCode });
+      if (res.status === 'pending') return reply.code(202).send({ pending: true });
+      if (res.status === 'failed') throw new AppError('oauth_failed', 400, res.error);
+      if (!res.tokens.refreshToken) throw new AppError('oauth_failed', 400, 'Microsoft did not return a refresh token (offline_access missing?)');
+      const config = await createSmtpConfigOauth(app.pool, app.cfg.encKey, {
+        tenantId: ctx.tenantId, name: body.name, host: body.host, port: body.port,
+        secure: body.secure, username: body.username, fromDomain: body.fromDomain,
+        isDefault: body.isDefault, clientId: DEFAULT_MS_CLIENT_ID,
+        oauthTenant: DEFAULT_MS_TENANT, refreshToken: res.tokens.refreshToken,
+      });
+      return reply.code(201).send({ config });
+    } catch (e) { sendError(reply, e); }
   });
 }
 
