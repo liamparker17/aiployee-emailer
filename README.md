@@ -191,6 +191,7 @@ Sign up at https://cron-job.org, then create **two** jobs:
 | AIployee Emailer — process queue | `https://aiployee-emailer.vercel.app/v1/cron/process-queue` | POST | every 1 min | `Authorization: Bearer <CRON_SECRET>` |
 | AIployee Emailer — retry failed | `https://aiployee-emailer.vercel.app/v1/cron/retry-failed` | POST | every 1 min | `Authorization: Bearer <CRON_SECRET>` |
 | AIployee Emailer — analyze replies | `https://aiployee-emailer.vercel.app/v1/cron/analyze-replies` | POST | every 15 min | `Authorization: Bearer <CRON_SECRET>` |
+| AIployee Emailer — analyze threads | `https://aiployee-emailer.vercel.app/v1/cron/analyze-threads` | POST | every 15 min | `Authorization: Bearer <CRON_SECRET>` |
 
 Both should return `200 {"ok":true,...}` when "Run now" is hit.
 
@@ -281,6 +282,7 @@ POST /v1/unsubscribe/:token                (public — confirm unsubscribe)
 POST /v1/cron/process-queue                (cron-job.org, Bearer CRON_SECRET)
 POST /v1/cron/retry-failed                 (cron-job.org, Bearer CRON_SECRET)
 POST /v1/cron/analyze-replies              (cron-job.org, Bearer CRON_SECRET — campaign reply analysis)
+POST /v1/cron/analyze-threads              (cron-job.org, Bearer CRON_SECRET — conversation state + actions)
 ```
 
 ## Status
