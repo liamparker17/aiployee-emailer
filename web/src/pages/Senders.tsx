@@ -20,6 +20,7 @@ export default function Senders() {
   const [imapItems, setImapItems] = useState<ImapCfg[]>([]);
   const [open, setOpen] = useState(false);
   const [connectFor, setConnectFor] = useState<{ email: string; senderId: string | null } | null>(null);
+  const [graphSendOpen, setGraphSendOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
   const refresh = () => Promise.all([
@@ -39,7 +40,12 @@ export default function Senders() {
       <PageHeader
         title="Senders"
         subtitle="Verified sender addresses used to send emails."
-        actions={<Button onClick={() => setOpen(true)}>Add sender</Button>}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setGraphSendOpen(true)}>Enable M365 sending (Graph)</Button>
+            <Button onClick={() => setOpen(true)}>Add sender</Button>
+          </div>
+        }
       />
       {loading ? (
         <div className="space-y-2">
@@ -124,6 +130,7 @@ export default function Senders() {
 
       <AddModal open={open} onClose={() => { setOpen(false); refresh(); }} configs={configs} />
       <ConnectMailboxModal target={connectFor} onClose={() => { setConnectFor(null); refresh(); }} />
+      <GraphSendModal open={graphSendOpen} onClose={() => { setGraphSendOpen(false); refresh(); }} />
     </div>
   );
 }
@@ -458,6 +465,165 @@ function M365DeviceCodePanel({ flow }: { flow: M365FlowState }) {
       )}
       {flow.status === 'error' && <p className="text-error text-sm">Failed: {flow.error}</p>}
     </>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Microsoft Graph send device-code flow (sending only, works when SMTP blocked)
+// ──────────────────────────────────────────────────────────────────────────────
+
+// Like useM365ConnectFlow but wired to /api/m365/graph-send/start + /api/m365/graph-send/complete.
+// completeExtra carries name, fromDomain, displayName, isDefault.
+function useGraphSendFlow(
+  startBody: Record<string, unknown> | null,
+  completeExtra: Record<string, unknown>,
+  onDone: () => void,
+): M365FlowState {
+  const [code, setCode] = useState<M365FlowState['code']>(null);
+  const [status, setStatus] = useState<FlowStatus>('idle');
+  const [error, setError] = useState('');
+  const toast = useToast();
+
+  useEffect(() => {
+    if (!startBody) { setCode(null); setStatus('idle'); setError(''); return; }
+    setCode(null); setStatus('starting'); setError('');
+    let cancelled = false;
+    let timer: number | undefined;
+    api<M365StartRes>('/api/m365/graph-send/start', { method: 'POST', body: JSON.stringify(startBody) })
+      .then(r => {
+        if (cancelled) return;
+        setCode({ userCode: r.userCode, verificationUri: r.verificationUri });
+        setStatus('waiting');
+        const poll = async () => {
+          if (cancelled) return;
+          try {
+            const c = await api<{ pending?: boolean }>('/api/m365/graph-send/complete', {
+              method: 'POST',
+              body: JSON.stringify({ deviceCode: r.deviceCode, username: r.username, ...completeExtra }),
+            });
+            if (cancelled) return;
+            if (c.pending) {
+              timer = window.setTimeout(poll, Math.max(2, r.intervalSeconds) * 1000);
+              return;
+            }
+            setStatus('done');
+            toast.success('Microsoft 365 sending enabled (via Graph). Send a test to confirm.');
+            onDone();
+          } catch (e: unknown) {
+            if (cancelled) return;
+            setStatus('error');
+            setError((e as Error).message);
+          }
+        };
+        timer = window.setTimeout(poll, Math.max(2, r.intervalSeconds) * 1000);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) { setStatus('error'); setError((e as Error).message); }
+      });
+    return () => { cancelled = true; if (timer) window.clearTimeout(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startBody]);
+
+  return { code, status, error };
+}
+
+function GraphSendDeviceCodePanel({ flow }: { flow: M365FlowState }) {
+  return (
+    <>
+      {flow.status === 'starting' && <Skeleton className="h-16" />}
+      {flow.code && flow.status !== 'done' && (
+        <div className="rounded-md border border-line bg-surface-raised px-4 py-3 space-y-2">
+          <p>1. Open{' '}<a className="underline" href={flow.code.verificationUri} target="_blank" rel="noreferrer">{flow.code.verificationUri}</a></p>
+          <p>2. Enter this code:</p>
+          <p className="text-2xl font-mono font-bold tracking-widest text-center select-all">{flow.code.userCode}</p>
+          <p className="text-xs text-ink-muted">
+            3. Approve the code — this grants sending via Microsoft Graph (works even when SMTP is disabled on your tenant).
+          </p>
+        </div>
+      )}
+      {flow.status === 'waiting' && <p className="text-ink-muted">Waiting for you to approve in the browser…</p>}
+      {flow.status === 'done' && (
+        <p className="font-medium text-green-700 dark:text-green-400">
+          ✅ Microsoft 365 sending enabled — send a test to confirm.
+        </p>
+      )}
+      {flow.status === 'error' && <p className="text-error text-sm">Failed: {flow.error}</p>}
+    </>
+  );
+}
+
+function GraphSendModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [fromDomain, setFromDomain] = useState('');
+  const [isDefault, setIsDefault] = useState(false);
+  const [startBody, setStartBody] = useState<Record<string, unknown> | null>(null);
+
+  // Auto-fill fromDomain from email
+  useEffect(() => {
+    const domain = email.split('@')[1] ?? '';
+    if (domain) setFromDomain(d => d || domain);
+  }, [email]);
+
+  const completeExtra = useMemo(() => ({
+    name: displayName.trim(),
+    fromDomain: fromDomain.trim(),
+    displayName: displayName.trim(),
+    isDefault,
+  }), [displayName, fromDomain, isDefault]);
+
+  // Always called per rules-of-hooks; pass null when modal is closed.
+  const flow = useGraphSendFlow(open ? startBody : null, completeExtra, onClose);
+
+  // Reset when modal opens/closes
+  useEffect(() => {
+    if (open) {
+      setEmail('');
+      setDisplayName('');
+      setFromDomain('');
+      setIsDefault(false);
+      setStartBody(null);
+    }
+  }, [open]);
+
+  const started = startBody !== null;
+  const canConnect = email.trim() !== '' && displayName.trim() !== '' && fromDomain.trim() !== '' && !started && flow.status !== 'starting' && flow.status !== 'waiting';
+
+  return (
+    <Modal open={open} onClose={onClose} title="Enable M365 sending (Graph)">
+      <form className="space-y-3 text-sm" onSubmit={e => {
+        e.preventDefault();
+        if (!canConnect) return;
+        setStartBody({ username: email.trim() });
+      }}>
+        <p className="text-ink-muted">
+          Approve a one-time device code to let this address send via Microsoft Graph —{' '}
+          works even when SMTP is blocked on your tenant.
+        </p>
+        <Field label="Email address">
+          <Input required type="email" value={email} disabled={started} onChange={e => setEmail(e.target.value)} />
+        </Field>
+        <Field label="Display name" hint="The 'From' name shown in recipients' inboxes">
+          <Input required placeholder="Acme Sales" value={displayName} disabled={started} onChange={e => setDisplayName(e.target.value)} />
+        </Field>
+        <Field label="From domain" hint="Domain portion of the sending address (auto-filled from email)">
+          <Input required placeholder="yourcompany.com" value={fromDomain} disabled={started} onChange={e => setFromDomain(e.target.value)} />
+        </Field>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={isDefault} disabled={started} onChange={e => setIsDefault(e.target.checked)} />
+          <span>Set as default sender</span>
+        </label>
+
+        {started && <GraphSendDeviceCodePanel flow={flow} />}
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" type="button" onClick={onClose}>{flow.status === 'done' ? 'Close' : 'Cancel'}</Button>
+          {!started && (
+            <Button type="submit" disabled={!canConnect}>Connect</Button>
+          )}
+        </div>
+      </form>
+    </Modal>
   );
 }
 
