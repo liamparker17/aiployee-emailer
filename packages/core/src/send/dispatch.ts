@@ -7,6 +7,7 @@ import { getSenderById, type Sender } from '../repos/senders.js';
 import { getSmtpConfigWithPassword, type SmtpConfigRow } from '../repos/smtpConfigs.js';
 import { deliverEmailEvent } from '../webhooks/eventDelivery.js';
 import { resolveSmtpCreds, type SmtpCreds } from './sender.js';
+import { sendViaGraph } from './graphSend.js';
 import { injectTracking } from './tracking.js';
 
 /** Best-effort: notify tenant event webhooks that an email was sent. Never throws. */
@@ -36,6 +37,40 @@ function buildPooledTransport(creds: SmtpCreds): Transporter {
     maxMessages: 100,
   };
   return nodemailer.createTransport(opts);
+}
+
+/** Send via Microsoft Graph (auth_type='graph'). Mirrors the sendOne success/failure contract. */
+async function sendOneGraph(
+  pool: pg.Pool,
+  graphAccessToken: string,
+  sender: Sender,
+  email: EmailRow,
+  baseUrl: string,
+): Promise<DispatchOutcome> {
+  try {
+    const info = await sendViaGraph(graphAccessToken, {
+      from: sender.email,
+      to: email.to_addr,
+      cc: email.cc.length ? email.cc : undefined,
+      bcc: email.bcc.length ? email.bcc : undefined,
+      replyTo: email.reply_to ?? sender.reply_to ?? null,
+      subject: email.subject,
+      html: injectTracking(email.body_html, { emailId: email.id, baseUrl }),
+      text: email.body_text ?? null,
+      attachments: (email.attachments as Array<{ filename: string; content?: string; url?: string; content_type?: string }>).map(a =>
+        a.content != null
+          ? { filename: a.filename, content: Buffer.from(a.content, 'base64'), contentType: a.content_type }
+          : { filename: a.filename, path: a.url, contentType: a.content_type },
+      ),
+    });
+    await markSent(pool, email.id, info.messageId ?? '');
+    return { ok: true, emailId: email.id, messageId: info.messageId ?? '' };
+  } catch (e) {
+    const msg = (e as Error).message;
+    logger.warn({ emailId: email.id, err: msg }, 'graph send failed');
+    await markFailed(pool, email.id, msg);
+    return { ok: false, emailId: email.id, error: msg };
+  }
 }
 
 async function sendOne(
@@ -91,10 +126,14 @@ export async function dispatchEmail(args: {
     const cfg = await getSmtpConfigWithPassword(pool, encKey, email.tenant_id, sender.smtp_config_id);
     if (!cfg) throw new Error(`smtp_config ${sender.smtp_config_id} not found`);
     const creds = await resolveSmtpCreds(pool, encKey, cfg);
-    const tx = buildPooledTransport(creds);
     let outcome: DispatchOutcome;
-    try { outcome = await sendOne(pool, tx, sender, email, baseUrl); }
-    finally { tx.close(); }
+    if (creds.graphAccessToken) {
+      outcome = await sendOneGraph(pool, creds.graphAccessToken, sender, email, baseUrl);
+    } else {
+      const tx = buildPooledTransport(creds);
+      try { outcome = await sendOne(pool, tx, sender, email, baseUrl); }
+      finally { tx.close(); }
+    }
     if (outcome.ok) await fireSent(pool, encKey, email);
     return outcome;
   } catch (e) {
@@ -155,6 +194,15 @@ export async function dispatchBatch(args: {
       }));
     }
     const creds = await resolveSmtpCreds(pool, encKey, cfg);
+    if (creds.graphAccessToken) {
+      const token = creds.graphAccessToken;
+      return await Promise.all(groupEmails.map(async e => {
+        const sender = senders.get(e.sender_id)!;
+        const out = await sendOneGraph(pool, token, sender, e, baseUrl);
+        if (out.ok) await fireSent(pool, encKey, e);
+        return out;
+      }));
+    }
     const tx = buildPooledTransport(creds);
     try {
       return await Promise.all(groupEmails.map(async e => {

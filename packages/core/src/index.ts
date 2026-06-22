@@ -34,6 +34,7 @@ export * from './routes/handoff.js';
 // through these, so the transport + its data live in core. NOTE: send/* and the send repos
 // import the @aiployee/core barrel internally; safe (used inside functions, not at top level).
 export * from './send/sender.js';
+export * from './send/graphSend.js';
 export * from './send/render.js';
 export * from './send/tracking.js';
 export * from './send/dispatch.js';

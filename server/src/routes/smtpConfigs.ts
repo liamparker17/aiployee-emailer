@@ -6,6 +6,7 @@ import {
   createSmtpConfig, createSmtpConfigOauth, listSmtpConfigs, getSmtpConfigWithPassword, deleteSmtpConfig,
 } from '@aiployee/core';
 import { buildTransport, resolveSmtpCreds, getSenderForSmtpConfig } from '@aiployee/core';
+import { sendViaGraph } from '@aiployee/core';
 import {
   startDeviceCode, pollDeviceCode,
   SMTP_SCOPE, DEFAULT_MS_CLIENT_ID, DEFAULT_MS_TENANT,
@@ -69,23 +70,33 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/smtp-configs/:id/test', async (req, reply) => {
-    let authType: 'password' | 'xoauth2' | undefined;
+    let authType: 'password' | 'xoauth2' | 'graph' | undefined;
     try {
       const ctx = requireTenantCtx(req);
       const { id } = req.params as { id: string };
       const body = TestBody.parse(req.body);
       const cfg = await getSmtpConfigWithPassword(app.pool, app.cfg.encKey, ctx.tenantId, id);
       if (!cfg) throw new AppError('not_found', 404, 'SMTP config not found');
-      authType = cfg.auth_type as 'password' | 'xoauth2' | undefined;
+      authType = cfg.auth_type;
       const creds = await resolveSmtpCreds(app.pool, app.cfg.encKey, cfg);
-      const tx = buildTransport(creds);
       // Prefer the sender identity linked to this config: relay providers (Mimecast,
       // SES) authenticate as a service account that is NOT the From address. Gmail/
       // Outlook ignore or reject a mismatched From, so falling back to the username
       // keeps the old behavior when no sender is linked.
       const sender = await getSenderForSmtpConfig(app.pool, ctx.tenantId, id);
       const fromAddr = sender?.email ?? cfg.username;
+      if (creds.graphAccessToken) {
+        // Graph send path — bypasses SMTP-AUTH entirely.
+        const info = await sendViaGraph(creds.graphAccessToken, {
+          from: fromAddr,
+          to: body.to,
+          subject: 'Aiployee Emailer test (Graph)',
+          text: 'If you can read this, Graph send works.',
+        });
+        return reply.send({ ok: true, messageId: info.messageId });
+      }
       const fromName = sender?.display_name ?? 'Aiployee Emailer';
+      const tx = buildTransport(creds);
       try {
         const info = await tx.sendMail({
           from: `${fromName} <${fromAddr}>`,
@@ -140,7 +151,7 @@ export async function registerSmtpConfigRoutes(app: FastifyInstance) {
 // Nodemailer errors carry structured fields (code, responseCode, response, command)
 // that are useful for diagnosis. Extract them and produce a friendly summary + details.
 // See: https://nodemailer.com/usage/#errors
-function toSmtpTestError(e: unknown, authType?: 'password' | 'xoauth2'): AppError {
+function toSmtpTestError(e: unknown, authType?: 'password' | 'xoauth2' | 'graph'): AppError {
   const err = e as {
     message?: string;
     code?: string;
@@ -155,11 +166,13 @@ function toSmtpTestError(e: unknown, authType?: 'password' | 'xoauth2'): AppErro
   const rawResponse = smtpResponse ?? err.message;
 
   // Auth-method prefix so the user knows which path ran.
-  const authPrefix = authType === 'xoauth2'
-    ? 'Authenticated via Microsoft OAuth.'
-    : authType === 'password'
-      ? 'Authenticated with username + password.'
-      : '';
+  const authPrefix = authType === 'graph'
+    ? 'Attempted via Microsoft Graph send.'
+    : authType === 'xoauth2'
+      ? 'Authenticated via Microsoft OAuth.'
+      : authType === 'password'
+        ? 'Authenticated with username + password.'
+        : '';
 
   let baseMessage: string;
   if (nmCode === 'EAUTH' || smtpCode === 535) {

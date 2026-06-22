@@ -1,11 +1,13 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport/index.js';
 import type pg from 'pg';
-import { refreshAccessToken, SMTP_SCOPE, DEFAULT_MS_CLIENT_ID, DEFAULT_MS_TENANT, type OauthTokens } from '../receive/msOauth.js';
+import { refreshAccessToken, SMTP_SCOPE, DEFAULT_MS_CLIENT_ID, DEFAULT_MS_TENANT, GRAPH_SEND_SCOPE, DEFAULT_MS_GRAPH_CLIENT_ID, type OauthTokens } from '../receive/msOauth.js';
 import { updateSmtpRefreshToken, type SmtpConfigRow } from '../repos/smtpConfigs.js';
 
 export interface SmtpCreds {
   host: string; port: number; secure: boolean; user: string; pass?: string; accessToken?: string;
+  /** Set when auth_type='graph' — use sendViaGraph() instead of SMTP. */
+  graphAccessToken?: string;
 }
 
 type SmtpRefresher = (opts: {
@@ -20,6 +22,19 @@ export async function resolveSmtpCreds(
   refresh: SmtpRefresher = refreshAccessToken,
 ): Promise<SmtpCreds> {
   const base = { host: cfg.host, port: cfg.port, secure: cfg.secure, user: cfg.username };
+  if (cfg.auth_type === 'graph') {
+    if (!cfg.refreshToken) throw new Error('graph SMTP config has no refresh token — reconnect the mailbox for sending');
+    const tokens = await refresh({
+      refreshToken: cfg.refreshToken,
+      clientId: cfg.oauth_client_id ?? DEFAULT_MS_GRAPH_CLIENT_ID,
+      tenant: cfg.oauth_tenant ?? DEFAULT_MS_TENANT,
+      scope: GRAPH_SEND_SCOPE,
+    });
+    if (tokens.refreshToken && tokens.refreshToken !== cfg.refreshToken) {
+      await updateSmtpRefreshToken(pool, encKey, cfg.id, tokens.refreshToken);
+    }
+    return { ...base, graphAccessToken: tokens.accessToken };
+  }
   if (cfg.auth_type === 'xoauth2') {
     if (!cfg.refreshToken) throw new Error('xoauth2 SMTP config has no refresh token — reconnect the mailbox');
     const tokens = await refresh({

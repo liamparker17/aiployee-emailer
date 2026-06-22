@@ -4,7 +4,7 @@ import { encrypt, decrypt } from '@aiployee/core';
 export interface SmtpConfigRow {
   id: string; tenant_id: string; name: string; host: string; port: number;
   secure: boolean; username: string; from_domain: string; is_default: boolean; created_at: Date;
-  auth_type: 'password' | 'xoauth2'; oauth_client_id: string | null; oauth_tenant: string | null;
+  auth_type: 'password' | 'xoauth2' | 'graph'; oauth_client_id: string | null; oauth_tenant: string | null;
 }
 
 const SELECT_COLS =

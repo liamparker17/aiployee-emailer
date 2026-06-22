@@ -20,6 +20,11 @@ export const SMTP_SCOPE = 'https://outlook.office.com/SMTP.Send offline_access';
 // The resulting refresh token can be used for IMAP (resolveImapCreds refreshes with IMAP_SCOPE)
 // and SMTP (resolveSmtpCreds refreshes with SMTP_SCOPE) independently.
 export const M365_FULL_SCOPE = 'https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access';
+// Graph send bypasses SMTP-AUTH entirely — uses the Graph HTTP API with a delegated Mail.Send token.
+// We use the well-known "Microsoft Graph Command Line Tools" public client app (user-consentable,
+// no admin consent required for delegated Mail.Send in default tenants).
+export const GRAPH_SEND_SCOPE = 'https://graph.microsoft.com/Mail.Send offline_access';
+export const DEFAULT_MS_GRAPH_CLIENT_ID = '14d82eec-204b-4c2f-b7e8-296a70dab67e'; // Microsoft Graph Command Line Tools (public client)
 
 type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string }) => Promise<{
   ok: boolean; status: number; json(): Promise<unknown>;
