@@ -1,10 +1,10 @@
 /* eslint-disable camelcase */
-// Agentic conversation spine. agent_threads = the durable per-conversation operating
+// Agentic conversation spine. conversation_threads = the durable per-conversation operating
 // state (one row per tenant+contact+campaign), upserted from correlated inbound replies.
 // agent_actions = a generalized human-approval queue that supersedes the plays-only
 // approval surface: Abe proposes an action, a human approves/edits/rejects/assigns/snoozes.
 exports.up = (pgm) => {
-  pgm.createTable('agent_threads', {
+  pgm.createTable('conversation_threads', {
     id:                       { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
     tenant_id:                { type: 'uuid', notNull: true, references: 'tenants(id)', onDelete: 'CASCADE' },
     contact_id:               { type: 'uuid', references: 'contacts(id)', onDelete: 'SET NULL' },
@@ -32,15 +32,15 @@ exports.up = (pgm) => {
   });
   // One thread per (tenant, contact, campaign). COALESCE the nullable campaign_id to a
   // zero-uuid so contact-only (non-campaign) conversations also dedup to a single row.
-  pgm.sql(`CREATE UNIQUE INDEX agent_threads_conv_uniq
-           ON agent_threads (tenant_id, contact_id, COALESCE(campaign_id, '00000000-0000-0000-0000-000000000000'::uuid))`);
-  pgm.createIndex('agent_threads', ['tenant_id', 'status', 'next_action_due_at']);
-  pgm.createIndex('agent_threads', ['tenant_id', 'stage']);
+  pgm.sql(`CREATE UNIQUE INDEX conversation_threads_conv_uniq
+           ON conversation_threads (tenant_id, contact_id, COALESCE(campaign_id, '00000000-0000-0000-0000-000000000000'::uuid))`);
+  pgm.createIndex('conversation_threads', ['tenant_id', 'status', 'next_action_due_at']);
+  pgm.createIndex('conversation_threads', ['tenant_id', 'stage']);
 
   pgm.createTable('agent_actions', {
     id:                  { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
     tenant_id:           { type: 'uuid', notNull: true, references: 'tenants(id)', onDelete: 'CASCADE' },
-    thread_id:           { type: 'uuid', references: 'agent_threads(id)', onDelete: 'CASCADE' },
+    thread_id:           { type: 'uuid', references: 'conversation_threads(id)', onDelete: 'CASCADE' },
     campaign_id:         { type: 'uuid', references: 'campaigns(id)', onDelete: 'SET NULL' },
     contact_id:          { type: 'uuid', references: 'contacts(id)', onDelete: 'SET NULL' },
     action_type:         { type: 'text', notNull: true,
@@ -70,5 +70,5 @@ exports.up = (pgm) => {
 
 exports.down = (pgm) => {
   pgm.dropTable('agent_actions');
-  pgm.dropTable('agent_threads');
+  pgm.dropTable('conversation_threads');
 };
