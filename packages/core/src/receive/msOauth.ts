@@ -16,6 +16,10 @@ export const DEFAULT_MS_TENANT = 'common';
 // The token still works against the outlook.office365.com IMAP endpoint.
 export const IMAP_SCOPE = 'https://outlook.office.com/IMAP.AccessAsUser.All offline_access';
 export const SMTP_SCOPE = 'https://outlook.office.com/SMTP.Send offline_access';
+// Combined scope for "Connect M365" — one consent grants both IMAP + SMTP access.
+// The resulting refresh token can be used for IMAP (resolveImapCreds refreshes with IMAP_SCOPE)
+// and SMTP (resolveSmtpCreds refreshes with SMTP_SCOPE) independently.
+export const M365_FULL_SCOPE = 'https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access';
 
 type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string }) => Promise<{
   ok: boolean; status: number; json(): Promise<unknown>;

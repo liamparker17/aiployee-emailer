@@ -50,3 +50,5 @@ export * from './marketing/unsubscribe.js';
 export * from './repos/imapConfigs.js';
 export * from './receive/imapFetch.js';
 export * from './receive/msOauth.js';
+// Unified Connect M365: one-consent setup for SMTP + sender + inbox sync.
+export * from './connect/m365.js';
