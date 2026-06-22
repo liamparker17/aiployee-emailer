@@ -45,6 +45,27 @@ export async function createSmtpConfigOauth(
   return r.rows[0];
 }
 
+export async function createSmtpConfigGraph(
+  pool: pg.Pool,
+  key: Buffer,
+  input: {
+    tenantId: string; name: string; username: string; fromDomain: string; isDefault: boolean;
+    clientId: string; oauthTenant: string; refreshToken: string;
+  },
+): Promise<SmtpConfigRow> {
+  const enc = encrypt(input.refreshToken, key);
+  const r = await pool.query<SmtpConfigRow>(
+    `INSERT INTO smtp_configs(tenant_id, name, host, port, secure, username, from_domain, is_default,
+                              auth_type, oauth_client_id, oauth_tenant, oauth_refresh_token_encrypted,
+                              password_encrypted)
+     VALUES ($1,$2,'graph.microsoft.com',443,true,$3,$4,$5,'graph',$6,$7,$8,NULL)
+     RETURNING ${SELECT_COLS}`,
+    [input.tenantId, input.name, input.username, input.fromDomain, input.isDefault,
+     input.clientId, input.oauthTenant, enc],
+  );
+  return r.rows[0];
+}
+
 export async function listSmtpConfigs(pool: pg.Pool, tenantId: string): Promise<SmtpConfigRow[]> {
   const r = await pool.query<SmtpConfigRow>(
     `SELECT ${SELECT_COLS}

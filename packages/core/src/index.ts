@@ -53,3 +53,5 @@ export * from './receive/imapFetch.js';
 export * from './receive/msOauth.js';
 // Unified Connect M365: one-consent setup for SMTP + sender + inbox sync.
 export * from './connect/m365.js';
+// Graph send connect: authorize Mail.Send via Graph + create/upgrade sender.
+export * from './connect/graphSend.js';
