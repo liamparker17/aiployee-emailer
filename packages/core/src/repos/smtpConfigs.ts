@@ -89,6 +89,26 @@ export async function getSmtpConfigWithPassword(
   };
 }
 
+/** Upgrade an existing smtp_config (any auth_type) to Graph in-place.
+ * Preserves the row id so all FK references (senders etc.) remain valid.
+ * Clears password_encrypted and sets the new Graph OAuth credentials. */
+export async function upgradeSmtpConfigToGraph(
+  pool: pg.Pool,
+  key: Buffer,
+  id: string,
+  input: { clientId: string; oauthTenant: string; refreshToken: string },
+): Promise<SmtpConfigRow> {
+  const enc = encrypt(input.refreshToken, key);
+  const r = await pool.query<SmtpConfigRow>(
+    `UPDATE smtp_configs
+        SET auth_type='graph', oauth_client_id=$2, oauth_tenant=$3, oauth_refresh_token_encrypted=$4, password_encrypted=NULL
+      WHERE id=$1
+      RETURNING ${SELECT_COLS}`,
+    [id, input.clientId, input.oauthTenant, enc],
+  );
+  return r.rows[0];
+}
+
 export async function updateSmtpRefreshToken(pool: pg.Pool, key: Buffer, id: string, refreshToken: string): Promise<void> {
   await pool.query(
     `UPDATE smtp_configs SET oauth_refresh_token_encrypted = $2 WHERE id = $1`,

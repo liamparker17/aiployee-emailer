@@ -48,13 +48,15 @@ describe('createGraphSender', () => {
     expect(full!.refreshToken).toBe('rt');
   });
 
-  it('upgrades an existing sender to the new graph smtp_config (idempotency)', async () => {
+  it('upgrades existing smtp_config in place — no new row, no UNIQUE name collision', async () => {
     const tenant = await createTenant(pool);
 
-    // Pre-create a dummy smtp_config (password-based) and a sender pointing at it
+    // Pre-create a password-based smtp_config and a sender pointing at it.
+    // The smtp_config name here intentionally matches what Graph connect would try to INSERT
+    // (same display-name → would hit smtp_tenant_name_uniq before the fix).
     const oldSmtp = await createSmtpConfig(pool, KEY, {
       tenantId: tenant.id,
-      name: 'Old SMTP',
+      name: 'Acme Graph',   // same name as the Graph connect call below
       host: 'smtp.example.com',
       port: 587,
       secure: false,
@@ -63,7 +65,7 @@ describe('createGraphSender', () => {
       fromDomain: 'x.com',
       isDefault: false,
     });
-    await createSender(pool, {
+    const oldSender = await createSender(pool, {
       tenantId: tenant.id,
       email: 'a@x.com',
       displayName: 'Acme Old',
@@ -71,11 +73,11 @@ describe('createGraphSender', () => {
       isDefault: false,
     });
 
-    // Now upgrade via Graph
+    // Now "reconnect" via Graph — must NOT 500 on the UNIQUE constraint.
     const { sender, smtpConfig } = await createGraphSender(pool, KEY, {
       tenantId: tenant.id,
       username: 'a@x.com',
-      name: 'Acme Graph',
+      name: 'Acme Graph',   // same name → would collide if INSERT was attempted
       fromDomain: 'x.com',
       displayName: 'Acme',
       isDefault: true,
@@ -89,16 +91,23 @@ describe('createGraphSender', () => {
     const forEmail = all.filter(s => s.email === 'a@x.com');
     expect(forEmail).toHaveLength(1);
 
-    // That sender now points at the NEW graph smtp_config
-    expect(sender.smtp_config_id).toBe(smtpConfig.id);
+    // Sender id is UNCHANGED — same row, not a new one.
+    expect(sender.id).toBe(oldSender.id);
+
+    // smtp_config_id is UNCHANGED — the existing row was upgraded in place.
+    expect(smtpConfig.id).toBe(oldSmtp.id);
+    expect(sender.smtp_config_id).toBe(oldSmtp.id);
+
+    // The smtp_config is now Graph.
     expect(smtpConfig.auth_type).toBe('graph');
 
-    // getSenderByEmail should agree
+    // getSenderByEmail still resolves to the same smtp_config.
     const fetched = await getSenderByEmail(pool, tenant.id, 'a@x.com');
-    expect(fetched!.smtp_config_id).toBe(smtpConfig.id);
+    expect(fetched!.smtp_config_id).toBe(oldSmtp.id);
 
-    // Refresh token round-trip
+    // Refresh token round-trips correctly; old password is gone.
     const full = await getSmtpConfigWithPassword(pool, KEY, tenant.id, smtpConfig.id);
+    expect(full!.auth_type).toBe('graph');
     expect(full!.refreshToken).toBe('rt2');
     expect(full!.password).toBeNull();
   });
