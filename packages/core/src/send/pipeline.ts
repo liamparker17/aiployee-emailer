@@ -20,7 +20,13 @@ export const SendInputShape = z.object({
   html: z.string().min(1).optional(),
   text: z.string().optional(),
   template: z.string().optional(),
-  variables: z.record(z.string(), z.string()).optional(),
+  // Values are coerced to strings: webhook callers (e.g. Jobix) send an LLM's native
+  // JSON types — booleans, numbers, null — straight into variables. Accept any scalar
+  // and stringify (null -> '') so a typed extraction payload doesn't 400 at the door.
+  variables: z.record(
+    z.string(),
+    z.union([z.string(), z.number(), z.boolean(), z.null()]).transform((v) => (v === null ? '' : String(v))),
+  ).optional(),
   attachments: z.array(z.object({
     filename: z.string(),
     content: z.string(),       // base64
