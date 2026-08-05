@@ -18,7 +18,8 @@ function requireAdmin(ctx: ReturnType<typeof requireTenantCtx>): void {
 
 const CreateBody = z.object({
   name: z.string().min(1).regex(/^[a-z0-9_-]+$/),
-  subject: z.string().min(1),
+  // Blank allowed: the API caller (e.g. Jobix) supplies `subject` on send instead.
+  subject: z.string().default(''),
   bodyHtml: z.string().min(1),
   bodyText: z.string().optional().nullable(),
   displayName: z.string().max(120).trim().nullable().optional(),
@@ -26,7 +27,7 @@ const CreateBody = z.object({
 
 const UpdateBody = z.object({
   name: z.string().min(1).regex(/^[a-z0-9_-]+$/).optional(),
-  subject: z.string().min(1).optional(),
+  subject: z.string().optional(),
   bodyHtml: z.string().min(1).optional(),
   bodyText: z.string().nullable().optional(),
   displayName: z.string().max(120).trim().nullable().optional(),

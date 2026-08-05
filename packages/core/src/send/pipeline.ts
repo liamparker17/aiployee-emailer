@@ -65,7 +65,9 @@ export async function queueEmail(args: {
     fromDisplayName = tpl.display_name?.trim() || null;
     const vars = input.variables ?? {};
     try {
-      subject = render(tpl.subject, vars, { escape: false });
+      // Template subject wins; a blank template subject falls back to the
+      // request's `subject` so callers (e.g. Jobix) can supply it per-send.
+      subject = render(tpl.subject, vars, { escape: false }) || subject;
       bodyHtml = render(tpl.body_html, vars);
       bodyText = tpl.body_text ? render(tpl.body_text, vars, { escape: false }) : null;
     } catch (e) {
