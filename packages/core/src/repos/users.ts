@@ -22,6 +22,19 @@ export async function createInvitedUser(pool: pg.Pool, input: {
 }
 
 /**
+ * All rows for an email address, highest-privilege first. The same address can own
+ * a global super_admin row plus tenant memberships, so callers pick the row they need.
+ */
+export async function findUsersByEmail(pool: pg.Pool, email: string): Promise<Array<{ id: string; tenant_id: string | null; role: Role }>> {
+  const r = await pool.query<{ id: string; tenant_id: string | null; role: Role }>(
+    `SELECT id, tenant_id, role FROM users WHERE lower(email) = lower($1)
+     ORDER BY CASE role WHEN 'super_admin' THEN 0 WHEN 'tenant_admin' THEN 1 ELSE 2 END, created_at ASC`,
+    [email.trim()],
+  );
+  return r.rows;
+}
+
+/**
  * Issue a fresh password-reset token for an existing user. Reuses the invite
  * token columns and the /auth/invite/accept endpoint, so a reset link is just
  * an invite link for an account that already exists. Returns null if no such user.
