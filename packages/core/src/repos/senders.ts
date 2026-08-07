@@ -39,6 +39,18 @@ export async function getSenderById(pool: pg.Pool, tenantId: string, id: string)
   return r.rows[0] ?? null;
 }
 
+/**
+ * Look a sender up by address across every tenant. Used for platform-level mail
+ * (password resets) that must go out before any tenant context exists — including
+ * for super_admin accounts, which have no tenant of their own.
+ */
+export async function getSenderByEmailAnyTenant(pool: pg.Pool, email: string): Promise<Sender | null> {
+  const r = await pool.query<Sender>(
+    `SELECT id, tenant_id, email, display_name, reply_to, smtp_config_id, is_default, created_at
+     FROM senders WHERE lower(email) = lower($1) ORDER BY created_at ASC LIMIT 1`, [email.trim()]);
+  return r.rows[0] ?? null;
+}
+
 export async function getDefaultSender(pool: pg.Pool, tenantId: string): Promise<Sender | null> {
   const r = await pool.query<Sender>(
     `SELECT id, tenant_id, email, display_name, reply_to, smtp_config_id, is_default, created_at

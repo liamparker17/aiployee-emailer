@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { verifyPassword, hashPassword } from '@aiployee/core';
 import { AppError, sendError } from '@aiployee/core';
 import { findUsersByEmail, issuePasswordReset } from '../repos/users.js';
-import { getDefaultSender } from '../repos/senders.js';
+import { getDefaultSender, getSenderByEmailAnyTenant } from '../repos/senders.js';
 import { insertEmail } from '../repos/emails.js';
 import { dispatchEmail } from '../send/dispatch.js';
 
@@ -12,6 +12,11 @@ const AcceptBody = z.object({ token: z.string().min(10), password: z.string().mi
 const ForgotBody = z.object({ email: z.string().email() });
 
 const RESET_TTL_MINUTES = 60;
+
+// Platform sender for password-reset mail. Must exist as a configured sender on
+// some tenant; lives in env rather than Config so this stays independent of
+// per-tenant setup. Override with SYSTEM_SENDER_EMAIL.
+const SYSTEM_SENDER_EMAIL = process.env.SYSTEM_SENDER_EMAIL?.trim() || 'liam@aiployee.co.za';
 
 // Per-address throttle so the endpoint can't be used to spam someone's inbox.
 // In-memory (per serverless instance) — a coarse net, not a security boundary;
@@ -79,33 +84,36 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       const last = lastResetSentAt.get(email);
       if (last && Date.now() - last < RESET_THROTTLE_MS) return reply.send({ ok: true });
 
-      // Reset mail goes out through the tenant's own default sender, so pick the
-      // highest-privilege row that actually has one. A super_admin row (tenant_id
-      // NULL) has no sender and cannot be reset this way — use the createAdmin script.
       const rows = await findUsersByEmail(app.pool, email);
-      for (const row of rows) {
-        if (!row.tenant_id) continue;
-        const sender = await getDefaultSender(app.pool, row.tenant_id);
-        if (!sender) continue;
+      const target = rows[0];
+      if (!target) return reply.send({ ok: true });
 
-        const token = await issuePasswordReset(app.pool, row.id, RESET_TTL_MINUTES);
-        if (!token) continue;
-
-        lastResetSentAt.set(email, Date.now());
-        const url = `${app.cfg.publicBaseUrl}/accept-invite?token=${token}`;
-        const record = await insertEmail(app.pool, {
-          tenantId: row.tenant_id, senderId: sender.id, toAddr: email,
-          subject: 'Reset your Aiployee password',
-          bodyHtml: resetEmailHtml(url),
-          bodyText: `Reset your Aiployee password: ${url}\n\nThis link expires in ${RESET_TTL_MINUTES} minutes and can be used once.`,
-          status: 'queued',
-        });
-        const outcome = await dispatchEmail({
-          pool: app.pool, encKey: app.cfg.encKey, email: record, baseUrl: app.cfg.publicBaseUrl,
-        });
-        if (!outcome.ok) req.log?.error?.({ err: outcome.error }, 'password reset email failed to send');
-        break;
+      // Reset mail goes out through the platform sender, not the tenant's, so the
+      // flow also works for super_admin accounts (tenant_id NULL, no tenant sender
+      // of their own). Fall back to the tenant default only if that isn't set up.
+      const sender = (await getSenderByEmailAnyTenant(app.pool, SYSTEM_SENDER_EMAIL))
+        ?? (target.tenant_id ? await getDefaultSender(app.pool, target.tenant_id) : null);
+      if (!sender) {
+        req.log?.error?.({ systemSender: SYSTEM_SENDER_EMAIL }, 'no sender available to send password reset');
+        return reply.send({ ok: true });
       }
+
+      const token = await issuePasswordReset(app.pool, target.id, RESET_TTL_MINUTES);
+      if (!token) return reply.send({ ok: true });
+
+      lastResetSentAt.set(email, Date.now());
+      const url = `${app.cfg.publicBaseUrl}/accept-invite?token=${token}`;
+      const record = await insertEmail(app.pool, {
+        tenantId: sender.tenant_id, senderId: sender.id, toAddr: email,
+        subject: 'Reset your Aiployee password',
+        bodyHtml: resetEmailHtml(url),
+        bodyText: `Reset your Aiployee password: ${url}\n\nThis link expires in ${RESET_TTL_MINUTES} minutes and can be used once.`,
+        status: 'queued',
+      });
+      const outcome = await dispatchEmail({
+        pool: app.pool, encKey: app.cfg.encKey, email: record, baseUrl: app.cfg.publicBaseUrl,
+      });
+      if (!outcome.ok) req.log?.error?.({ err: outcome.error }, 'password reset email failed to send');
       return reply.send({ ok: true });
     } catch (e) {
       // Malformed body still gets the generic answer; anything else is ours to log.
