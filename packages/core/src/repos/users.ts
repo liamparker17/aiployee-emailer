@@ -21,6 +21,21 @@ export async function createInvitedUser(pool: pg.Pool, input: {
   return { user: r.rows[0], inviteToken: token };
 }
 
+/**
+ * Issue a fresh password-reset token for an existing user. Reuses the invite
+ * token columns and the /auth/invite/accept endpoint, so a reset link is just
+ * an invite link for an account that already exists. Returns null if no such user.
+ */
+export async function issuePasswordReset(pool: pg.Pool, userId: string, ttlMinutes = 60): Promise<string | null> {
+  const token = randomBytes(24).toString('base64url');
+  const r = await pool.query(
+    `UPDATE users SET invite_token = $2, invite_expires_at = now() + ($3 || ' minutes')::interval
+     WHERE id = $1`,
+    [userId, token, String(ttlMinutes)],
+  );
+  return r.rowCount === 1 ? token : null;
+}
+
 export async function listUsersForTenant(pool: pg.Pool, tenantId: string): Promise<User[]> {
   const r = await pool.query<User>(
     `SELECT id, tenant_id, email, role FROM users WHERE tenant_id = $1 ORDER BY email`, [tenantId]);

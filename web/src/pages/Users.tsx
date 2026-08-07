@@ -17,7 +17,7 @@ export default function Users() {
   const { user } = useAuth();
   const [items, setItems] = useState<U[]>([]);
   const [open, setOpen] = useState(false);
-  const [invite, setInvite] = useState<{ url: string } | null>(null);
+  const [invite, setInvite] = useState<{ url: string; title: string; note: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
@@ -37,6 +37,16 @@ export default function Users() {
       refresh();
     } catch (e: unknown) {
       toast.error('Delete failed: ' + (e as Error).message);
+    }
+  }
+
+  async function resetPassword(u: U) {
+    if (!confirm(`Reset the password for ${u.email}? Their current password stops working once they use the link.`)) return;
+    try {
+      const r = await api<{ reset: { url: string } }>(`/api/users/${u.id}/reset-password`, { method: 'POST' });
+      setInvite({ url: r.reset.url, title: 'Password reset link', note: `Send this to ${u.email}. It expires in 1 hour and can be used once to set a new password.` });
+    } catch (e: unknown) {
+      toast.error('Reset failed: ' + (e as Error).message);
     }
   }
 
@@ -62,7 +72,10 @@ export default function Users() {
             <tr key={u.id}>
               <Td>{u.email}</Td><Td>{u.role}</Td>
               <Td>
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
+                  {canDelete && (
+                    <Button variant="ghost" onClick={() => resetPassword(u)}>Reset password</Button>
+                  )}
                   {canDelete && u.id !== user?.id && (
                     <Button variant="danger" onClick={() => del(u)}>Delete</Button>
                   )}
@@ -76,13 +89,16 @@ export default function Users() {
       <InviteModal
         open={open}
         onClose={() => { setOpen(false); refresh(); }}
-        onInvited={i => { setInvite(i); setOpen(false); refresh(); toast.success('Invite link created'); }}
+        onInvited={i => {
+          setInvite({ url: i.url, title: 'Invite link', note: 'Share this link with the new user. It will expire.' });
+          setOpen(false); refresh(); toast.success('Invite link created');
+        }}
         onError={() => toast.error('Failed to create invite')}
       />
 
-      <Modal open={!!invite} onClose={() => setInvite(null)} title="Invite link">
+      <Modal open={!!invite} onClose={() => setInvite(null)} title={invite?.title ?? ''}>
         <div className="space-y-3">
-          <p className="text-sm text-ink-muted">Share this link with the new user. It will expire.</p>
+          <p className="text-sm text-ink-muted">{invite?.note}</p>
           <pre className="bg-surface-raised rounded-md p-3 text-xs break-all text-ink border border-line">{invite?.url}</pre>
           <div className="flex justify-end"><Button onClick={() => setInvite(null)}>Done</Button></div>
         </div>

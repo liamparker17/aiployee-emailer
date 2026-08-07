@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireTenantCtx } from '@aiployee/core';
 import { sendError, AppError } from '@aiployee/core';
-import { listUsersForTenant, createInvitedUser, getUserById, countTenantAdmins, deleteUser } from '@aiployee/core';
+import { listUsersForTenant, createInvitedUser, getUserById, countTenantAdmins, deleteUser, issuePasswordReset } from '@aiployee/core';
 
 const InviteBody = z.object({ email: z.string().email(), role: z.enum(['tenant_admin','tenant_user']).default('tenant_user') });
 
@@ -20,6 +20,20 @@ export async function registerUserRoutes(app: FastifyInstance) {
         user: r.user,
         invite: { token: r.inviteToken, url: `${app.cfg.publicBaseUrl}/accept-invite?token=${r.inviteToken}` },
       });
+    } catch (e) { sendError(reply, e); }
+  });
+  app.post('/api/users/:id/reset-password', async (req, reply) => {
+    try {
+      const ctx = requireTenantCtx(req);
+      if (ctx.role !== 'tenant_admin' && ctx.role !== 'super_admin') {
+        throw new AppError('forbidden', 403, 'Admin role required to reset passwords');
+      }
+      const { id } = req.params as { id: string };
+      const target = await getUserById(app.pool, id);
+      if (!target || target.tenant_id !== ctx.tenantId) throw new AppError('not_found', 404, 'User not found');
+      const token = await issuePasswordReset(app.pool, id);
+      if (!token) throw new AppError('not_found', 404, 'User not found');
+      return reply.send({ reset: { token, url: `${app.cfg.publicBaseUrl}/accept-invite?token=${token}` } });
     } catch (e) { sendError(reply, e); }
   });
   app.delete('/api/users/:id', async (req, reply) => {
