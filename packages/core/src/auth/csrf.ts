@@ -26,6 +26,9 @@ export function registerCsrf(app: FastifyInstance) {
     // an ambient session cookie — so CSRF double-submit adds no protection and would break
     // it when the emailed link is opened directly (the aip_csrf cookie isn't set yet).
     if (req.url.split('?')[0] === '/auth/invite/accept') return;
+    // Emailed M365 connect page: same reasoning. The token in the POST body is the credential;
+    // there is no session cookie for a cross-site request to ride on.
+    if (req.url.split('?')[0].startsWith('/api/public/m365-connect/')) return;
     // Blob client-upload token endpoint: the @vercel/blob client posts here directly (not via
     // our api() helper, so no CSRF header) and the upload-completed callback arrives from
     // Vercel's servers. Auth is enforced inside the route's onBeforeGenerateToken instead.

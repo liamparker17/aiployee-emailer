@@ -55,3 +55,6 @@ export * from './receive/msOauth.js';
 export * from './connect/m365.js';
 // Graph send connect: authorize Mail.Send via Graph + create/upgrade sender.
 export * from './connect/graphSend.js';
+// Emailed M365 connection links (device-code flow driven from a public /connect/<token> page).
+export * from './connect/emailedConnect.js';
+export * from './repos/connectInvites.js';

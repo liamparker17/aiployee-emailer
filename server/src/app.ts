@@ -15,6 +15,7 @@ import { registerAdminTenantRoutes } from '@aiployee/core';
 import { registerSmtpConfigRoutes } from './routes/smtpConfigs.js';
 import { registerImapConfigRoutes } from './routes/imapConfigs.js';
 import { registerM365ConnectRoutes } from './routes/m365Connect.js';
+import { registerConnectInviteRoutes, type ConnectRouteOpts } from './routes/connectInvites.js';
 import { registerSenderRoutes } from './routes/senders.js';
 import { registerTemplateRoutes } from './routes/templates.js';
 import { registerApiKeyRoutes } from '@aiployee/core';
@@ -55,14 +56,22 @@ export interface AppDeps {
   cfg?: Config; agentLlmFactory?: LlmFactory; agentWebhookSender?: WebhookSender;
   agentMcpProviderFactory?: McpProviderFactory;
   agentEmbedFactory?: (apiKey: string) => BatchEmbed;
+  /** Test seam: stub Microsoft/Graph HTTP for the emailed-connect routes. */
+  connect?: ConnectRouteOpts;
 }
+
+// Secrets must never reach logs (connect tokens, device codes, OAuth tokens, credentials).
+export const LOG_REDACT = [
+  'req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]',
+  '*.token', '*.deviceCode', '*.device_code', '*.refreshToken', '*.refresh_token', '*.accessToken', '*.access_token',
+];
 
 export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   const cfg = deps.cfg ?? loadConfig();
   const app = Fastify({
     logger: cfg.env === 'production'
-      ? { level: cfg.logLevel }
-      : { level: cfg.logLevel, transport: { target: 'pino-pretty', options: { colorize: true } } },
+      ? { level: cfg.logLevel, redact: LOG_REDACT }
+      : { level: cfg.logLevel, redact: LOG_REDACT, transport: { target: 'pino-pretty', options: { colorize: true } } },
     // Default is 1 MB; raise it so campaign/email requests can carry base64 file
     // attachments (PDFs). Vercel's ~4.5 MB platform request-body cap is the real
     // ceiling; this is set above it so self-hosted runs aren't the bottleneck.
@@ -88,6 +97,7 @@ export async function buildApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   await registerSmtpConfigRoutes(app);
   await registerImapConfigRoutes(app);
   await registerM365ConnectRoutes(app);
+  await registerConnectInviteRoutes(app, deps.connect);
   await registerSenderRoutes(app);
   await registerTemplateRoutes(app);
   await registerApiKeyRoutes(app);

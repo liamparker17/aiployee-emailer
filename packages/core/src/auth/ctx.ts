@@ -44,6 +44,9 @@ export function registerCtx(app: FastifyInstance) {
       return;
     }
 
+    // Public emailed-connect endpoints: authorised solely by the single-use token in the POST body.
+    if (req.url.split('?')[0].startsWith('/api/public/m365-connect/')) return;
+
     if (req.url.startsWith('/api/') || req.url.startsWith('/auth/')) {
       const sess = req.session;
       if (!sess?.userId) {
