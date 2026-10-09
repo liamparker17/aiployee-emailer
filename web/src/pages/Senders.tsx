@@ -10,6 +10,7 @@ import { EmptyState } from '@aiployee/ui';
 import { Skeleton } from '@aiployee/ui';
 import { useToast } from '@aiployee/ui';
 import { useAuth } from '@aiployee/ui';
+import ConnectLinkModal from '../components/ConnectLinkModal';
 
 interface Sender { id: string; email: string; display_name: string; reply_to: string | null; smtp_config_id: string; is_default: boolean }
 interface Cfg { id: string; name: string; from_domain: string }
@@ -22,6 +23,7 @@ export default function Senders() {
   const [open, setOpen] = useState(false);
   const [connectFor, setConnectFor] = useState<{ email: string; senderId: string | null } | null>(null);
   const [graphSendOpen, setGraphSendOpen] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
   const refresh = () => Promise.all([
@@ -43,6 +45,7 @@ export default function Senders() {
         subtitle="Verified sender addresses used to send emails."
         actions={
           <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setLinkOpen(true)}>Email a connection link</Button>
             <Button variant="ghost" onClick={() => setGraphSendOpen(true)}>Enable M365 sending (Graph)</Button>
             <Button onClick={() => setOpen(true)}>Add sender</Button>
           </div>
@@ -133,6 +136,7 @@ export default function Senders() {
       <AddModal open={open} onClose={() => { setOpen(false); refresh(); }} configs={configs} />
       <ConnectMailboxModal target={connectFor} onClose={() => { setConnectFor(null); refresh(); }} />
       <GraphSendModal open={graphSendOpen} onClose={() => { setGraphSendOpen(false); refresh(); }} />
+      <ConnectLinkModal open={linkOpen} onClose={() => { setLinkOpen(false); refresh(); }} />
     </div>
   );
 }

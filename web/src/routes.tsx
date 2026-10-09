@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from '@aiployee/ui';
 import AppShell from './components/AppShell';
 import Login from './pages/Login';
 import AcceptInvite from './pages/AcceptInvite';
+import ConnectMailbox from './pages/ConnectMailbox';
 import Dashboard from './pages/Dashboard';
 import Senders from './pages/Senders';
 import Templates from './pages/Templates';
@@ -58,6 +59,8 @@ function LegacyRedirect() {
 export const router = createBrowserRouter([
   { path: '/login', element: <AuthProvider><Login /></AuthProvider> },
   { path: '/accept-invite', element: <AuthProvider><AcceptInvite /></AuthProvider> },
+  // Public: opened from an emailed link by someone who has no Emailer account.
+  { path: '/connect/:token', element: <ConnectMailbox /> },
 
   { path: '/', element: <AuthProvider><Authed><TenantPicker /></Authed></AuthProvider> },
   { path: '/onboarding', element: <AuthProvider><Authed><Onboarding /></Authed></AuthProvider> },
