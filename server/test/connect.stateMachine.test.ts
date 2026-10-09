@@ -48,7 +48,7 @@ function mkRow(over: Partial<InviteRow> = {}): InviteRow {
     expires_at: new Date(clock.getTime() + INVITE_TTL_MS), used_at: null,
     created_by_user_id: 'u1', created_by_email: 'liam@aiployee.co.za',
     device_code_enc: null, user_code: null, verification_uri: null, device_expires_at: null, poll_interval: 5, next_poll_at: null,
-    restarts: 0, start_count: 0, mismatch_count: 0, failure_reason: null, sender_id: null, connected_at: null, created_at: clock,
+    restarts: 0, start_count: 0, mismatch_count: 0, transient_fails: 0, failure_reason: null, sender_id: null, connected_at: null, created_at: clock,
     ...over,
   };
 }
@@ -205,9 +205,51 @@ describe('device-code state machine (mocked Microsoft)', () => {
     expect(rows[0].used_at).not.toBeNull();
     expect(notices).toEqual([{ kind: 'connected', signedInAs: MAILBOX }]);
   });
-  it('/me match is case-insensitive and accepts mail or UPN', async () => {
+  it('/me match is on the UPN, case-insensitive', async () => {
     ms.me.body = { mail: null, userPrincipalName: 'OverFlow@First4U.co.za' };
     await startConnect(deps(), token); advance(5); ms.tokenReplies.push(OK_TOKENS);
+    expect((await connectStatus(deps(), token)).state).toBe('connected');
+  });
+  it('nOAuth probe: mail == mailbox but a foreign UPN is refused and nothing is stored', async () => {
+    ms.me.body = { mail: MAILBOX, userPrincipalName: 'attacker@evil.onmicrosoft.com' };
+    await startConnect(deps(), token); advance(5); ms.tokenReplies.push(OK_TOKENS);
+    expect((await connectStatus(deps(), token)).state).toBe('mismatch');
+    expect(created).toHaveLength(0);
+    expect(rows[0].used_at).toBeNull();
+    expect(notices[0]).toMatchObject({ kind: 'failed', reason: 'mismatch' });
+  });
+  it('nOAuth probe also fails for a shared invite unless the self-send test passes', async () => {
+    rows[0].allow_shared = true; ms.sendMailStatus = 403;
+    ms.me.body = { mail: MAILBOX, userPrincipalName: 'attacker@evil.onmicrosoft.com' };
+    await startConnect(deps(), token); advance(5); ms.tokenReplies.push(OK_TOKENS);
+    expect((await connectStatus(deps(), token)).state).toBe('mismatch');
+    expect(created).toHaveLength(0);
+  });
+  it('mail-only /me (no UPN) never counts', async () => {
+    ms.me.body = { mail: MAILBOX, userPrincipalName: null };
+    await startConnect(deps(), token); advance(5); ms.tokenReplies.push(OK_TOKENS);
+    expect((await connectStatus(deps(), token)).state).toBe('mismatch');
+  });
+  it('re-checks the invite right before creating the sender (revoked mid-flow)', async () => {
+    await startConnect(deps(), token); advance(5); ms.tokenReplies.push(OK_TOKENS);
+    const d = deps();
+    const realGet = d.store.getById.bind(d.store);
+    d.store.getById = async (id) => { const r = await realGet(id); if (r) r.status = 'revoked'; return r; };
+    expect((await connectStatus(d, token)).state).toBe('invalid');
+    expect(created).toHaveLength(0);
+  });
+  it('transient Microsoft errors back off and keep the link alive', async () => {
+    await startConnect(deps(), token);
+    advance(5); ms.tokenReplies.push({ error: 'temporarily_unavailable' });
+    expect((await connectStatus(deps(), token)).state).toBe('waiting');
+    expect(rows[0].status).toBe('pending');
+    expect(rows[0].transient_fails).toBe(1);
+    const t1 = rows[0].next_poll_at!.getTime() - clock.getTime();
+    expect(t1).toBe(10_000); // 5s * 2^1
+    advance(11); ms.tokenReplies.push({ error: 'server_error' });
+    await connectStatus(deps(), token);
+    expect(rows[0].next_poll_at!.getTime() - clock.getTime()).toBe(20_000); // 5s * 2^2
+    advance(21); ms.tokenReplies.push(OK_TOKENS);
     expect((await connectStatus(deps(), token)).state).toBe('connected');
   });
 });

@@ -28,9 +28,7 @@ export async function resolveSmtpCreds(
       refreshToken: cfg.refreshToken,
       clientId: cfg.oauth_client_id ?? DEFAULT_MS_GRAPH_CLIENT_ID,
       tenant: cfg.oauth_tenant ?? DEFAULT_MS_TENANT,
-      // '' = omit `scope`: Microsoft then returns an access token for everything the refresh token was
-      // granted (Mail.Send, plus Mail.Send.Shared for mailboxes connected as shared/delegate).
-      scope: '',
+      scope: cfg.oauth_scope || GRAPH_SEND_SCOPE,
     });
     if (tokens.refreshToken && tokens.refreshToken !== cfg.refreshToken) {
       await updateSmtpRefreshToken(pool, encKey, cfg.id, tokens.refreshToken);

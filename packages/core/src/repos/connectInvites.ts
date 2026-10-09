@@ -3,7 +3,7 @@ import type { InviteRow, InvitePatch, InviteStore } from '../connect/emailedConn
 
 const COLS = `id, tenant_id, mailbox, recipient_email, display_name, allow_shared, token_hash, status, expires_at, used_at,
   created_by_user_id, created_by_email, device_code_enc, user_code, verification_uri, device_expires_at, poll_interval,
-  next_poll_at, restarts, start_count, mismatch_count, failure_reason, sender_id, connected_at, created_at`;
+  next_poll_at, restarts, start_count, mismatch_count, transient_fails, failure_reason, sender_id, connected_at, created_at`;
 
 export async function insertConnectInvite(pool: pg.Pool, i: {
   tenantId: string; mailbox: string; recipientEmail: string; displayName: string; allowShared: boolean;
@@ -29,6 +29,14 @@ export async function revokeConnectInvite(pool: pg.Pool, tenantId: string, id: s
     `UPDATE m365_connect_invites SET status='revoked', device_code_enc=NULL, user_code=NULL, updated_at=now()
      WHERE id=$1 AND tenant_id=$2 AND status='pending' AND used_at IS NULL`, [id, tenantId]);
   return (r.rowCount ?? 0) > 0;
+}
+
+export const INVITES_PER_TENANT_PER_DAY = 10;
+
+export async function countRecentConnectInvites(pool: pg.Pool, tenantId: string, since: Date): Promise<number> {
+  const r = await pool.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM m365_connect_invites WHERE tenant_id = $1 AND created_at > $2`, [tenantId, since]);
+  return r.rows[0].n;
 }
 
 export async function deleteConnectInvite(pool: pg.Pool, id: string): Promise<void> {

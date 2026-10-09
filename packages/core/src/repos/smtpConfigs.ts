@@ -5,6 +5,8 @@ export interface SmtpConfigRow {
   id: string; tenant_id: string; name: string; host: string; port: number;
   secure: boolean; username: string; from_domain: string; is_default: boolean; created_at: Date;
   auth_type: 'password' | 'xoauth2' | 'graph'; oauth_client_id: string | null; oauth_tenant: string | null;
+  /** Refresh scope override (shared-mailbox connects only). NULL = default scope. */
+  oauth_scope?: string | null;
 }
 
 const SELECT_COLS =
@@ -77,7 +79,7 @@ export async function getSmtpConfigWithPassword(
   pool: pg.Pool, key: Buffer, tenantId: string, id: string,
 ): Promise<(SmtpConfigRow & { password: string | null; refreshToken: string | null }) | null> {
   const r = await pool.query<SmtpConfigRow & { password_encrypted: Buffer | null; oauth_refresh_token_encrypted: Buffer | null }>(
-    `SELECT ${SELECT_COLS}, password_encrypted, oauth_refresh_token_encrypted
+    `SELECT ${SELECT_COLS}, oauth_scope, password_encrypted, oauth_refresh_token_encrypted
      FROM smtp_configs WHERE tenant_id = $1 AND id = $2`, [tenantId, id]);
   const row = r.rows[0];
   if (!row) return null;

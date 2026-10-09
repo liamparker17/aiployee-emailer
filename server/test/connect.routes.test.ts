@@ -3,7 +3,7 @@ import smtpTester from 'smtp-tester';
 import { buildApp } from '../src/app.js';
 import {
   loadConfig, createSmtpConfig, createSender, insertApiKey, generateApiKey, hashApiKey, prefixOf,
-  getSmtpConfigWithPassword, getSenderByEmail,
+  getSmtpConfigWithPassword, getSenderByEmail, createGraphSender, resolveSmtpCreds, GRAPH_SEND_SCOPE,
 } from '@aiployee/core';
 import { makePool, truncateAll } from './helpers/db.js';
 import { createTenant, createUser } from './helpers/factories.js';
@@ -77,7 +77,13 @@ async function world() {
   const headers = await login(app, { email: admin.email, password: 'pw-admin-123' }, csrf);
   const faKey = generateApiKey();
   await insertApiKey(pool, { tenantId: fa.id, name: 'voice', keyHash: hashApiKey(faKey), keyPrefix: prefixOf(faKey) });
-  return { platform, fa, admin, headers, faKey };
+  // Invites can only be created by a platform super_admin (tenant chosen in the body).
+  await createUser(pool, { tenantId: null, email: 'root@aiployee.co.za', password: 'pw-root-12345', role: 'super_admin' });
+  const sa = await login(app, { email: 'root@aiployee.co.za', password: 'pw-root-12345' }, await csrfFor(app));
+  const invite = (payload: Record<string, unknown>) => app.inject({
+    method: 'POST', url: '/api/m365/connect-invites', headers: sa, payload: { tenantId: fa.id, ...payload },
+  });
+  return { platform, fa, admin, headers, sa, faKey, invite };
 }
 const tokenFrom = (url: string) => url.split('/connect/')[1];
 const waitMail = async (pred: (m: { to: string; text: string }) => boolean) => {
@@ -90,8 +96,7 @@ const pub = (kind: 'start' | 'status', token: string) =>
 describe('emailed connect: end to end', () => {
   it('invite -> email -> device code -> connected -> FA key sends from the connected mailbox via Graph', async () => {
     const w = await world();
-    const create = await app.inject({ method: 'POST', url: '/api/m365/connect-invites', headers: w.headers,
-      payload: { mailbox: MAILBOX, recipientEmail: MAILBOX, displayName: 'First Assist Overflow', allowShared: true } });
+    const create = await w.invite({ mailbox: MAILBOX, recipientEmail: MAILBOX, displayName: 'First Assist Overflow', allowShared: true });
     expect(create.statusCode).toBe(201);
     const { connectUrl, emailSent, invite } = create.json() as { connectUrl: string; emailSent: boolean; invite: { id: string; tenantId: string } };
     expect(emailSent).toBe(true);
@@ -140,7 +145,7 @@ describe('emailed connect: end to end', () => {
     expect(after.rows[0].sender_id).toBe(sender!.id);
 
     // admin is notified
-    await waitMail(m => m.to === 'admin@first4u.co.za' && m.text.includes('is now connected'));
+    await waitMail(m => m.to === 'root@aiployee.co.za' && m.text.includes('is now connected'));
 
     // The First Assist key (same Emailer tenant) can send with from = connected mailbox,
     // passes the invalid_sender check and goes out through the Graph path.
@@ -151,7 +156,8 @@ describe('emailed connect: end to end', () => {
     expect((send.json() as { status: string }).status).toBe('sent');
     const refresh = calls.find(c => c.url.endsWith('/token'))!;
     expect(refresh.init!.body).toContain('grant_type=refresh_token');
-    expect(refresh.init!.body).not.toContain('scope='); // original grant (incl. Mail.Send.Shared) is preserved
+    // shared invite => this config alone refreshes with its own stored scope
+    expect(decodeURIComponent(refresh.init!.body!)).toContain('scope=https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.Send.Shared offline_access');
     const graph = calls.find(c => c.url.includes('/sendMail'))!;
     expect(graph.url).toBe(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(MAILBOX)}/sendMail`);
     expect(graph.init!.headers!.Authorization).toBe(`Bearer ${ACCESS}`);
@@ -167,7 +173,7 @@ describe('emailed connect: end to end', () => {
 
   it('mismatch via the route stores no sender and emails the admin', async () => {
     const w = await world();
-    const c = await app.inject({ method: 'POST', url: '/api/m365/connect-invites', headers: w.headers, payload: { mailbox: MAILBOX, recipientEmail: MAILBOX } });
+    const c = await w.invite({ mailbox: MAILBOX, recipientEmail: MAILBOX });
     const token = tokenFrom((c.json() as { connectUrl: string }).connectUrl);
     me = { mail: 'stranger@first4u.co.za', userPrincipalName: 'stranger@first4u.co.za' };
     await pub('start', token);
@@ -176,19 +182,19 @@ describe('emailed connect: end to end', () => {
     expect((await pub('status', token)).json()).toMatchObject({ state: 'mismatch' });
     expect(await getSenderByEmail(pool, w.fa.id, MAILBOX)).toBeNull();
     expect((await pool.query('SELECT count(*)::int AS n FROM smtp_configs WHERE tenant_id=$1', [w.fa.id])).rows[0].n).toBe(0);
-    await waitMail(m => m.to === 'admin@first4u.co.za' && m.text.includes('Connection problem'));
+    await waitMail(m => m.to === 'root@aiployee.co.za' && m.text.includes('Connection problem'));
   });
 });
 
 describe('emailed connect: authorisation and abuse limits', () => {
-  it('tenant admin cannot invite into another tenant; super admin can; users cannot', async () => {
+  it('only super_admin can create invites (tenant admins and users cannot, even for their own tenant)', async () => {
     const w = await world();
     const other = await createTenant(pool, 'Other');
     const r1 = await app.inject({ method: 'POST', url: '/api/m365/connect-invites', headers: w.headers, payload: { mailbox: MAILBOX, recipientEmail: MAILBOX, tenantId: other.id } });
     expect(r1.statusCode).toBe(403);
-    await createUser(pool, { tenantId: null, email: 'root@aiployee.co.za', password: 'pw-root-12345', role: 'super_admin' });
-    const sh = await login(app, { email: 'root@aiployee.co.za', password: 'pw-root-12345' }, await csrfFor(app));
-    const r2 = await app.inject({ method: 'POST', url: '/api/m365/connect-invites', headers: sh, payload: { mailbox: MAILBOX, recipientEmail: MAILBOX, tenantId: w.fa.id } });
+    const r1b = await app.inject({ method: 'POST', url: '/api/m365/connect-invites', headers: w.headers, payload: { mailbox: MAILBOX, recipientEmail: MAILBOX } });
+    expect(r1b.statusCode).toBe(403);
+    const r2 = await w.invite({ mailbox: MAILBOX, recipientEmail: MAILBOX });
     expect(r2.statusCode).toBe(201);
     expect((r2.json() as { invite: { tenantId: string } }).invite.tenantId).toBe(w.fa.id);
     await createUser(pool, { tenantId: w.fa.id, email: 'u@first4u.co.za', password: 'pw-user-12345', role: 'tenant_user' });
@@ -212,7 +218,7 @@ describe('emailed connect: authorisation and abuse limits', () => {
 
   it('revoked invites stop working', async () => {
     const w = await world();
-    const c = await app.inject({ method: 'POST', url: '/api/m365/connect-invites', headers: w.headers, payload: { mailbox: MAILBOX, recipientEmail: MAILBOX } });
+    const c = await w.invite({ mailbox: MAILBOX, recipientEmail: MAILBOX });
     const { invite, connectUrl } = c.json() as { invite: { id: string }; connectUrl: string };
     const rv = await app.inject({ method: 'POST', url: `/api/m365/connect-invites/${invite.id}/revoke`, headers: w.headers });
     expect(rv.statusCode).toBe(200);
@@ -220,5 +226,60 @@ describe('emailed connect: authorisation and abuse limits', () => {
     const list = await app.inject({ method: 'GET', url: '/api/m365/connect-invites', headers: w.headers });
     expect(JSON.stringify(list.json())).not.toContain(tokenFrom(connectUrl));
     expect(JSON.stringify(list.json())).not.toContain('token_hash');
+  });
+
+  it('caps invites per tenant per 24h', async () => {
+    const w = await world();
+    for (let i = 0; i < 10; i++) expect((await w.invite({ mailbox: `m${i}@first4u.co.za`, recipientEmail: 'x@first4u.co.za' })).statusCode).toBe(201);
+    const over = await w.invite({ mailbox: 'm11@first4u.co.za', recipientEmail: 'x@first4u.co.za' });
+    expect(over.statusCode).toBe(429);
+    expect((over.json() as { error: { code: string } }).error.code).toBe('invite_limit');
+    const other = await createTenant(pool, 'Other2'); // cap is per tenant
+    const ok = await app.inject({ method: 'POST', url: '/api/m365/connect-invites', headers: w.sa, payload: { mailbox: 'a@o.co.za', recipientEmail: 'a@o.co.za', tenantId: other.id } });
+    expect(ok.statusCode).toBe(201);
+  });
+});
+
+describe('existing senders are unaffected', () => {
+  it('a mismatch never overwrites an existing sender for that mailbox', async () => {
+    const w = await world();
+    const old = await createGraphSender(pool, KEY, { tenantId: w.fa.id, username: MAILBOX, name: 'Old', fromDomain: 'first4u.co.za',
+      clientId: '14d82eec-204b-4c2f-b7e8-296a70dab67e', oauthTenant: 'common', refreshToken: 'RT-ORIGINAL' });
+    const c = await w.invite({ mailbox: MAILBOX, recipientEmail: MAILBOX });
+    const token = tokenFrom((c.json() as { connectUrl: string }).connectUrl);
+    me = { mail: MAILBOX, userPrincipalName: 'attacker@evil.onmicrosoft.com' }; // nOAuth probe
+    await pub('start', token);
+    clock = new Date(clock.getTime() + 6000);
+    tokenQueue.push({ access_token: ACCESS, refresh_token: 'RT-ATTACKER', expires_in: 3600 });
+    expect((await pub('status', token)).json()).toMatchObject({ state: 'mismatch' });
+    const cfgRow = await getSmtpConfigWithPassword(pool, KEY, w.fa.id, old.smtpConfig.id);
+    expect(cfgRow!.refreshToken).toBe('RT-ORIGINAL');
+  });
+
+  it('refresh requests for existing (non-shared) Graph senders are byte-identical to master', async () => {
+    const w = await world();
+    const g = await createGraphSender(pool, KEY, { tenantId: w.fa.id, username: 'old@first4u.co.za', name: 'Old', fromDomain: 'first4u.co.za',
+      clientId: '14d82eec-204b-4c2f-b7e8-296a70dab67e', oauthTenant: 'common', refreshToken: 'RT-old' });
+    const cfgRow = (await getSmtpConfigWithPassword(pool, KEY, w.fa.id, g.smtpConfig.id))!;
+    expect(cfgRow.oauth_scope ?? null).toBeNull();
+    calls = [];
+    await resolveSmtpCreds(pool, KEY, cfgRow);
+    const tok = calls.find(c => c.url.endsWith('/token'))!;
+    expect(tok.url).toBe('https://login.microsoftonline.com/common/oauth2/v2.0/token');
+    // exactly what master's refreshAccessToken posts (key order and encoding included)
+    expect(tok.init!.body).toBe(
+      `grant_type=refresh_token&client_id=14d82eec-204b-4c2f-b7e8-296a70dab67e&refresh_token=RT-old&scope=${encodeURIComponent(GRAPH_SEND_SCOPE)}`);
+  });
+
+  it('a non-shared connect leaves oauth_scope NULL', async () => {
+    const w = await world();
+    const c = await w.invite({ mailbox: MAILBOX, recipientEmail: MAILBOX });
+    const token = tokenFrom((c.json() as { connectUrl: string }).connectUrl);
+    await pub('start', token);
+    clock = new Date(clock.getTime() + 6000);
+    tokenQueue.push({ access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600 });
+    expect((await pub('status', token)).json()).toMatchObject({ state: 'connected' });
+    const r = await pool.query('SELECT oauth_scope FROM smtp_configs WHERE username=$1', [MAILBOX]);
+    expect(r.rows[0].oauth_scope).toBeNull();
   });
 });

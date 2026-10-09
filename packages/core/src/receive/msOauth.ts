@@ -124,7 +124,7 @@ export async function refreshAccessToken(opts: {
     grant_type: 'refresh_token',
     client_id: clientId,
     refresh_token: opts.refreshToken,
-    ...(scope ? { scope } : {}), // scope '' => omit, use the originally granted scopes
+    scope,
   });
   if (typeof body.access_token !== 'string') {
     throw new Error(`token refresh failed: ${String(body.error_description ?? body.error ?? 'unknown')}`);

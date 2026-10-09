@@ -32,6 +32,7 @@ exports.up = (pgm) => {
     restarts:           { type: 'int', notNull: true, default: 0 },
     start_count:        { type: 'int', notNull: true, default: 0 },
     mismatch_count:     { type: 'int', notNull: true, default: 0 },
+    transient_fails:    { type: 'int', notNull: true, default: 0 },
     failure_reason:     { type: 'text' },
     sender_id:          { type: 'uuid', references: 'senders(id)', onDelete: 'SET NULL' },
     connected_at:       { type: 'timestamptz' },
@@ -39,8 +40,13 @@ exports.up = (pgm) => {
     updated_at:         { type: 'timestamptz', notNull: true, default: pgm.func('now()') },
   });
   pgm.createIndex('m365_connect_invites', ['tenant_id', 'created_at']);
+
+  // Scope string to use when refreshing this config's token. NULL (every existing row) = the
+  // unchanged default (GRAPH_SEND_SCOPE). Only shared/delegate connects set it.
+  pgm.addColumns('smtp_configs', { oauth_scope: { type: 'text' } });
 };
 
 exports.down = (pgm) => {
+  pgm.dropColumns('smtp_configs', ['oauth_scope']);
   pgm.dropTable('m365_connect_invites');
 };

@@ -48,7 +48,7 @@ export interface InviteRow {
   created_by_user_id: string | null; created_by_email: string;
   device_code_enc: Buffer | null; user_code: string | null; verification_uri: string | null;
   device_expires_at: Date | null; poll_interval: number; next_poll_at: Date | null;
-  restarts: number; start_count: number; mismatch_count: number;
+  restarts: number; start_count: number; mismatch_count: number; transient_fails: number;
   failure_reason: string | null; sender_id: string | null; connected_at: Date | null; created_at: Date;
 }
 export type InvitePatch = Partial<Omit<InviteRow, 'id' | 'tenant_id' | 'token_hash' | 'created_at'>>;
@@ -175,7 +175,7 @@ export async function startConnect(d: ConnectDeps, token: unknown): Promise<Publ
 
 type Poll =
   | { kind: 'ok'; accessToken: string; refreshToken: string | null }
-  | { kind: 'pending' } | { kind: 'slow_down' } | { kind: 'expired' } | { kind: 'declined' } | { kind: 'error' };
+  | { kind: 'pending' } | { kind: 'transient' } | { kind: 'slow_down' } | { kind: 'expired' } | { kind: 'declined' } | { kind: 'error' };
 
 async function pollMicrosoft(d: ConnectDeps, deviceCode: string): Promise<Poll> {
   const url = `https://login.microsoftonline.com/${encodeURIComponent(d.oauthTenant ?? DEFAULT_MS_TENANT)}/oauth2/v2.0/token`;
@@ -187,12 +187,13 @@ async function pollMicrosoft(d: ConnectDeps, deviceCode: string): Promise<Poll> 
   try {
     const res = await d.fetchImpl(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
     j = (await res.json()) as Record<string, unknown>;
-  } catch { return { kind: 'pending' }; } // transient network error: try again next tick
+  } catch { return { kind: 'transient' }; } // network error / non-JSON body: back off and retry
   if (typeof j.access_token === 'string') {
     return { kind: 'ok', accessToken: j.access_token, refreshToken: typeof j.refresh_token === 'string' ? j.refresh_token : null };
   }
   switch (String(j.error ?? '')) {
     case 'authorization_pending': return { kind: 'pending' };
+    case 'temporarily_unavailable': case 'server_error': case 'service_unavailable': return { kind: 'transient' };
     case 'slow_down': return { kind: 'slow_down' };
     case 'expired_token': return { kind: 'expired' };
     case 'authorization_declined': case 'access_denied': return { kind: 'declined' };
@@ -256,7 +257,16 @@ export async function connectStatus(d: ConnectDeps, token: unknown): Promise<Pub
   const p = await pollMicrosoft(d, deviceCode);
 
   switch (p.kind) {
-    case 'pending': return waitingView(inv);
+    case 'pending':
+      if (inv.transient_fails > 0) await d.store.update(inv.id, { transient_fails: 0 });
+      return waitingView(inv);
+    case 'transient': {
+      // Exponential backoff on the next poll only (interval itself is left alone), capped at 60s.
+      const fails = Math.min(inv.transient_fails + 1, 5);
+      const wait = Math.min(60, inv.poll_interval * 2 ** fails);
+      await d.store.update(inv.id, { transient_fails: fails, next_poll_at: new Date(now.getTime() + wait * 1000) });
+      return waitingView(inv);
+    }
     case 'slow_down': {
       const interval = inv.poll_interval + 5;
       const patch = { poll_interval: interval, next_poll_at: new Date(now.getTime() + interval * 1000) };
@@ -292,10 +302,10 @@ async function fail(d: ConnectDeps, inv: InviteRow, reason: 'declined' | 'error'
 async function complete(d: ConnectDeps, inv: InviteRow, accessToken: string, refreshToken: string | null): Promise<PublicView> {
   if (!refreshToken) return fail(d, inv, 'error');
   const me = await graphMe(d, accessToken);
-  const ids = [me?.mail, me?.upn].filter((x): x is string => !!x).map(x => x.trim().toLowerCase());
+  // UPN only. `mail` is an admin-editable directory attribute (nOAuth), so it never counts on its own.
   const want = inv.mailbox.trim().toLowerCase();
-  const signedInAs = me?.mail ?? me?.upn ?? undefined;
-  let accepted = ids.includes(want);
+  const signedInAs = me?.upn ?? me?.mail ?? undefined;
+  let accepted = !!me?.upn && me.upn.trim().toLowerCase() === want;
   // A different account (e.g. a delegate of a shared mailbox) is accepted only if invited as shared
   // AND a real sendMail as the mailbox succeeds.
   if (!accepted && inv.allow_shared) accepted = await testSendAs(d, accessToken, want);
@@ -313,6 +323,12 @@ async function complete(d: ConnectDeps, inv: InviteRow, accessToken: string, ref
       state: 'mismatch', mailbox: inv.mailbox,
       message: `You signed in with a different account than ${inv.mailbox}, so nothing was connected. Please start again and sign in as ${inv.mailbox}.`,
     };
+  }
+
+  // Re-check the invite right before writing anything: it may have been revoked or expired mid-flow.
+  const fresh = await d.store.getById(inv.id);
+  if (!fresh || fresh.status !== 'pending' || fresh.used_at || fresh.expires_at.getTime() <= nowOf(d).getTime()) {
+    return fresh?.used_at || fresh?.status === 'connected' ? { state: 'used' } : { state: 'invalid' };
   }
 
   let senderId: string;

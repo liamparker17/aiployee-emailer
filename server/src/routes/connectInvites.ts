@@ -4,14 +4,15 @@ import {
   requireTenantCtx, requireCtx, sendError, AppError,
   generateInviteToken, hashInviteToken, INVITE_TTL_MS, RateLimiter,
   startConnect, connectStatus, pgInviteStore,
-  insertConnectInvite, listConnectInvites, revokeConnectInvite, deleteConnectInvite,
+  countRecentConnectInvites, INVITES_PER_TENANT_PER_DAY, insertConnectInvite, listConnectInvites, revokeConnectInvite, deleteConnectInvite,
   createGraphSender, DEFAULT_MS_GRAPH_CLIENT_ID, DEFAULT_MS_TENANT,
   getSenderByEmailAnyTenant, getDefaultSender, insertEmail, dispatchEmail,
   type ConnectDeps, type FetchLike, type InviteRow, type ConnectNotice,
 } from '@aiployee/core';
 import { inviteEmail, adminNoticeEmail, type Mail } from '../connectInvite/mail.js';
 
-const SYSTEM_SENDER_EMAIL = () => process.env.SYSTEM_SENDER_EMAIL?.trim() || 'liam@aiployee.co.za';
+const REFRESH_SCOPE_SHARED = 'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.Send.Shared offline_access';
+const SYSTEM_SENDER_EMAIL =() => process.env.SYSTEM_SENDER_EMAIL?.trim() || 'liam@aiployee.co.za';
 
 const CreateBody = z.object({
   mailbox: z.string().trim().email(),
@@ -60,15 +61,18 @@ export async function registerConnectInviteRoutes(app: FastifyInstance, opts: Co
       const base = { tenantId: inv.tenant_id, username: inv.mailbox, fromDomain: inv.mailbox.split('@')[1] ?? '',
         displayName: inv.display_name, isDefault: false, clientId: DEFAULT_MS_GRAPH_CLIENT_ID,
         oauthTenant: DEFAULT_MS_TENANT, refreshToken };
+      let r;
       try {
-        const r = await createGraphSender(app.pool, app.cfg.encKey, { ...base, name: inv.display_name });
-        return { senderId: r.sender.id };
+        r = await createGraphSender(app.pool, app.cfg.encKey, { ...base, name: inv.display_name });
       } catch (e) {
         if ((e as { code?: string }).code !== '23505') throw e;
         // smtp_configs name already taken in this tenant: disambiguate with the address.
-        const r = await createGraphSender(app.pool, app.cfg.encKey, { ...base, name: `${inv.display_name} (${inv.mailbox})` });
-        return { senderId: r.sender.id };
+        r = await createGraphSender(app.pool, app.cfg.encKey, { ...base, name: `${inv.display_name} (${inv.mailbox})` });
       }
+      // Shared invites were granted Mail.Send.Shared, so refresh with that scope; everyone else keeps the default (NULL).
+      await app.pool.query('UPDATE smtp_configs SET oauth_scope = $2 WHERE id = $1',
+        [r.smtpConfig.id, inv.allow_shared ? REFRESH_SCOPE_SHARED : null]);
+      return { senderId: r.sender.id };
     },
     async notify(inv: InviteRow, n: ConnectNotice) {
       const mail = adminNoticeEmail(n.kind === 'connected'
@@ -82,12 +86,14 @@ export async function registerConnectInviteRoutes(app: FastifyInstance, opts: Co
   app.post('/api/m365/connect-invites', async (req, reply) => {
     try {
       const ctx = requireCtx(req);
-      if (ctx.role !== 'super_admin' && ctx.role !== 'tenant_admin') throw new AppError('forbidden', 403, 'Admin required');
+      // Invites make the platform sender mail arbitrary addresses: super_admin only for now.
+      if (ctx.role !== 'super_admin') throw new AppError('forbidden', 403, 'Platform admin required');
       const body = CreateBody.parse(req.body);
-      let tenantId = ctx.tenantId;
-      if (ctx.role === 'super_admin' && body.tenantId) tenantId = body.tenantId;
-      else if (ctx.role !== 'super_admin' && body.tenantId && body.tenantId !== ctx.tenantId) throw new AppError('forbidden', 403, 'Wrong tenant');
+      const tenantId = body.tenantId ?? ctx.tenantId;
       if (!tenantId) requireTenantCtx(req); // throws no_active_tenant
+      if (await countRecentConnectInvites(app.pool, tenantId, new Date(Date.now() - 24 * 3600 * 1000)) >= INVITES_PER_TENANT_PER_DAY) {
+        throw new AppError('invite_limit', 429, `Invite limit reached for this tenant (${INVITES_PER_TENANT_PER_DAY} per 24h).`);
+      }
       const t = await app.pool.query<{ name: string }>('SELECT name FROM tenants WHERE id = $1', [tenantId]);
       if (!t.rows[0]) throw new AppError('tenant_not_found', 404, 'Tenant not found');
       const u = ctx.userId
